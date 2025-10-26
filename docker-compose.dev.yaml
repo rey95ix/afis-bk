@@ -1,0 +1,13 @@
+services:   
+  db-facial:
+    image: postgres:16.10-alpine
+    container_name: ${DB_NAME}
+    restart: always
+    ports:
+      - ${DB_PORT}:5432
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_NAME}
+      TZ: 'America/El_Salvador'
+      PGTZ: 'America/El_Salvador'

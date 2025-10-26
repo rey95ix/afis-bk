@@ -1,0 +1,340 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model GeneralData {
+  id_general           Int     @id @default(autoincrement())
+  nombre_sistema       String
+  direccion            String?
+  razon                String?
+  nit                  String?
+  nrc                  String?
+  cod_actividad        String?
+  desc_actividad       String?
+  nombre_comercial     String?
+  contactos            String?
+  correo               String?
+  cod_estable_MH       String?
+  cod_estable          String?
+  cod_punto_venta_MH   String?
+  cod_punto_venta      String?
+  ambiente             String? @default("00") //00=pruebas, 01=produccion 
+  api_facturacion_dev  String? @default("https://apitest.dtes.mh.gob.sv/") //00=pruebas, 01=produccion
+  api_facturacion_prod String? @default("https://api.dtes.mh.gob.sv/") //00=pruebas, 01=produccion
+  public_key           String? @default("")
+  private_key          String? @default("")
+  token_api_fac        String? @default("")
+  version_email        String? @default("1")
+  token_email          String? @default("")
+  sender_email         String? @default("")
+  text_email           String? @default("Gracias por su preferencia!")
+  domain_email         String? @default("")
+  impuesto             Float?  @default(0.13)
+  icono_sistema        String? @default("") @db.Text
+  icono_factura        String? @default("") @db.Text
+  url_facebook         String? @default("")
+  perfil_facebook      String? @default("")
+  url_instagram        String? @default("")
+  perfil_instagram     String? @default("")
+  url_pagina_web       String? @default("")
+  url_correo_atencio   String? @default("")
+  url_maps             String? @default("")
+  whatsapp             String? @default("")
+  color_icono          String? @default("")
+}
+
+model usuarios {
+  id_usuario                     Int                             @id @default(autoincrement())
+  usuario                        String
+  password                       String
+  nombres                        String
+  apellidos                      String
+  id_sucursal                    Int?
+  dui                            String?
+  foto                           String?                         @db.Text()
+  estado                         estado                          @default(ACTIVO)
+  fecha_creacion                 DateTime                        @default(now()) @db.Timestamp()
+  id_rol                         Int
+  roles                          roles                           @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_rol")
+  id_tipo_documento              Int?
+  dTETipoDocumentoIdentificacion dTETipoDocumentoIdentificacion? @relation(fields: [id_tipo_documento], references: [id_tipo_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_tipo_documento")
+  log                            log[]
+}
+
+model departamentos {
+  id_departamento Int          @id @default(autoincrement())
+  nombre          String
+  codigo          String?
+  codigo_iso      String
+  estado          estado       @default(ACTIVO)
+  Municipios      municipios[]
+}
+
+model municipios {
+  id_municipio    Int           @id @default(autoincrement())
+  nombre          String
+  codigo          String?
+  estado          estado        @default(ACTIVO)
+  id_departamento Int           @default(0)
+  Departamento    departamentos @relation(fields: [id_departamento], references: [id_departamento], onDelete: NoAction, onUpdate: NoAction, map: "fk_municipio_departamento")
+  Sucursales      sucursales[]
+
+  @@index([id_departamento], name: "fk_municipio_departamento_id")
+}
+
+model sucursales {
+  id_sucursal             Int                     @id @default(autoincrement())
+  nombre                  String
+  color                   String?
+  complemento             String?
+  telefono                String?
+  correo                  String?
+  cod_estable_MH          String?                 @default("M001")
+  cod_estable             String?                 @default("M001")
+  cod_punto_venta_MH      String?                 @default("P001")
+  cod_punto_venta         String?                 @default("P001")
+  id_municipio            Int?
+  Municipio               municipios?             @relation(fields: [id_municipio], references: [id_municipio], onDelete: NoAction, onUpdate: NoAction, map: "fk_sucursal_municipio")
+  id_tipo_establecimiento Int?
+  DTETipoEstablecimiento  dTETipoEstablecimiento? @relation(fields: [id_tipo_establecimiento], references: [id_tipo_establecimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_sucursal_tipo_establecimiento")
+  icono_factura           String?                 @default("") @db.Text
+  estado                  estado                  @default(ACTIVO)
+  facturasBloques         facturasBloques[]
+}
+
+model log {
+  id             Int       @id @default(autoincrement())
+  accion         String
+  descripcion    String?
+  fecha_creacion DateTime  @default(now())
+  id_usuario     Int?
+  Usuarios       usuarios? @relation(fields: [id_usuario], references: [id_usuario])
+}
+
+enum estado {
+  ACTIVO
+  INACTIVO
+}
+
+model roles {
+  id_rol   Int        @id @default(autoincrement())
+  nombre   String
+  estado   estado     @default(ACTIVO)
+  usuarios usuarios[]
+}
+
+model facturasBloques {
+  id_bloque       Int           @id @default(autoincrement())
+  tira            String
+  autorizacion    String        @default("")
+  resolucion      String?       @default("")
+  desde           Int
+  hasta           Int
+  actual          Int
+  serie           String
+  fecha_creacion  DateTime      @default(now())
+  id_tipo_factura Int           @default(0)
+  Tipo            facturasTipos @relation(fields: [id_tipo_factura], references: [id_tipo_factura], onDelete: NoAction, onUpdate: NoAction, map: "fk_fatura_bloque_tipo")
+  id_sucursal     Int?
+  Sucursal        sucursales?   @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_fatura_bloque_sucursal")
+  estado          estado        @default(ACTIVO)
+
+  @@index([id_sucursal], name: "fk_fatura_bloque_sucursal_id")
+  @@index([id_tipo_factura], name: "fk_fatura_bloque_tipo_id")
+}
+
+model facturasTipos {
+  id_tipo_factura Int               @id @default(autoincrement())
+  nombre          String
+  codigo          String?
+  version         Int?
+  estado          estado            @default(ACTIVO)
+  activo          estado            @default(ACTIVO)
+  Bloques         facturasBloques[]
+}
+
+// catalogos de factura electronica
+
+model dTEActividadEconomica {
+  id_actividad Int    @id @default(autoincrement())
+  nombre       String
+  codigo       String
+  estado       estado @default(ACTIVO)
+  // Cliente      Cliente[]
+  // Proveedores  Proveedores[]
+}
+
+model dTETipoEstablecimiento {
+  id_tipo_establecimiento Int          @id @default(autoincrement())
+  nombre                  String
+  codigo                  String
+  estado                  estado       @default(ACTIVO)
+  Sucursales              sucursales[]
+}
+
+model dTETipoInvalidacion {
+  id_tipo_invalidacion Int    @id @default(autoincrement())
+  nombre               String
+  codigo               String
+  estado               estado @default(ACTIVO)
+}
+
+model dTETipoContingencia {
+  id_tipo_contingencia Int    @id @default(autoincrement())
+  nombre               String
+  estado               estado @default(ACTIVO)
+}
+
+model dTETipoDocumentoIdentificacion {
+  id_tipo_documento Int        @id @default(autoincrement())
+  nombre            String
+  codigo            String
+  estado            estado     @default(ACTIVO)
+  usuarios          usuarios[]
+  // Cliente           Cliente[]
+  // Proveedores       Proveedores[]
+}
+
+model dTERetencionIvaMh {
+  id_dte_retencion_iva_mh Int    @id @default(autoincrement())
+  codigo                  String
+  valor                   String
+}
+
+model dTETipoGeneracionDocumento {
+  id_dte_tipo_generacion_documento Int    @id @default(autoincrement())
+  codigo                           Int
+  valor                            String
+}
+
+model dTETipoServicioMedico {
+  id_dte_tipo_servicio_medico Int    @id @default(autoincrement())
+  codigo                      Int
+  valor                       String
+}
+
+model dTETipoItem {
+  id_dte_tipo_item Int    @id @default(autoincrement())
+  codigo           Int
+  valor            String
+}
+
+model dTEUnidadDeMedida {
+  id_unidad_de_medida Int    @id @default(autoincrement())
+  codigo              String
+  valor               String
+}
+
+model dTETributosAplicadosPorItem {
+  id_tributos_aplicados_por_item Int    @id @default(autoincrement())
+  codigo                         String
+  valor                          String
+}
+
+model dTETributosAplicadosPorItemCuerpo {
+  id_tributos_aplicados_por_item_cuerpo Int    @id @default(autoincrement())
+  codigo                                String
+  valor                                 String
+}
+
+model dTEImpuestosAdValoremAplicadosPorItem {
+  id_impuestos_ad_valorem_aplicados_por_item Int    @id @default(autoincrement())
+  codigo                                     String
+  valor                                      String
+}
+
+model dTECondicionDeLaOperacion {
+  id_condicion_de_la_operacion Int    @id @default(autoincrement())
+  codigo                       Int
+  valor                        String
+}
+
+model dTEPlazo {
+  id_plazo Int    @id @default(autoincrement())
+  codigo   String
+  valor    String
+}
+
+model dTEFormaPago {
+  id     Int    @id @default(autoincrement())
+  codigo String
+  valor  String
+}
+
+model dTEPais {
+  id_pais Int    @id @default(autoincrement())
+  codigo  String
+  valor   String
+  // Cliente Cliente[]
+}
+
+model dTEOtrosDocumentosAsociados {
+  id_otros_documentos_asociados Int    @id @default(autoincrement())
+  codigo                        Int
+  valor                         String
+}
+
+model dTETiposDeDocumentosEnContingencia {
+  id_tipos_de_documentos_en_contingencia Int    @id @default(autoincrement())
+  codigo                                 String
+  valor                                  String
+}
+
+model dTETituloAQueSeRemiteLosBienes {
+  id_titulo_a_que_se_remite_los_bienes Int    @id @default(autoincrement())
+  codigo                               String
+  valor                                String
+}
+
+model dTECategoriaDeBienYServicio {
+  id_categoria Int    @id @default(autoincrement())
+  codigo       Int
+  valor        String
+}
+
+model dTERecintoFiscal {
+  id_recinto_fiscal Int    @id @default(autoincrement())
+  codigo            String
+  valor             String
+}
+
+model dTERegimen {
+  id_regimen Int    @id @default(autoincrement())
+  codigo     String
+  valor      String
+}
+
+model dTETipoDePersona {
+  id_tipoDePersona Int    @id @default(autoincrement())
+  codigo           Int
+  valor            String
+}
+
+model dTETransporte {
+  id_transporte Int    @id @default(autoincrement())
+  codigo        Int
+  valor         String
+}
+
+model dTEIncoterms {
+  id_incoterms Int    @id @default(autoincrement())
+  codigo       String
+  valor        String
+}
+
+model dTEDomicilioFiscal {
+  id_domicilioFiscal Int    @id @default(autoincrement())
+  codigo             Int
+  valor              String
+}

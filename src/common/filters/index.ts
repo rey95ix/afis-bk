@@ -1,0 +1,1 @@
+export { AllExceptionFilter } from "./http-exception.filter";
