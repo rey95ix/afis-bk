@@ -14,44 +14,46 @@ datasource db {
 }
 
 model GeneralData {
-  id_general           Int     @id @default(autoincrement())
-  nombre_sistema       String
-  direccion            String?
-  razon                String?
-  nit                  String?
-  nrc                  String?
-  cod_actividad        String?
-  desc_actividad       String?
-  nombre_comercial     String?
-  contactos            String?
-  correo               String?
-  cod_estable_MH       String?
-  cod_estable          String?
-  cod_punto_venta_MH   String?
-  cod_punto_venta      String?
-  ambiente             String? @default("00") //00=pruebas, 01=produccion 
-  api_facturacion_dev  String? @default("https://apitest.dtes.mh.gob.sv/") //00=pruebas, 01=produccion
-  api_facturacion_prod String? @default("https://api.dtes.mh.gob.sv/") //00=pruebas, 01=produccion
-  public_key           String? @default("")
-  private_key          String? @default("")
-  token_api_fac        String? @default("")
-  version_email        String? @default("1")
-  token_email          String? @default("")
-  sender_email         String? @default("")
-  text_email           String? @default("Gracias por su preferencia!")
-  domain_email         String? @default("")
-  impuesto             Float?  @default(0.13)
-  icono_sistema        String? @default("") @db.Text
-  icono_factura        String? @default("") @db.Text
-  url_facebook         String? @default("")
-  perfil_facebook      String? @default("")
-  url_instagram        String? @default("")
-  perfil_instagram     String? @default("")
-  url_pagina_web       String? @default("")
-  url_correo_atencio   String? @default("")
-  url_maps             String? @default("")
-  whatsapp             String? @default("")
-  color_icono          String? @default("")
+  id_general                   Int      @id @default(autoincrement())
+  nombre_sistema               String
+  direccion                    String?
+  razon                        String?
+  nit                          String?
+  nrc                          String?
+  cod_actividad                String?
+  desc_actividad               String?
+  nombre_comercial             String?
+  contactos                    String?
+  correo                       String?
+  cod_estable_MH               String?
+  cod_estable                  String?
+  cod_punto_venta_MH           String?
+  cod_punto_venta              String?
+  ambiente                     String?  @default("00") //00=pruebas, 01=produccion
+  api_facturacion_dev          String?  @default("https://apitest.dtes.mh.gob.sv/") //00=pruebas, 01=produccion
+  api_facturacion_prod         String?  @default("https://api.dtes.mh.gob.sv/") //00=pruebas, 01=produccion
+  public_key                   String?  @default("")
+  private_key                  String?  @default("")
+  token_api_fac                String?  @default("")
+  version_email                String?  @default("1")
+  token_email                  String?  @default("")
+  sender_email                 String?  @default("")
+  text_email                   String?  @default("Gracias por su preferencia!")
+  domain_email                 String?  @default("")
+  impuesto                     Float?   @default(0.13)
+  icono_sistema                String?  @default("") @db.Text
+  icono_factura                String?  @default("") @db.Text
+  url_facebook                 String?  @default("")
+  perfil_facebook              String?  @default("")
+  url_instagram                String?  @default("")
+  perfil_instagram             String?  @default("")
+  url_pagina_web               String?  @default("")
+  url_correo_atencio           String?  @default("")
+  url_maps                     String?  @default("")
+  whatsapp                     String?  @default("")
+  color_icono                  String?  @default("")
+  fecha_creacion               DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }
 
 model usuarios {
@@ -64,31 +66,36 @@ model usuarios {
   dui                            String?
   foto                           String?                         @db.Text()
   estado                         estado                          @default(ACTIVO)
-  fecha_creacion                 DateTime                        @default(now()) @db.Timestamp()
   id_rol                         Int
   roles                          roles                           @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_rol")
   id_tipo_documento              Int?
   dTETipoDocumentoIdentificacion dTETipoDocumentoIdentificacion? @relation(fields: [id_tipo_documento], references: [id_tipo_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_tipo_documento")
   log                            log[]
+  fecha_creacion                 DateTime                        @default(now())
+  fecha_ultima_actualizacion     DateTime                        @default(now()) @updatedAt
 }
 
 model departamentos {
-  id_departamento Int          @id @default(autoincrement())
-  nombre          String
-  codigo          String?
-  codigo_iso      String
-  estado          estado       @default(ACTIVO)
-  Municipios      municipios[]
+  id_departamento            Int          @id @default(autoincrement())
+  nombre                     String
+  codigo                     String?
+  codigo_iso                 String
+  estado                     estado       @default(ACTIVO)
+  Municipios                 municipios[]
+  fecha_creacion             DateTime     @default(now())
+  fecha_ultima_actualizacion DateTime     @default(now()) @updatedAt
 }
 
 model municipios {
-  id_municipio    Int           @id @default(autoincrement())
-  nombre          String
-  codigo          String?
-  estado          estado        @default(ACTIVO)
-  id_departamento Int           @default(0)
-  Departamento    departamentos @relation(fields: [id_departamento], references: [id_departamento], onDelete: NoAction, onUpdate: NoAction, map: "fk_municipio_departamento")
-  Sucursales      sucursales[]
+  id_municipio               Int           @id @default(autoincrement())
+  nombre                     String
+  codigo                     String?
+  estado                     estado        @default(ACTIVO)
+  id_departamento            Int           @default(0)
+  Departamento               departamentos @relation(fields: [id_departamento], references: [id_departamento], onDelete: NoAction, onUpdate: NoAction, map: "fk_municipio_departamento")
+  Sucursales                 sucursales[]
+  fecha_creacion             DateTime      @default(now())
+  fecha_ultima_actualizacion DateTime      @default(now()) @updatedAt
 
   @@index([id_departamento], name: "fk_municipio_departamento_id")
 }
@@ -111,15 +118,52 @@ model sucursales {
   icono_factura           String?                 @default("") @db.Text
   estado                  estado                  @default(ACTIVO)
   facturasBloques         facturasBloques[]
+  bodegas                 bodegas[]
+  fecha_creacion          DateTime                @default(now())
+  fecha_ultima_actualizacion DateTime             @default(now()) @updatedAt
+}
+
+model bodegas {
+  id_bodega                  Int        @id @default(autoincrement())
+  nombre                     String
+  descripcion                String?
+  id_sucursal                Int
+  sucursal                   sucursales @relation(fields: [id_sucursal], references: [id_sucursal])
+  estado                     estado     @default(ACTIVO)
+  fecha_creacion             DateTime   @default(now())
+  fecha_ultima_actualizacion DateTime   @default(now()) @updatedAt
+}
+
+model categorias {
+  id_categoria               Int        @id @default(autoincrement())
+  nombre                     String
+  estado                     estado     @default(ACTIVO)
+  catalogo                   catalogo[]
+  fecha_creacion             DateTime   @default(now())
+  fecha_ultima_actualizacion DateTime   @default(now()) @updatedAt
+}
+
+model catalogo {
+  id_catalogo                Int        @id @default(autoincrement())
+  id_categoria               Int
+  categoria                  categorias @relation(fields: [id_categoria], references: [id_categoria])
+  codigo                     String
+  codigo_proveedor           String?
+  nombre                     String
+  descripcion                String?
+  estado                     estado     @default(ACTIVO)
+  fecha_creacion             DateTime   @default(now())
+  fecha_ultima_actualizacion DateTime   @default(now()) @updatedAt
 }
 
 model log {
-  id             Int       @id @default(autoincrement())
-  accion         String
-  descripcion    String?
-  fecha_creacion DateTime  @default(now())
-  id_usuario     Int?
-  Usuarios       usuarios? @relation(fields: [id_usuario], references: [id_usuario])
+  id                         Int       @id @default(autoincrement())
+  accion                     String
+  descripcion                String?
+  fecha_creacion             DateTime  @default(now())
+  id_usuario                 Int?
+  Usuarios                   usuarios? @relation(fields: [id_usuario], references: [id_usuario])
+  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
 }
 
 enum estado {
@@ -128,213 +172,272 @@ enum estado {
 }
 
 model roles {
-  id_rol   Int        @id @default(autoincrement())
-  nombre   String
-  estado   estado     @default(ACTIVO)
-  usuarios usuarios[]
+  id_rol                     Int        @id @default(autoincrement())
+  nombre                     String
+  estado                     estado     @default(ACTIVO)
+  usuarios                   usuarios[]
+  fecha_creacion             DateTime   @default(now())
+  fecha_ultima_actualizacion DateTime   @default(now()) @updatedAt
 }
 
 model facturasBloques {
-  id_bloque       Int           @id @default(autoincrement())
-  tira            String
-  autorizacion    String        @default("")
-  resolucion      String?       @default("")
-  desde           Int
-  hasta           Int
-  actual          Int
-  serie           String
-  fecha_creacion  DateTime      @default(now())
-  id_tipo_factura Int           @default(0)
-  Tipo            facturasTipos @relation(fields: [id_tipo_factura], references: [id_tipo_factura], onDelete: NoAction, onUpdate: NoAction, map: "fk_fatura_bloque_tipo")
-  id_sucursal     Int?
-  Sucursal        sucursales?   @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_fatura_bloque_sucursal")
-  estado          estado        @default(ACTIVO)
+  id_bloque                  Int           @id @default(autoincrement())
+  tira                       String
+  autorizacion               String        @default("")
+  resolucion                 String?       @default("")
+  desde                      Int
+  hasta                      Int
+  actual                     Int
+  serie                      String
+  id_tipo_factura            Int           @default(0)
+  Tipo                       facturasTipos @relation(fields: [id_tipo_factura], references: [id_tipo_factura], onDelete: NoAction, onUpdate: NoAction, map: "fk_fatura_bloque_tipo")
+  id_sucursal                Int?
+  Sucursal                   sucursales?   @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_fatura_bloque_sucursal")
+  estado                     estado        @default(ACTIVO)
+  fecha_creacion             DateTime      @default(now())
+  fecha_ultima_actualizacion DateTime      @default(now()) @updatedAt
 
   @@index([id_sucursal], name: "fk_fatura_bloque_sucursal_id")
   @@index([id_tipo_factura], name: "fk_fatura_bloque_tipo_id")
 }
 
 model facturasTipos {
-  id_tipo_factura Int               @id @default(autoincrement())
-  nombre          String
-  codigo          String?
-  version         Int?
-  estado          estado            @default(ACTIVO)
-  activo          estado            @default(ACTIVO)
-  Bloques         facturasBloques[]
+  id_tipo_factura            Int               @id @default(autoincrement())
+  nombre                     String
+  codigo                     String?
+  version                    Int?
+  estado                     estado            @default(ACTIVO)
+  activo                     estado            @default(ACTIVO)
+  Bloques                    facturasBloques[]
+  fecha_creacion             DateTime          @default(now())
+  fecha_ultima_actualizacion DateTime          @default(now()) @updatedAt
 }
 
 // catalogos de factura electronica
 
 model dTEActividadEconomica {
-  id_actividad Int    @id @default(autoincrement())
-  nombre       String
-  codigo       String
-  estado       estado @default(ACTIVO)
+  id_actividad               Int      @id @default(autoincrement())
+  nombre                     String
+  codigo                     String
+  estado                     estado   @default(ACTIVO)
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
   // Cliente      Cliente[]
   // Proveedores  Proveedores[]
 }
 
 model dTETipoEstablecimiento {
-  id_tipo_establecimiento Int          @id @default(autoincrement())
-  nombre                  String
-  codigo                  String
-  estado                  estado       @default(ACTIVO)
-  Sucursales              sucursales[]
+  id_tipo_establecimiento    Int          @id @default(autoincrement())
+  nombre                     String
+  codigo                     String
+  estado                     estado       @default(ACTIVO)
+  Sucursales                 sucursales[]
+  fecha_creacion             DateTime     @default(now())
+  fecha_ultima_actualizacion DateTime     @default(now()) @updatedAt
 }
 
 model dTETipoInvalidacion {
-  id_tipo_invalidacion Int    @id @default(autoincrement())
-  nombre               String
-  codigo               String
-  estado               estado @default(ACTIVO)
+  id_tipo_invalidacion       Int      @id @default(autoincrement())
+  nombre                     String
+  codigo                     String
+  estado                     estado   @default(ACTIVO)
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }
 
 model dTETipoContingencia {
-  id_tipo_contingencia Int    @id @default(autoincrement())
-  nombre               String
-  estado               estado @default(ACTIVO)
+  id_tipo_contingencia       Int      @id @default(autoincrement())
+  nombre                     String
+  estado                     estado   @default(ACTIVO)
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }
 
 model dTETipoDocumentoIdentificacion {
-  id_tipo_documento Int        @id @default(autoincrement())
-  nombre            String
-  codigo            String
-  estado            estado     @default(ACTIVO)
-  usuarios          usuarios[]
+  id_tipo_documento          Int        @id @default(autoincrement())
+  nombre                     String
+  codigo                     String
+  estado                     estado     @default(ACTIVO)
+  usuarios                   usuarios[]
+  fecha_creacion             DateTime   @default(now())
+  fecha_ultima_actualizacion DateTime   @default(now()) @updatedAt
   // Cliente           Cliente[]
   // Proveedores       Proveedores[]
 }
 
 model dTERetencionIvaMh {
-  id_dte_retencion_iva_mh Int    @id @default(autoincrement())
-  codigo                  String
-  valor                   String
+  id_dte_retencion_iva_mh    Int      @id @default(autoincrement())
+  codigo                     String
+  valor                      String
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }
 
 model dTETipoGeneracionDocumento {
-  id_dte_tipo_generacion_documento Int    @id @default(autoincrement())
+  id_dte_tipo_generacion_documento Int      @id @default(autoincrement())
   codigo                           Int
   valor                            String
+  fecha_creacion                   DateTime @default(now())
+  fecha_ultima_actualizacion       DateTime @default(now()) @updatedAt
 }
 
 model dTETipoServicioMedico {
-  id_dte_tipo_servicio_medico Int    @id @default(autoincrement())
+  id_dte_tipo_servicio_medico Int      @id @default(autoincrement())
   codigo                      Int
   valor                       String
+  fecha_creacion              DateTime @default(now())
+  fecha_ultima_actualizacion  DateTime @default(now()) @updatedAt
 }
 
 model dTETipoItem {
-  id_dte_tipo_item Int    @id @default(autoincrement())
-  codigo           Int
-  valor            String
+  id_dte_tipo_item           Int      @id @default(autoincrement())
+  codigo                     Int
+  valor                      String
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }
 
 model dTEUnidadDeMedida {
-  id_unidad_de_medida Int    @id @default(autoincrement())
-  codigo              String
-  valor               String
+  id_unidad_de_medida        Int      @id @default(autoincrement())
+  codigo                     String
+  valor                      String
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }
 
 model dTETributosAplicadosPorItem {
-  id_tributos_aplicados_por_item Int    @id @default(autoincrement())
+  id_tributos_aplicados_por_item Int      @id @default(autoincrement())
   codigo                         String
   valor                          String
+  fecha_creacion                 DateTime @default(now())
+  fecha_ultima_actualizacion     DateTime @default(now()) @updatedAt
 }
 
 model dTETributosAplicadosPorItemCuerpo {
-  id_tributos_aplicados_por_item_cuerpo Int    @id @default(autoincrement())
+  id_tributos_aplicados_por_item_cuerpo Int      @id @default(autoincrement())
   codigo                                String
   valor                                 String
+  fecha_creacion                        DateTime @default(now())
+  fecha_ultima_actualizacion            DateTime @default(now()) @updatedAt
 }
 
 model dTEImpuestosAdValoremAplicadosPorItem {
-  id_impuestos_ad_valorem_aplicados_por_item Int    @id @default(autoincrement())
+  id_impuestos_ad_valorem_aplicados_por_item Int      @id @default(autoincrement())
   codigo                                     String
   valor                                      String
+  fecha_creacion                             DateTime @default(now())
+  fecha_ultima_actualizacion                 DateTime @default(now()) @updatedAt
 }
 
 model dTECondicionDeLaOperacion {
-  id_condicion_de_la_operacion Int    @id @default(autoincrement())
+  id_condicion_de_la_operacion Int      @id @default(autoincrement())
   codigo                       Int
   valor                        String
+  fecha_creacion               DateTime @default(now())
+  fecha_ultima_actualizacion   DateTime @default(now()) @updatedAt
 }
 
 model dTEPlazo {
-  id_plazo Int    @id @default(autoincrement())
-  codigo   String
-  valor    String
+  id_plazo                   Int      @id @default(autoincrement())
+  codigo                     String
+  valor                      String
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }
 
 model dTEFormaPago {
-  id     Int    @id @default(autoincrement())
-  codigo String
-  valor  String
+  id                         Int      @id @default(autoincrement())
+  codigo                     String
+  valor                      String
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }
 
 model dTEPais {
-  id_pais Int    @id @default(autoincrement())
-  codigo  String
-  valor   String
+  id_pais                    Int      @id @default(autoincrement())
+  codigo                     String
+  valor                      String
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
   // Cliente Cliente[]
 }
 
 model dTEOtrosDocumentosAsociados {
-  id_otros_documentos_asociados Int    @id @default(autoincrement())
+  id_otros_documentos_asociados Int      @id @default(autoincrement())
   codigo                        Int
   valor                         String
+  fecha_creacion                DateTime @default(now())
+  fecha_ultima_actualizacion    DateTime @default(now()) @updatedAt
 }
 
 model dTETiposDeDocumentosEnContingencia {
-  id_tipos_de_documentos_en_contingencia Int    @id @default(autoincrement())
+  id_tipos_de_documentos_en_contingencia Int      @id @default(autoincrement())
   codigo                                 String
   valor                                  String
+  fecha_creacion                         DateTime @default(now())
+  fecha_ultima_actualizacion             DateTime @default(now()) @updatedAt
 }
 
 model dTETituloAQueSeRemiteLosBienes {
-  id_titulo_a_que_se_remite_los_bienes Int    @id @default(autoincrement())
+  id_titulo_a_que_se_remite_los_bienes Int      @id @default(autoincrement())
   codigo                               String
   valor                                String
+  fecha_creacion                       DateTime @default(now())
+  fecha_ultima_actualizacion           DateTime @default(now()) @updatedAt
 }
 
 model dTECategoriaDeBienYServicio {
-  id_categoria Int    @id @default(autoincrement())
-  codigo       Int
-  valor        String
+  id_categoria               Int      @id @default(autoincrement())
+  codigo                     Int
+  valor                      String
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }
 
 model dTERecintoFiscal {
-  id_recinto_fiscal Int    @id @default(autoincrement())
-  codigo            String
-  valor             String
+  id_recinto_fiscal          Int      @id @default(autoincrement())
+  codigo                     String
+  valor                      String
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }
 
 model dTERegimen {
-  id_regimen Int    @id @default(autoincrement())
-  codigo     String
-  valor      String
+  id_regimen                 Int      @id @default(autoincrement())
+  codigo                     String
+  valor                      String
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }
 
 model dTETipoDePersona {
-  id_tipoDePersona Int    @id @default(autoincrement())
-  codigo           Int
-  valor            String
+  id_tipoDePersona           Int      @id @default(autoincrement())
+  codigo                     Int
+  valor                      String
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }
 
 model dTETransporte {
-  id_transporte Int    @id @default(autoincrement())
-  codigo        Int
-  valor         String
+  id_transporte              Int      @id @default(autoincrement())
+  codigo                     Int
+  valor                      String
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }
 
 model dTEIncoterms {
-  id_incoterms Int    @id @default(autoincrement())
-  codigo       String
-  valor        String
+  id_incoterms               Int      @id @default(autoincrement())
+  codigo                     String
+  valor                      String
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }
 
 model dTEDomicilioFiscal {
-  id_domicilioFiscal Int    @id @default(autoincrement())
-  codigo             Int
-  valor              String
+  id_domicilioFiscal         Int      @id @default(autoincrement())
+  codigo                     Int
+  valor                      String
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }

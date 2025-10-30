@@ -3,6 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { SeedModule } from './modules/seed/seed.module';
+import { InventarioModule } from './modules/inventario/inventario.module';
+import { AdministracionModule } from './modules/administracion/administracion.module';
 
 @Module({
   imports: [
@@ -13,9 +15,11 @@ import { SeedModule } from './modules/seed/seed.module';
     }),
     PrismaModule,
     AuthModule,
-    SeedModule
+    SeedModule,
+    InventarioModule,
+    AdministracionModule,
   ],
   controllers: [],
   providers: [],
 })
-export class AppModule { }
+export class AppModule {}
