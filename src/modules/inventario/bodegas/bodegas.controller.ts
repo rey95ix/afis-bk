@@ -23,7 +23,7 @@ import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 
 @ApiTags('Bodegas')
 @ApiBearerAuth(HEADER_API_BEARER_AUTH)
-@Controller('bodegas')
+@Controller('inventario/bodegas')
 @Auth()
 export class BodegasController {
   constructor(private readonly bodegasService: BodegasService) {}

@@ -23,7 +23,7 @@ import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 
 @ApiTags('Sucursales')
 @ApiBearerAuth(HEADER_API_BEARER_AUTH)
-@Controller('sucursales')
+@Controller('inventario/sucursales')
 @Auth()
 export class SucursalesController {
   constructor(private readonly sucursalesService: SucursalesService) {}
