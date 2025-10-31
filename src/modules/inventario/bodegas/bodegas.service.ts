@@ -10,14 +10,23 @@ import { PaginationDto, PaginatedResult } from 'src/common/dto';
 export class BodegasService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(createBodegaDto: CreateBodegaDto): Promise<bodegas> {
+  async create(createBodegaDto: CreateBodegaDto, id_usuario?: number): Promise<bodegas> {
     const { id_sucursal, ...rest } = createBodegaDto;
-    return this.prisma.bodegas.create({
+    const bodega = await this.prisma.bodegas.create({
       data: {
         ...rest,
         id_sucursal: +id_sucursal,
       },
     });
+
+    // Registrar en el log
+    await this.prisma.logAction(
+      'CREAR_BODEGA',
+      id_usuario,
+      `Bodega creada: ${bodega.nombre}`,
+    );
+
+    return bodega;
   }
 
   async findAll(paginationDto: PaginationDto): Promise<PaginatedResult<bodegas>> {
@@ -78,23 +87,41 @@ export class BodegasService {
     return bodega;
   }
 
-  async update(id: number, updateBodegaDto: UpdateBodegaDto): Promise<bodegas> {
+  async update(id: number, updateBodegaDto: UpdateBodegaDto, id_usuario?: number): Promise<bodegas> {
     await this.findOne(id); // check if exists
     const { id_sucursal, ...rest } = updateBodegaDto;
-    return this.prisma.bodegas.update({
+    const bodega = await this.prisma.bodegas.update({
       where: { id_bodega: id },
       data: {
         ...rest,
         id_sucursal: id_sucursal ? +id_sucursal : undefined,
       },
     });
+
+    // Registrar en el log
+    await this.prisma.logAction(
+      'ACTUALIZAR_BODEGA',
+      id_usuario,
+      `Bodega actualizada: ${bodega.nombre}`,
+    );
+
+    return bodega;
   }
 
-  async remove(id: number): Promise<bodegas> {
+  async remove(id: number, id_usuario?: number): Promise<bodegas> {
     await this.findOne(id); // check if exists
-    return this.prisma.bodegas.update({
+    const bodega = await this.prisma.bodegas.update({
       where: { id_bodega: id },
       data: { estado: 'INACTIVO' },
     });
+
+    // Registrar en el log
+    await this.prisma.logAction(
+      'ELIMINAR_BODEGA',
+      id_usuario,
+      `Bodega eliminada: ${bodega.nombre}`,
+    );
+
+    return bodega;
   }
 }

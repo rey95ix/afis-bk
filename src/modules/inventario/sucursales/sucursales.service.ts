@@ -10,16 +10,25 @@ import { PaginationDto, PaginatedResult } from 'src/common/dto';
 export class SucursalesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(createSucursalDto: CreateSucursalDto): Promise<sucursales> {
+  async create(createSucursalDto: CreateSucursalDto, id_usuario?: number): Promise<sucursales> {
     const { id_municipio, id_tipo_establecimiento, ...rest } =
       createSucursalDto;
-    return this.prisma.sucursales.create({
+    const sucursal = await this.prisma.sucursales.create({
       data: {
         ...rest,
         id_municipio: id_municipio ? +id_municipio : undefined,
         id_tipo_establecimiento: id_tipo_establecimiento ? +id_tipo_establecimiento : undefined,
       },
     });
+
+    // Registrar en el log
+    await this.prisma.logAction(
+      'CREAR_SUCURSAL',
+      id_usuario,
+      `Sucursal creada: ${sucursal.nombre}`,
+    );
+
+    return sucursal;
   }
 
   async findAll(paginationDto: PaginationDto): Promise<PaginatedResult<sucursales>> {
@@ -77,11 +86,12 @@ export class SucursalesService {
   async update(
     id: number,
     updateSucursalDto: UpdateSucursalDto,
+    id_usuario?: number,
   ): Promise<sucursales> {
     await this.findOne(id); // check if exists
     const { id_municipio, id_tipo_establecimiento, ...rest } =
       updateSucursalDto;
-    return this.prisma.sucursales.update({
+    const sucursal = await this.prisma.sucursales.update({
       where: { id_sucursal: id },
       data: {
         ...rest,
@@ -91,13 +101,31 @@ export class SucursalesService {
           : undefined,
       },
     });
+
+    // Registrar en el log
+    await this.prisma.logAction(
+      'ACTUALIZAR_SUCURSAL',
+      id_usuario,
+      `Sucursal actualizada: ${sucursal.nombre}`,
+    );
+
+    return sucursal;
   }
 
-  async remove(id: number): Promise<sucursales> {
+  async remove(id: number, id_usuario?: number): Promise<sucursales> {
     await this.findOne(id); // check if exists
-    return this.prisma.sucursales.update({
+    const sucursal = await this.prisma.sucursales.update({
       where: { id_sucursal: id },
       data: { estado: 'INACTIVO' },
     });
+
+    // Registrar en el log
+    await this.prisma.logAction(
+      'ELIMINAR_SUCURSAL',
+      id_usuario,
+      `Sucursal eliminada: ${sucursal.nombre}`,
+    );
+
+    return sucursal;
   }
 }

@@ -10,8 +10,17 @@ import { PaginationDto, PaginatedResult } from 'src/common/dto';
 export class CatalogoService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(createCatalogoDto: CreateCatalogoDto): Promise<catalogo> {
-    return this.prisma.catalogo.create({ data: createCatalogoDto });
+  async create(createCatalogoDto: CreateCatalogoDto, id_usuario?: number): Promise<catalogo> {
+    const catalogo = await this.prisma.catalogo.create({ data: createCatalogoDto });
+
+    // Registrar en el log
+    await this.prisma.logAction(
+      'CREAR_CATALOGO',
+      id_usuario,
+      `Catálogo creado: ${catalogo.codigo} - ${catalogo.nombre}`,
+    );
+
+    return catalogo;
   }
 
   async getNextCode(): Promise<{ codigo: string }> {
@@ -97,19 +106,37 @@ export class CatalogoService {
     return catalogo;
   }
 
-  async update(id: number, updateCatalogoDto: UpdateCatalogoDto): Promise<catalogo> {
+  async update(id: number, updateCatalogoDto: UpdateCatalogoDto, id_usuario?: number): Promise<catalogo> {
     await this.findOne(id); // check if exists
-    return this.prisma.catalogo.update({
+    const catalogo = await this.prisma.catalogo.update({
       where: { id_catalogo: id },
       data: updateCatalogoDto,
     });
+
+    // Registrar en el log
+    await this.prisma.logAction(
+      'ACTUALIZAR_CATALOGO',
+      id_usuario,
+      `Catálogo actualizado: ${catalogo.codigo} - ${catalogo.nombre}`,
+    );
+
+    return catalogo;
   }
 
-  async remove(id: number): Promise<catalogo> {
-    await this.findOne(id); // check if exists
-    return this.prisma.catalogo.update({
+  async remove(id: number, id_usuario?: number): Promise<catalogo> {
+    const catalogoAntes = await this.findOne(id); // check if exists
+    const catalogo = await this.prisma.catalogo.update({
       where: { id_catalogo: id },
       data: { estado: 'INACTIVO' },
     });
+
+    // Registrar en el log
+    await this.prisma.logAction(
+      'ELIMINAR_CATALOGO',
+      id_usuario,
+      `Catálogo eliminado: ${catalogoAntes.codigo} - ${catalogoAntes.nombre}`,
+    );
+
+    return catalogo;
   }
 }

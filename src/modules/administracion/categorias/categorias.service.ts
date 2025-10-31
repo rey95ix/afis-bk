@@ -10,8 +10,17 @@ import { PaginationDto, PaginatedResult } from 'src/common/dto';
 export class CategoriasService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(createCategoriaDto: CreateCategoriaDto): Promise<categorias> {
-    return this.prisma.categorias.create({ data: createCategoriaDto });
+  async create(createCategoriaDto: CreateCategoriaDto, id_usuario?: number): Promise<categorias> {
+    const categoria = await this.prisma.categorias.create({ data: createCategoriaDto });
+
+    // Registrar en el log
+    await this.prisma.logAction(
+      'CREAR_CATEGORIA',
+      id_usuario,
+      `Categoría creada: ${categoria.nombre}`,
+    );
+
+    return categoria;
   }
 
   async findAll(paginationDto: PaginationDto): Promise<PaginatedResult<categorias>> {
@@ -61,19 +70,37 @@ export class CategoriasService {
     return categoria;
   }
 
-  async update(id: number, updateCategoriaDto: UpdateCategoriaDto): Promise<categorias> {
+  async update(id: number, updateCategoriaDto: UpdateCategoriaDto, id_usuario?: number): Promise<categorias> {
     await this.findOne(id); // check if exists
-    return this.prisma.categorias.update({
+    const categoria = await this.prisma.categorias.update({
       where: { id_categoria: id },
       data: updateCategoriaDto,
     });
+
+    // Registrar en el log
+    await this.prisma.logAction(
+      'ACTUALIZAR_CATEGORIA',
+      id_usuario,
+      `Categoría actualizada: ${categoria.nombre}`,
+    );
+
+    return categoria;
   }
 
-  async remove(id: number): Promise<categorias> {
+  async remove(id: number, id_usuario?: number): Promise<categorias> {
     await this.findOne(id); // check if exists
-    return this.prisma.categorias.update({
+    const categoria = await this.prisma.categorias.update({
       where: { id_categoria: id },
       data: { estado: 'INACTIVO' },
     });
+
+    // Registrar en el log
+    await this.prisma.logAction(
+      'ELIMINAR_CATEGORIA',
+      id_usuario,
+      `Categoría eliminada: ${categoria.nombre}`,
+    );
+
+    return categoria;
   }
 }

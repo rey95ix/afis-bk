@@ -4,7 +4,7 @@ import { PrismaModule } from './modules/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { SeedModule } from './modules/seed/seed.module';
 import { InventarioModule } from './modules/inventario/inventario.module';
-import { AdministracionModule } from './modules/administracion/administracion.module';
+import { AdministracionModule } from './modules/administracion/administracion.module'; 
 
 @Module({
   imports: [
@@ -17,7 +17,7 @@ import { AdministracionModule } from './modules/administracion/administracion.mo
     AuthModule,
     SeedModule,
     InventarioModule,
-    AdministracionModule,
+    AdministracionModule, 
   ],
   controllers: [],
   providers: [],
