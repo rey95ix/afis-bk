@@ -23,6 +23,13 @@ export class CatalogoController {
     return this.catalogoService.create(createCatalogoDto);
   }
 
+  @Get('next-code')
+  @ApiOperation({ summary: 'Obtener el siguiente código disponible para el catálogo' })
+  @ApiResponse({ status: 200, description: 'Retorna el siguiente código.' })
+  getNextCode() {
+    return this.catalogoService.getNextCode();
+  }
+
   @Get()
   @ApiOperation({ summary: 'Obtener todos los items del catálogo activos con paginación y búsqueda' })
   @ApiResponse({

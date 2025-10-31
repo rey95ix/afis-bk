@@ -14,6 +14,29 @@ export class CatalogoService {
     return this.prisma.catalogo.create({ data: createCatalogoDto });
   }
 
+  async getNextCode(): Promise<{ codigo: string }> {
+    // Obtener el último código registrado
+    const lastCatalogo = await this.prisma.catalogo.findFirst({
+      orderBy: { id_catalogo: 'desc' },
+      select: { codigo: true },
+    });
+
+    let nextNumber = 1;
+
+    if (lastCatalogo && lastCatalogo.codigo) {
+      // Extraer el número del último código y sumar 1
+      const lastNumber = parseInt(lastCatalogo.codigo, 10);
+      if (!isNaN(lastNumber)) {
+        nextNumber = lastNumber + 1;
+      }
+    }
+
+    // Formatear el código con ceros a la izquierda (6 dígitos)
+    const nextCode = nextNumber.toString().padStart(6, '0');
+
+    return { codigo: nextCode };
+  }
+
   async findAll(paginationDto: PaginationDto): Promise<PaginatedResult<catalogo>> {
     const { page = 1, limit = 10, search = '' } = paginationDto;
     const skip = (page - 1) * limit;
