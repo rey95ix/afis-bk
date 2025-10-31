@@ -5,7 +5,7 @@ import {
   Get,
   Post,
   Body,
-  Patch,
+  Put,
   Param,
   Delete,
   Query,
@@ -52,7 +52,7 @@ export class UsuariosController {
     return this.usuariosService.create(createUsuarioDto);
   }
 
-  @Patch(':id')
+  @Put(':id')
   @ApiOperation({
     summary: 'Actualizar un usuario',
     description: 'Actualiza los datos de un usuario (nombre, rol, etc.) sin modificar la contraseña. Para cambiar la contraseña use el endpoint /usuarios/:id/password'
@@ -66,7 +66,7 @@ export class UsuariosController {
     return this.usuariosService.update(id, updateUsuarioDto);
   }
 
-  @Patch(':id/password')
+  @Put(':id/password')
   @ApiOperation({
     summary: 'Cambiar contraseña de un usuario',
     description: 'Endpoint exclusivo para cambio de contraseña con validaciones de complejidad y verificación de contraseña actual (opcional)'

@@ -1,5 +1,5 @@
 // src/modules/administracion/categorias/categorias.controller.ts
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Param, Delete, ParseIntPipe, Query } from '@nestjs/common';
 import { CategoriasService } from './categorias.service';
 import { CreateCategoriaDto } from './dto/create-categoria.dto';
 import { UpdateCategoriaDto } from './dto/update-categoria.dto';
@@ -59,7 +59,7 @@ export class CategoriasController {
     return this.categoriasService.findOne(id);
   }
 
-  @Patch(':id')
+  @Put(':id')
   @ApiOperation({ summary: 'Actualizar una categoría' })
   @ApiResponse({ status: 200, description: 'La categoría ha sido actualizada.' })
   @ApiResponse({ status: 404, description: 'Categoría no encontrada.' })

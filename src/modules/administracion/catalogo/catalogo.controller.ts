@@ -1,5 +1,5 @@
 // src/modules/administracion/catalogo/catalogo.controller.ts
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body,   Param, Delete, ParseIntPipe, Query, Put } from '@nestjs/common';
 import { CatalogoService } from './catalogo.service';
 import { CreateCatalogoDto } from './dto/create-catalogo.dto';
 import { UpdateCatalogoDto } from './dto/update-catalogo.dto';
@@ -66,7 +66,7 @@ export class CatalogoController {
     return this.catalogoService.findOne(id);
   }
 
-  @Patch(':id')
+  @Put(':id')
   @ApiOperation({ summary: 'Actualizar un item del catalogo' })
   @ApiResponse({ status: 200, description: 'El item ha sido actualizado.' })
   @ApiResponse({ status: 404, description: 'Item no encontrado.' })

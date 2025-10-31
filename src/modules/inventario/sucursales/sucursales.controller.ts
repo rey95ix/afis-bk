@@ -4,7 +4,7 @@ import {
   Get,
   Post,
   Body,
-  Patch,
+  Put,
   Param,
   Delete,
   ParseIntPipe,
@@ -74,7 +74,7 @@ export class SucursalesController {
     return this.sucursalesService.findOne(id);
   }
 
-  @Patch(':id')
+  @Put(':id')
   @ApiOperation({ summary: 'Actualizar una sucursal' })
   @ApiResponse({ status: 200, description: 'La sucursal ha sido actualizada.' })
   @ApiResponse({ status: 404, description: 'Sucursal no encontrada.' })

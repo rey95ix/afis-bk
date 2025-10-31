@@ -4,7 +4,7 @@ import {
   Get,
   Post,
   Body,
-  Patch,
+  Put,
   Param,
   Delete,
   ParseIntPipe,
@@ -74,7 +74,7 @@ export class BodegasController {
     return this.bodegasService.findOne(id);
   }
 
-  @Patch(':id')
+  @Put(':id')
   @ApiOperation({ summary: 'Actualizar una bodega' })
   @ApiResponse({ status: 200, description: 'La bodega ha sido actualizada.' })
   @ApiResponse({ status: 404, description: 'Bodega no encontrada.' })
