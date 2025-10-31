@@ -14,45 +14,45 @@ datasource db {
 }
 
 model GeneralData {
-  id_general                   Int      @id @default(autoincrement())
-  nombre_sistema               String
-  direccion                    String?
-  razon                        String?
-  nit                          String?
-  nrc                          String?
-  cod_actividad                String?
-  desc_actividad               String?
-  nombre_comercial             String?
-  contactos                    String?
-  correo                       String?
-  cod_estable_MH               String?
-  cod_estable                  String?
-  cod_punto_venta_MH           String?
-  cod_punto_venta              String?
-  ambiente                     String?  @default("00") //00=pruebas, 01=produccion
-  api_facturacion_dev          String?  @default("https://apitest.dtes.mh.gob.sv/") //00=pruebas, 01=produccion
-  api_facturacion_prod         String?  @default("https://api.dtes.mh.gob.sv/") //00=pruebas, 01=produccion
-  public_key                   String?  @default("")
-  private_key                  String?  @default("")
-  token_api_fac                String?  @default("")
-  version_email                String?  @default("1")
-  token_email                  String?  @default("")
-  sender_email                 String?  @default("")
-  text_email                   String?  @default("Gracias por su preferencia!")
-  domain_email                 String?  @default("")
-  impuesto                     Float?   @default(0.13)
-  icono_sistema                String?  @default("") @db.Text
-  icono_factura                String?  @default("") @db.Text
-  url_facebook                 String?  @default("")
-  perfil_facebook              String?  @default("")
-  url_instagram                String?  @default("")
-  perfil_instagram             String?  @default("")
-  url_pagina_web               String?  @default("")
-  url_correo_atencio           String?  @default("")
-  url_maps                     String?  @default("")
-  whatsapp                     String?  @default("")
-  color_icono                  String?  @default("")
-  fecha_creacion               DateTime @default(now())
+  id_general                 Int      @id @default(autoincrement())
+  nombre_sistema             String
+  direccion                  String?
+  razon                      String?
+  nit                        String?
+  nrc                        String?
+  cod_actividad              String?
+  desc_actividad             String?
+  nombre_comercial           String?
+  contactos                  String?
+  correo                     String?
+  cod_estable_MH             String?
+  cod_estable                String?
+  cod_punto_venta_MH         String?
+  cod_punto_venta            String?
+  ambiente                   String?  @default("00") //00=pruebas, 01=produccion
+  api_facturacion_dev        String?  @default("https://apitest.dtes.mh.gob.sv/") //00=pruebas, 01=produccion
+  api_facturacion_prod       String?  @default("https://api.dtes.mh.gob.sv/") //00=pruebas, 01=produccion
+  public_key                 String?  @default("")
+  private_key                String?  @default("")
+  token_api_fac              String?  @default("")
+  version_email              String?  @default("1")
+  token_email                String?  @default("")
+  sender_email               String?  @default("")
+  text_email                 String?  @default("Gracias por su preferencia!")
+  domain_email               String?  @default("")
+  impuesto                   Float?   @default(0.13)
+  icono_sistema              String?  @default("") @db.Text
+  icono_factura              String?  @default("") @db.Text
+  url_facebook               String?  @default("")
+  perfil_facebook            String?  @default("")
+  url_instagram              String?  @default("")
+  perfil_instagram           String?  @default("")
+  url_pagina_web             String?  @default("")
+  url_correo_atencio         String?  @default("")
+  url_maps                   String?  @default("")
+  whatsapp                   String?  @default("")
+  color_icono                String?  @default("")
+  fecha_creacion             DateTime @default(now())
   fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }
 
@@ -73,54 +73,139 @@ model usuarios {
   log                            log[]
   fecha_creacion                 DateTime                        @default(now())
   fecha_ultima_actualizacion     DateTime                        @default(now()) @updatedAt
+  Cliente                        cliente[]
+}
+
+model cliente {
+  id_cliente                 Int      @id @default(autoincrement())
+  id_usuario                 Int
+  usuario                    usuarios @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_usuario")
+  titular                    String
+  fecha_nacimiento           DateTime
+  dui                        String   @unique // No. Único de identidad (DUI)
+  nit                        String? // No. Identificación tributaria (NIT)
+  empresa_trabajo            String
+  correo_electronico         String
+  telefono1                  String
+  telefono2                  String?
+  referencia1                String
+  referencia1_telefono       String
+  referencia2                String
+  referencia2_telefono       String
+  estado                     estado   @default(ACTIVO)
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  direcciones      clienteDirecciones[]
+  datosfacturacion clienteDatosFacturacion[] 
+}
+
+model clienteDatosFacturacion {
+  id_cliente_datos_facturacion   Int                             @id @default(autoincrement())
+  id_cliente                     Int
+  tipo                           String                          @default("PERSONA") // PERSONA o EMPRESA
+  cliente                        cliente                         @relation(fields: [id_cliente], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_datos_facturacion_cliente")
+  id_tipo_documento              Int?
+  dTETipoDocumentoIdentificacion dTETipoDocumentoIdentificacion? @relation(fields: [id_tipo_documento], references: [id_tipo_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_datos_facturacion_tipo_documento")
+  id_actividad                   Int?
+  dTEActividadEconomica          dTEActividadEconomica?          @relation(fields: [id_actividad], references: [id_actividad], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_datos_facturacion_actividad_economica")
+  nombre_empresa                 String
+  nit                            String?
+  nrc                            String?
+  telefono                       String?
+  correo_electronico             String?
+  direccion_facturacion          String?
+  id_municipio                   Int?
+  municipio                      municipios?                     @relation(fields: [id_municipio], references: [id_municipio], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_datos_facturacion_municipio")
+  id_departamento                Int?
+  departamento                   departamentos?                  @relation(fields: [id_departamento], references: [id_departamento], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_datos_facturacion_departamento")
+  estado                         estado                          @default(ACTIVO)
+  fecha_creacion                 DateTime                        @default(now())
+  fecha_ultima_actualizacion     DateTime                        @default(now()) @updatedAt
+}
+
+model clienteDirecciones {
+  id_cliente_direccion       Int            @id @default(autoincrement())
+  id_cliente                 Int
+  cliente                    cliente        @relation(fields: [id_cliente], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_direccion_cliente")
+  direccion                  String
+  id_colonia                 Int?
+  colonias                   colonias?      @relation(fields: [id_colonia], references: [id_colonia], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_direccion_colonia")
+  id_municipio               Int
+  municipio                  municipios?    @relation(fields: [id_municipio], references: [id_municipio], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_direccion_municipio")
+  id_departamento            Int
+  departamento               departamentos? @relation(fields: [id_departamento], references: [id_departamento], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_direccion_departamento")
+  codigo_postal              String?
+  estado                     estado         @default(ACTIVO)
+  fecha_creacion             DateTime       @default(now())
+  fecha_ultima_actualizacion DateTime       @default(now()) @updatedAt
 }
 
 model departamentos {
-  id_departamento            Int          @id @default(autoincrement())
+  id_departamento            Int                       @id @default(autoincrement())
   nombre                     String
   codigo                     String?
   codigo_iso                 String
-  estado                     estado       @default(ACTIVO)
+  estado                     estado                    @default(ACTIVO)
   Municipios                 municipios[]
-  fecha_creacion             DateTime     @default(now())
-  fecha_ultima_actualizacion DateTime     @default(now()) @updatedAt
+  fecha_creacion             DateTime                  @default(now())
+  fecha_ultima_actualizacion DateTime                  @default(now()) @updatedAt
+  clienteDirecciones         clienteDirecciones[]
+  clienteDatosFacturacion    clienteDatosFacturacion[]
 }
 
 model municipios {
-  id_municipio               Int           @id @default(autoincrement())
+  id_municipio               Int                       @id @default(autoincrement())
   nombre                     String
   codigo                     String?
-  estado                     estado        @default(ACTIVO)
-  id_departamento            Int           @default(0)
-  Departamento               departamentos @relation(fields: [id_departamento], references: [id_departamento], onDelete: NoAction, onUpdate: NoAction, map: "fk_municipio_departamento")
+  estado                     estado                    @default(ACTIVO)
+  id_departamento            Int                       @default(0)
+  Departamento               departamentos             @relation(fields: [id_departamento], references: [id_departamento], onDelete: NoAction, onUpdate: NoAction, map: "fk_municipio_departamento")
   Sucursales                 sucursales[]
-  fecha_creacion             DateTime      @default(now())
-  fecha_ultima_actualizacion DateTime      @default(now()) @updatedAt
+  fecha_creacion             DateTime                  @default(now())
+  fecha_ultima_actualizacion DateTime                  @default(now()) @updatedAt
+  clienteDirecciones         clienteDirecciones[]
+  colonias                   colonias[]
+  clienteDatosFacturacion    clienteDatosFacturacion[]
 
   @@index([id_departamento], name: "fk_municipio_departamento_id")
 }
 
-model sucursales {
-  id_sucursal             Int                     @id @default(autoincrement())
-  nombre                  String
-  color                   String?
-  complemento             String?
-  telefono                String?
-  correo                  String?
-  cod_estable_MH          String?                 @default("M001")
-  cod_estable             String?                 @default("M001")
-  cod_punto_venta_MH      String?                 @default("P001")
-  cod_punto_venta         String?                 @default("P001")
-  id_municipio            Int?
-  Municipio               municipios?             @relation(fields: [id_municipio], references: [id_municipio], onDelete: NoAction, onUpdate: NoAction, map: "fk_sucursal_municipio")
-  id_tipo_establecimiento Int?
-  DTETipoEstablecimiento  dTETipoEstablecimiento? @relation(fields: [id_tipo_establecimiento], references: [id_tipo_establecimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_sucursal_tipo_establecimiento")
-  icono_factura           String?                 @default("") @db.Text
-  estado                  estado                  @default(ACTIVO)
-  facturasBloques         facturasBloques[]
-  bodegas                 bodegas[]
-  fecha_creacion          DateTime                @default(now())
+model colonias {
+  id_colonia                 Int                  @id @default(autoincrement())
+  nombre                     String
+  codigo                     String?
+  estado                     estado               @default(ACTIVO)
+  id_municipio               Int                  @default(0)
+  Municipio                  municipios           @relation(fields: [id_municipio], references: [id_municipio], onDelete: NoAction, onUpdate: NoAction, map: "fk_colonia_municipio")
+  fecha_creacion             DateTime             @default(now())
   fecha_ultima_actualizacion DateTime             @default(now()) @updatedAt
+  clienteDirecciones         clienteDirecciones[]
+
+  @@index([id_municipio], name: "fk_colonia_municipio_id")
+}
+
+model sucursales {
+  id_sucursal                Int                     @id @default(autoincrement())
+  nombre                     String
+  color                      String?
+  complemento                String?
+  telefono                   String?
+  correo                     String?
+  cod_estable_MH             String?                 @default("M001")
+  cod_estable                String?                 @default("M001")
+  cod_punto_venta_MH         String?                 @default("P001")
+  cod_punto_venta            String?                 @default("P001")
+  id_municipio               Int?
+  Municipio                  municipios?             @relation(fields: [id_municipio], references: [id_municipio], onDelete: NoAction, onUpdate: NoAction, map: "fk_sucursal_municipio")
+  id_tipo_establecimiento    Int?
+  DTETipoEstablecimiento     dTETipoEstablecimiento? @relation(fields: [id_tipo_establecimiento], references: [id_tipo_establecimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_sucursal_tipo_establecimiento")
+  icono_factura              String?                 @default("") @db.Text
+  estado                     estado                  @default(ACTIVO)
+  facturasBloques            facturasBloques[]
+  bodegas                    bodegas[]
+  fecha_creacion             DateTime                @default(now())
+  fecha_ultima_actualizacion DateTime                @default(now()) @updatedAt
 }
 
 model bodegas {
@@ -216,14 +301,15 @@ model facturasTipos {
 // catalogos de factura electronica
 
 model dTEActividadEconomica {
-  id_actividad               Int      @id @default(autoincrement())
+  id_actividad               Int                       @id @default(autoincrement())
   nombre                     String
   codigo                     String
-  estado                     estado   @default(ACTIVO)
-  fecha_creacion             DateTime @default(now())
-  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
-  // Cliente      Cliente[]
+  estado                     estado                    @default(ACTIVO)
+  fecha_creacion             DateTime                  @default(now())
+  fecha_ultima_actualizacion DateTime                  @default(now()) @updatedAt
+  // cliente      Cliente[]
   // Proveedores  Proveedores[]
+  clienteDatosFacturacion    clienteDatosFacturacion[]
 }
 
 model dTETipoEstablecimiento {
@@ -254,15 +340,16 @@ model dTETipoContingencia {
 }
 
 model dTETipoDocumentoIdentificacion {
-  id_tipo_documento          Int        @id @default(autoincrement())
+  id_tipo_documento          Int                       @id @default(autoincrement())
   nombre                     String
   codigo                     String
-  estado                     estado     @default(ACTIVO)
+  estado                     estado                    @default(ACTIVO)
   usuarios                   usuarios[]
-  fecha_creacion             DateTime   @default(now())
-  fecha_ultima_actualizacion DateTime   @default(now()) @updatedAt
-  // Cliente           Cliente[]
+  fecha_creacion             DateTime                  @default(now())
+  fecha_ultima_actualizacion DateTime                  @default(now()) @updatedAt
+  // cliente           Cliente[]
   // Proveedores       Proveedores[]
+  clienteDatosFacturacion    clienteDatosFacturacion[]
 }
 
 model dTERetencionIvaMh {
@@ -359,7 +446,7 @@ model dTEPais {
   valor                      String
   fecha_creacion             DateTime @default(now())
   fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
-  // Cliente Cliente[]
+  // cliente Cliente[]
 }
 
 model dTEOtrosDocumentosAsociados {
