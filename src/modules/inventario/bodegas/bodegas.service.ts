@@ -4,6 +4,7 @@ import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { CreateBodegaDto } from './dto/create-bodega.dto';
 import { UpdateBodegaDto } from './dto/update-bodega.dto';
 import { bodegas } from '@prisma/client';
+import { PaginationDto, PaginatedResult } from 'src/common/dto';
 
 @Injectable()
 export class BodegasService {
@@ -19,8 +20,52 @@ export class BodegasService {
     });
   }
 
-  async findAll(): Promise<bodegas[]> {
-    return this.prisma.bodegas.findMany({ where: { estado: 'ACTIVO' } });
+  async findAll(paginationDto: PaginationDto): Promise<PaginatedResult<bodegas>> {
+    const { page = 1, limit = 10, search = '' } = paginationDto;
+    const skip = (page - 1) * limit;
+
+    // Construir el filtro de búsqueda
+    const where: any = {
+      estado: 'ACTIVO',
+    };
+
+    if (search) {
+      where.OR = [
+        { nombre: { contains: search, mode: 'insensitive' } },
+        { descripcion: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Ejecutar consultas en paralelo
+    const [data, total] = await Promise.all([
+      this.prisma.bodegas.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { fecha_creacion: 'desc' },
+        include: {
+          sucursal: {
+            select: {
+              id_sucursal: true,
+              nombre: true,
+            },
+          },
+        },
+      }),
+      this.prisma.bodegas.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+      },
+    };
   }
 
   async findOne(id: number): Promise<bodegas> {

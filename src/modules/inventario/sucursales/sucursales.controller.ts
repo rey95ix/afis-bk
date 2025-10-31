@@ -8,6 +8,7 @@ import {
   Param,
   Delete,
   ParseIntPipe,
+  Query,
 } from '@nestjs/common';
 import { SucursalesService } from './sucursales.service';
 import { CreateSucursalDto } from './dto/create-sucursal.dto';
@@ -20,6 +21,7 @@ import {
 } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
+import { PaginationDto } from 'src/common/dto';
 
 @ApiTags('Sucursales')
 @ApiBearerAuth(HEADER_API_BEARER_AUTH)
@@ -37,9 +39,31 @@ export class SucursalesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Obtener todas las sucursales activas' })
-  findAll() {
-    return this.sucursalesService.findAll();
+  @ApiOperation({ summary: 'Obtener todas las sucursales activas con paginación y búsqueda' })
+  @ApiResponse({
+    status: 200,
+    description: 'Retorna las sucursales paginadas.',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: { type: 'object' }
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            total: { type: 'number' },
+            page: { type: 'number' },
+            limit: { type: 'number' },
+            totalPages: { type: 'number' }
+          }
+        }
+      }
+    }
+  })
+  findAll(@Query() paginationDto: PaginationDto) {
+    return this.sucursalesService.findAll(paginationDto);
   }
 
   @Get(':id')
