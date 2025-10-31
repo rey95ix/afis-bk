@@ -1,9 +1,10 @@
-// src/modules/inventario/catalogo/catalogo.service.ts
+// src/modules/administracion/catalogo/catalogo.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { CreateCatalogoDto } from './dto/create-catalogo.dto';
 import { UpdateCatalogoDto } from './dto/update-catalogo.dto';
 import { catalogo } from '@prisma/client';
+import { PaginationDto, PaginatedResult } from 'src/common/dto';
 
 @Injectable()
 export class CatalogoService {
@@ -13,8 +14,54 @@ export class CatalogoService {
     return this.prisma.catalogo.create({ data: createCatalogoDto });
   }
 
-  async findAll(): Promise<catalogo[]> {
-    return this.prisma.catalogo.findMany({ where: { estado: 'ACTIVO' } });
+  async findAll(paginationDto: PaginationDto): Promise<PaginatedResult<catalogo>> {
+    const { page = 1, limit = 10, search = '' } = paginationDto;
+    const skip = (page - 1) * limit;
+
+    // Construir el filtro de búsqueda
+    const where: any = {
+      estado: 'ACTIVO',
+    };
+
+    if (search) {
+      where.OR = [
+        { nombre: { contains: search, mode: 'insensitive' } },
+        { codigo: { contains: search, mode: 'insensitive' } },
+        { codigo_proveedor: { contains: search, mode: 'insensitive' } },
+        { descripcion: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Ejecutar consultas en paralelo
+    const [data, total] = await Promise.all([
+      this.prisma.catalogo.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { fecha_creacion: 'desc' },
+        include: {
+          categoria: {
+            select: {
+              id_categoria: true,
+              nombre: true,
+            },
+          },
+        },
+      }),
+      this.prisma.catalogo.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+      },
+    };
   }
 
   async findOne(id: number): Promise<catalogo> {

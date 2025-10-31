@@ -1,11 +1,12 @@
-// src/modules/inventario/categorias/categorias.controller.ts
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
+// src/modules/administracion/categorias/categorias.controller.ts
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, Query } from '@nestjs/common';
 import { CategoriasService } from './categorias.service';
 import { CreateCategoriaDto } from './dto/create-categoria.dto';
 import { UpdateCategoriaDto } from './dto/update-categoria.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
+import { PaginationDto } from 'src/common/dto';
 
 @ApiTags('Categorias')
 @ApiBearerAuth(HEADER_API_BEARER_AUTH)
@@ -23,9 +24,31 @@ export class CategoriasController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Obtener todas las categorías activas' })
-  findAll() {
-    return this.categoriasService.findAll();
+  @ApiOperation({ summary: 'Obtener todas las categorías activas con paginación y búsqueda' })
+  @ApiResponse({
+    status: 200,
+    description: 'Retorna las categorías paginadas.',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: { type: 'object' }
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            total: { type: 'number' },
+            page: { type: 'number' },
+            limit: { type: 'number' },
+            totalPages: { type: 'number' }
+          }
+        }
+      }
+    }
+  })
+  findAll(@Query() paginationDto: PaginationDto) {
+    return this.categoriasService.findAll(paginationDto);
   }
 
   @Get(':id')

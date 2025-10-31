@@ -1,11 +1,12 @@
-// src/modules/inventario/catalogo/catalogo.controller.ts
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from '@nestjs/common';
+// src/modules/administracion/catalogo/catalogo.controller.ts
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, Query } from '@nestjs/common';
 import { CatalogoService } from './catalogo.service';
 import { CreateCatalogoDto } from './dto/create-catalogo.dto';
 import { UpdateCatalogoDto } from './dto/update-catalogo.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
+import { PaginationDto } from 'src/common/dto';
 
 @ApiTags('Catalogo')
 @ApiBearerAuth(HEADER_API_BEARER_AUTH)
@@ -23,9 +24,31 @@ export class CatalogoController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Obtener todos los items del catalogo activos' })
-  findAll() {
-    return this.catalogoService.findAll();
+  @ApiOperation({ summary: 'Obtener todos los items del catálogo activos con paginación y búsqueda' })
+  @ApiResponse({
+    status: 200,
+    description: 'Retorna los items del catálogo paginados.',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: { type: 'object' }
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            total: { type: 'number' },
+            page: { type: 'number' },
+            limit: { type: 'number' },
+            totalPages: { type: 'number' }
+          }
+        }
+      }
+    }
+  })
+  findAll(@Query() paginationDto: PaginationDto) {
+    return this.catalogoService.findAll(paginationDto);
   }
 
   @Get(':id')

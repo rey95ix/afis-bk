@@ -1,4 +1,4 @@
-// src/modules/inventario/categorias/dto/create-categoria.dto.ts
+// src/modules/administracion/categorias/dto/create-categoria.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString } from 'class-validator';
 

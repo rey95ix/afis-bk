@@ -1,4 +1,4 @@
-// src/modules/inventario/catalogo/dto/create-catalogo.dto.ts
+// src/modules/administracion/catalogo/dto/create-catalogo.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsOptional, IsInt } from 'class-validator';
 

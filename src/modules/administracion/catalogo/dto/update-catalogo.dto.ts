@@ -1,4 +1,4 @@
-// src/modules/inventario/catalogo/dto/update-catalogo.dto.ts
+// src/modules/administracion/catalogo/dto/update-catalogo.dto.ts
 import { PartialType } from '@nestjs/swagger';
 import { CreateCatalogoDto } from './create-catalogo.dto';
 
