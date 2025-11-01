@@ -74,6 +74,8 @@ model usuarios {
   fecha_creacion                 DateTime                        @default(now())
   fecha_ultima_actualizacion     DateTime                        @default(now()) @updatedAt
   Cliente                        cliente[]
+  proveedores                    proveedores[]
+  compras                        compras[]
 }
 
 model cliente {
@@ -97,7 +99,7 @@ model cliente {
   fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 
   direcciones      clienteDirecciones[]
-  datosfacturacion clienteDatosFacturacion[] 
+  datosfacturacion clienteDatosFacturacion[]
 }
 
 model clienteDatosFacturacion {
@@ -167,6 +169,7 @@ model municipios {
   clienteDirecciones         clienteDirecciones[]
   colonias                   colonias[]
   clienteDatosFacturacion    clienteDatosFacturacion[]
+  proveedores                proveedores[]
 
   @@index([id_departamento], name: "fk_municipio_departamento_id")
 }
@@ -204,19 +207,32 @@ model sucursales {
   estado                     estado                  @default(ACTIVO)
   facturasBloques            facturasBloques[]
   bodegas                    bodegas[]
+  compras                    compras[]
   fecha_creacion             DateTime                @default(now())
   fecha_ultima_actualizacion DateTime                @default(now()) @updatedAt
 }
 
 model bodegas {
-  id_bodega                  Int        @id @default(autoincrement())
+  id_bodega                  Int          @id @default(autoincrement())
   nombre                     String
   descripcion                String?
   id_sucursal                Int
-  sucursal                   sucursales @relation(fields: [id_sucursal], references: [id_sucursal])
-  estado                     estado     @default(ACTIVO)
-  fecha_creacion             DateTime   @default(now())
-  fecha_ultima_actualizacion DateTime   @default(now()) @updatedAt
+  sucursal                   sucursales   @relation(fields: [id_sucursal], references: [id_sucursal])
+  estado                     estado       @default(ACTIVO)
+  fecha_creacion             DateTime     @default(now())
+  fecha_ultima_actualizacion DateTime     @default(now()) @updatedAt
+  compras                    compras[]
+  estantes                   estantes[]
+  inventario                 inventario[]
+}
+
+model estantes {
+  id_estante Int          @id @default(autoincrement())
+  nombre     String
+  estado     estado       @default(ACTIVO)
+  id_bodega  Int
+  bodegas    bodegas      @relation(fields: [id_bodega], references: [id_bodega], onDelete: NoAction, onUpdate: NoAction)
+  inventario inventario[]
 }
 
 model categorias {
@@ -229,16 +245,19 @@ model categorias {
 }
 
 model catalogo {
-  id_catalogo                Int        @id @default(autoincrement())
+  id_catalogo                Int              @id @default(autoincrement())
   id_categoria               Int
-  categoria                  categorias @relation(fields: [id_categoria], references: [id_categoria])
+  categoria                  categorias       @relation(fields: [id_categoria], references: [id_categoria])
   codigo                     String
   codigo_proveedor           String?
   nombre                     String
   descripcion                String?
-  estado                     estado     @default(ACTIVO)
-  fecha_creacion             DateTime   @default(now())
-  fecha_ultima_actualizacion DateTime   @default(now()) @updatedAt
+  estado                     estado           @default(ACTIVO)
+  fecha_creacion             DateTime         @default(now())
+  fecha_ultima_actualizacion DateTime         @default(now()) @updatedAt
+  comprasDetalle             comprasDetalle[]
+  inventario                 inventario[]
+  kardex                     kardex[]
 }
 
 model log {
@@ -296,6 +315,7 @@ model facturasTipos {
   Bloques                    facturasBloques[]
   fecha_creacion             DateTime          @default(now())
   fecha_ultima_actualizacion DateTime          @default(now()) @updatedAt
+  compras                    compras[]
 }
 
 // catalogos de factura electronica
@@ -310,6 +330,7 @@ model dTEActividadEconomica {
   // cliente      Cliente[]
   // Proveedores  Proveedores[]
   clienteDatosFacturacion    clienteDatosFacturacion[]
+  proveedores                proveedores[]
 }
 
 model dTETipoEstablecimiento {
@@ -350,6 +371,7 @@ model dTETipoDocumentoIdentificacion {
   // cliente           Cliente[]
   // Proveedores       Proveedores[]
   clienteDatosFacturacion    clienteDatosFacturacion[]
+  proveedores                proveedores[]
 }
 
 model dTERetencionIvaMh {
@@ -433,11 +455,12 @@ model dTEPlazo {
 }
 
 model dTEFormaPago {
-  id                         Int      @id @default(autoincrement())
+  id                         Int       @id @default(autoincrement())
   codigo                     String
   valor                      String
-  fecha_creacion             DateTime @default(now())
-  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+  fecha_creacion             DateTime  @default(now())
+  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+  compras                    compras[]
 }
 
 model dTEPais {
@@ -527,4 +550,150 @@ model dTEDomicilioFiscal {
   valor                      String
   fecha_creacion             DateTime @default(now())
   fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+}
+
+// ======================================================   Estrutura de INVENTARIO 
+model proveedores {
+  id_proveedor                   Int                             @id @default(autoincrement())
+  nombre_razon_social            String?                         @default("")
+  nombre_comercial               String?                         @default("") 
+  registro_nrc                   String?                         @default("")
+  numero_documento               String?                         @default("")
+  id_tipo_documento              Int?
+  dTETipoDocumentoIdentificacion dTETipoDocumentoIdentificacion? @relation(fields: [id_tipo_documento], references: [id_tipo_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_proveedor_tipo_documento")
+  id_municipio                   Int?                            @default(0)
+  Municipio                      municipios?                     @relation(fields: [id_municipio], references: [id_municipio], onDelete: NoAction, onUpdate: NoAction, map: "fk_proveedor_municipio")
+  direccion                      String?                         @default("")
+  telefono                       String?                         @default("")
+  correo                         String?                         @default("")
+  dias_credito                   String?                         @default("0")
+  estado                         estado                          @default(ACTIVO)
+  fecha_creacion                 DateTime                        @default(now())
+  nombre_contac_1                String?                         @default("")
+  telefono_contac_1              String?                         @default("")
+  correo_contac_1                String?                         @default("")
+  nombre_contac_2                String?                         @default("")
+  telefono_contac_2              String?                         @default("")
+  correo_contac_2                String?                         @default("")
+  id_actividad_economica         Int?
+  dTEActividadEconomica          dTEActividadEconomica?          @relation(fields: [id_actividad_economica], references: [id_actividad], onDelete: NoAction, onUpdate: NoAction, map: "fk_proveedor_actividad_economica")
+  id_usuario                     Int
+  usuario                        usuarios                        @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_proveedor_usuario")
+  compras                        compras[]
+  fecha_actualizacion            DateTime                        @default(now()) @updatedAt
+}
+
+model compras {
+  id_compras          Int              @id @default(autoincrement())
+  numero_factura      String           @default("0")
+  numero_quedan       String?          @default("0")
+  detalle             String?          @db.Text
+  nombre_proveedor    String?          @default("")
+  dui_proveedor       String?          @default("")
+  no_cheque           String?          @default("") // esto para cuando sea de credito y se paga
+  id_proveedor        Int?
+  proveedor           proveedores?     @relation(fields: [id_proveedor], references: [id_proveedor], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_proveedor")
+  id_forma_pago       Int?
+  dTEFormaPago        dTEFormaPago?    @relation(fields: [id_forma_pago], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_metodo_pago")
+  id_usuario          Int
+  usuario             usuarios         @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_compra_usuario")
+  dias_credito        Int?             @default(0)
+  subtotal            Float?           @default(0)
+  descuento           Float?           @default(0)
+  cesc                Float?           @default(0)
+  fovial              Float?           @default(0)
+  cotrans             Float?           @default(0)
+  iva                 Float?           @default(0)
+  iva_retenido        Float?           @default(0)
+  iva_percivido       Float?           @default(0)
+  total               Float?           @default(0)
+  estado              estado           @default(ACTIVO)
+  id_sucursal         Int?
+  sucursales          sucursales?      @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_sucursal")
+  id_bodega           Int?
+  bodegas             bodegas?         @relation(fields: [id_bodega], references: [id_bodega], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_bodega")
+  id_tipo_factura     Int?             @default(2)
+  facturasTipos       facturasTipos?   @relation(fields: [id_tipo_factura], references: [id_tipo_factura], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_tipo_factura")
+  ComprasDetalle      comprasDetalle[]
+  fecha_creacion      DateTime         @default(now())
+  fecha_actualizacion DateTime         @default(now())
+  fecha_factura       DateTime?
+  fecha_de_pago       DateTime?
+  is_dte              Boolean          @default(false) // false=Fisica, true=Electronica
+  json_dte            String?          @db.Text
+  numeroControl       String?          @default("")
+  codigoGeneracion    String?          @default("")
+
+  @@index([id_tipo_factura], name: "fk_compras_tipo_factura_id")
+  @@index([id_sucursal], name: "fk_compras_sucursal_id")
+  @@index([id_bodega], name: "fk_compras_bodega_id")
+  @@index([id_usuario], name: "fk_compra_usuario_id")
+  @@index([id_proveedor], name: "fk_compras_proveedor_id")
+  @@map("Compras")
+}
+
+model comprasDetalle {
+  id_compras_detalle   Int          @id @default(autoincrement())
+  id_compras           Int
+  Compras              compras      @relation(fields: [id_compras], references: [id_compras], onDelete: NoAction, onUpdate: NoAction, map: "fk_compra_detalle")
+  id_catalogo          Int?
+  catalogo             catalogo?    @relation(fields: [id_catalogo], references: [id_catalogo], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_detalle_catalogo")
+  codigo               String?      @db.Text
+  nombre               String
+  descripcion          String?      @db.Text
+  costo_unitario       Float?       @default(0)
+  cantidad             Float        @default(0)
+  cantidad_inventario  Float        @default(0)
+  subtotal             Float?       @default(0)
+  descuento_porcentaje Float?       @default(0)
+  descuento_monto      Float?       @default(0)
+  iva                  Float?       @default(0)
+  total                Float?       @default(0)
+  fecha_creacion       DateTime     @default(now())
+  kardex               kardex[]
+  inventario           inventario[]
+
+  @@index([id_compras], name: "fk_compra_detalle_id")
+  @@index([id_catalogo], name: "fk_compras_detalle_catalogo_id")
+}
+
+model inventario {
+  id_inventario      Int             @id @default(autoincrement())
+  id_catalogo        Int
+  Catalogo           catalogo        @relation(fields: [id_catalogo], references: [id_catalogo], onDelete: NoAction, onUpdate: NoAction, map: "fk_inventario_catalogo")
+  id_compras_detalle Int?
+  ComprasDetalle     comprasDetalle? @relation(fields: [id_compras_detalle], references: [id_compras_detalle], onDelete: NoAction, onUpdate: NoAction, map: "fk_inventario_detalle")
+  id_bodega          Int?
+  bodegas            bodegas?        @relation(fields: [id_bodega], references: [id_bodega], onDelete: NoAction, onUpdate: NoAction, map: "fk_inventario_bodega")
+  id_estante         Int?
+  estantes           estantes?       @relation(fields: [id_estante], references: [id_estante], onDelete: NoAction, onUpdate: NoAction, map: "fk_inventario_estante")
+  costo_unitario     Float?          @default(0)
+  existencia         Int?            @default(0)
+  costo_total        Float?          @default(0)
+
+  @@index([id_bodega], name: "fk_inventario_bodega_id")
+  @@index([id_catalogo], name: "fk_inventario_catalogo_id")
+  @@index([id_compras_detalle], name: "fk_inventario_detalle_id")
+}
+
+model kardex {
+  id_kardex           Int             @id @default(autoincrement())
+  id_catalogo         Int
+  Catalogo            catalogo        @relation(fields: [id_catalogo], references: [id_catalogo], onDelete: NoAction, onUpdate: NoAction, map: "fk_kardex_catalogo")
+  id_compras_detalle  Int?
+  ComprasDetalle      comprasDetalle? @relation(fields: [id_compras_detalle], references: [id_compras_detalle], onDelete: NoAction, onUpdate: NoAction, map: "fk_kardex_detalle")
+  tipo_movimiento     Int             @default(1) // 1=entrada, 2=salida
+  id_factura          Int?
+  descripcion         String?         @db.Text
+  costo               Float?          @default(0)
+  cantidad            Float?          @default(0)
+  subtotal            Float?          @default(0)
+  costo_promedio      Float?          @default(0)
+  inventario          Float?          @default(0)
+  total               Float?          @default(0)
+  fecha_actualizacion DateTime        @default(now())
+  fecha_creacion      DateTime        @default(now()) @db.Timestamp()
+
+  @@index([id_catalogo], name: "fk_kardex_catalogo_id")
+  @@index([id_compras_detalle], name: "fk_kardex_detalle_id")
 }
