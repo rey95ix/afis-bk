@@ -13,7 +13,7 @@ export class MinioService implements OnModuleInit {
     this.minioClient = new Minio.Client({
       endPoint: this.configService.get<string>('MINIO_ENDPOINT') || 'localhost',
       port: parseInt(this.configService.get<string>('MINIO_PORT') || '9000'),
-      useSSL: this.configService.get<string>('USESSL') === 'true',
+      useSSL: this.configService.get<string>('MINIO_USE_SSL') === 'true',
       accessKey: this.configService.get<string>('MINIO_ACCESS_KEY') || 'minioadmin',
       secretKey: this.configService.get<string>('MINIO_SECRET_KEY') || 'minioadmin',
     });
