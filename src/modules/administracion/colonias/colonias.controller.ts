@@ -1,6 +1,18 @@
 // src/modules/administracion/colonias/colonias.controller.ts
-import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Put,
+  Param,
+  Delete,
+  ParseIntPipe,
+  Query,
+} from '@nestjs/common';
 import { ColoniasService } from './colonias.service';
+import { CreateColoniaDto } from './dto/create-colonia.dto';
+import { UpdateColoniaDto } from './dto/update-colonia.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -10,6 +22,7 @@ import {
 } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
+import { PaginationDto } from 'src/common/dto';
 
 @ApiTags('Colonias')
 @ApiBearerAuth(HEADER_API_BEARER_AUTH)
@@ -18,14 +31,40 @@ import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 export class ColoniasController {
   constructor(private readonly coloniasService: ColoniasService) {}
 
+  @Post()
+  @ApiOperation({ summary: 'Crear una nueva colonia' })
+  @ApiResponse({ status: 201, description: 'La colonia ha sido creada.' })
+  @ApiResponse({ status: 400, description: 'Petición inválida.' })
+  create(@Body() createColoniaDto: CreateColoniaDto) {
+    return this.coloniasService.create(createColoniaDto);
+  }
+
   @Get()
-  @ApiOperation({ summary: 'Obtener todas las colonias activas' })
+  @ApiOperation({ summary: 'Obtener todas las colonias activas con paginación y búsqueda' })
   @ApiResponse({
     status: 200,
-    description: 'Retorna todas las colonias activas con su municipio.',
+    description: 'Retorna las colonias paginadas.',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: { type: 'object' }
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            total: { type: 'number' },
+            page: { type: 'number' },
+            limit: { type: 'number' },
+            totalPages: { type: 'number' }
+          }
+        }
+      }
+    }
   })
-  findAll() {
-    return this.coloniasService.findAll();
+  findAll(@Query() paginationDto: PaginationDto) {
+    return this.coloniasService.findAll(paginationDto);
   }
 
   @Get('municipio/:id_municipio')
@@ -45,13 +84,28 @@ export class ColoniasController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una colonia por su ID' })
-  @ApiParam({ name: 'id', description: 'ID de la colonia', type: Number })
-  @ApiResponse({
-    status: 200,
-    description: 'Retorna la colonia con su municipio.',
-  })
+  @ApiResponse({ status: 200, description: 'Retorna la colonia.' })
   @ApiResponse({ status: 404, description: 'Colonia no encontrada.' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.coloniasService.findOne(id);
+  }
+
+  @Put(':id')
+  @ApiOperation({ summary: 'Actualizar una colonia' })
+  @ApiResponse({ status: 200, description: 'La colonia ha sido actualizada.' })
+  @ApiResponse({ status: 404, description: 'Colonia no encontrada.' })
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateColoniaDto: UpdateColoniaDto,
+  ) {
+    return this.coloniasService.update(id, updateColoniaDto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Eliminar una colonia (cambia estado a INACTIVO)' })
+  @ApiResponse({ status: 200, description: 'La colonia ha sido inactivada.' })
+  @ApiResponse({ status: 404, description: 'Colonia no encontrada.' })
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.coloniasService.remove(id);
   }
 }
