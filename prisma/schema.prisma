@@ -100,6 +100,23 @@ model cliente {
 
   direcciones      clienteDirecciones[]
   datosfacturacion clienteDatosFacturacion[]
+  documentos       clienteDocumentos[]
+}
+
+model clienteDocumentos {
+  id_cliente_documento       Int      @id @default(autoincrement())
+  id_cliente                 Int
+  cliente                    cliente  @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade, onUpdate: NoAction, map: "fk_cliente_documentos_cliente")
+  tipo_documento             String   // DUI_FRENTE, DUI_TRASERA, NIT_FRENTE, NIT_TRASERA, RECIBO
+  nombre_archivo             String
+  ruta_archivo               String   @db.Text
+  mimetype                   String
+  size                       Int
+  estado                     estado   @default(ACTIVO)
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  @@index([id_cliente])
 }
 
 model clienteDatosFacturacion {

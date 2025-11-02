@@ -1,0 +1,3 @@
+# Ignorar todos los archivos en este directorio excepto el .gitignore
+*
+!.gitignore

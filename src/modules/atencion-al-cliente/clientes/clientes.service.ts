@@ -102,6 +102,16 @@ export class ClientesService {
               dTEActividadEconomica: true,
             },
           },
+          documentos: {
+            where: { estado: 'ACTIVO' },
+            select: {
+              id_cliente_documento: true,
+              tipo_documento: true,
+              nombre_archivo: true,
+              fecha_creacion: true,
+              ruta_archivo: true,
+            },
+          },
         },
       }),
       this.prisma.cliente.count({ where }),
@@ -146,6 +156,16 @@ export class ClientesService {
             departamento: true,
             dTETipoDocumentoIdentificacion: true,
             dTEActividadEconomica: true,
+          },
+        },
+        documentos: {
+          where: { estado: 'ACTIVO' },
+          select: {
+            id_cliente_documento: true,
+            tipo_documento: true,
+            nombre_archivo: true,
+            fecha_creacion: true,
+            ruta_archivo: true,
           },
         },
       },
