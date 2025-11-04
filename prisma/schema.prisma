@@ -76,6 +76,10 @@ model usuarios {
   Cliente                        cliente[]
   proveedores                    proveedores[]
   compras                        compras[]
+  orden_trabajo                  orden_trabajo[]
+  agenda_visitas                 agenda_visitas[]
+  ot_historial_estado            ot_historial_estado[]
+  ot_evidencias                  ot_evidencias[]
 }
 
 model cliente {
@@ -101,13 +105,15 @@ model cliente {
   direcciones      clienteDirecciones[]
   datosfacturacion clienteDatosFacturacion[]
   documentos       clienteDocumentos[]
+  ticket_soporte   ticket_soporte[]
+  orden_trabajo    orden_trabajo[]
 }
 
 model clienteDocumentos {
   id_cliente_documento       Int      @id @default(autoincrement())
   id_cliente                 Int
   cliente                    cliente  @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade, onUpdate: NoAction, map: "fk_cliente_documentos_cliente")
-  tipo_documento             String   // DUI_FRENTE, DUI_TRASERA, NIT_FRENTE, NIT_TRASERA, RECIBO
+  tipo_documento             String // DUI_FRENTE, DUI_TRASERA, NIT_FRENTE, NIT_TRASERA, RECIBO
   nombre_archivo             String
   ruta_archivo               String   @db.Text
   mimetype                   String
@@ -144,20 +150,22 @@ model clienteDatosFacturacion {
 }
 
 model clienteDirecciones {
-  id_cliente_direccion       Int            @id @default(autoincrement())
+  id_cliente_direccion       Int              @id @default(autoincrement())
   id_cliente                 Int
-  cliente                    cliente        @relation(fields: [id_cliente], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_direccion_cliente")
+  cliente                    cliente          @relation(fields: [id_cliente], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_direccion_cliente")
   direccion                  String
   id_colonia                 Int?
-  colonias                   colonias?      @relation(fields: [id_colonia], references: [id_colonia], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_direccion_colonia")
+  colonias                   colonias?        @relation(fields: [id_colonia], references: [id_colonia], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_direccion_colonia")
   id_municipio               Int
-  municipio                  municipios?    @relation(fields: [id_municipio], references: [id_municipio], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_direccion_municipio")
+  municipio                  municipios?      @relation(fields: [id_municipio], references: [id_municipio], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_direccion_municipio")
   id_departamento            Int
-  departamento               departamentos? @relation(fields: [id_departamento], references: [id_departamento], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_direccion_departamento")
+  departamento               departamentos?   @relation(fields: [id_departamento], references: [id_departamento], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_direccion_departamento")
   codigo_postal              String?
-  estado                     estado         @default(ACTIVO)
-  fecha_creacion             DateTime       @default(now())
-  fecha_ultima_actualizacion DateTime       @default(now()) @updatedAt
+  estado                     estado           @default(ACTIVO)
+  fecha_creacion             DateTime         @default(now())
+  fecha_ultima_actualizacion DateTime         @default(now()) @updatedAt
+  ticket_soporte             ticket_soporte[]
+  orden_trabajo              orden_trabajo[]
 }
 
 model departamentos {
@@ -289,6 +297,7 @@ model log {
 
 enum estado {
   ACTIVO
+  SUPENDIDO
   INACTIVO
 }
 
@@ -573,7 +582,7 @@ model dTEDomicilioFiscal {
 model proveedores {
   id_proveedor                   Int                             @id @default(autoincrement())
   nombre_razon_social            String?                         @default("")
-  nombre_comercial               String?                         @default("") 
+  nombre_comercial               String?                         @default("")
   registro_nrc                   String?                         @default("")
   numero_documento               String?                         @default("")
   id_tipo_documento              Int?
@@ -713,4 +722,206 @@ model kardex {
 
   @@index([id_catalogo], name: "fk_kardex_catalogo_id")
   @@index([id_compras_detalle], name: "fk_kardex_detalle_id")
+}
+
+//ORDEN DE TRABAJO MODELS
+enum estado_ticket {
+  ABIERTO
+  EN_DIAGNOSTICO
+  ESCALADO
+  CERRADO
+  CANCELADO
+}
+
+enum canal_contacto {
+  TELEFONO
+  WHATSAPP
+  EMAIL
+  APP
+  WEB
+}
+
+enum severidad {
+  BAJA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+enum estado_orden {
+  PENDIENTE_ASIGNACION
+  ASIGNADA
+  AGENDADA
+  EN_RUTA
+  EN_PROGRESO
+  EN_ESPERA_CLIENTE
+  REPROGRAMADA
+  COMPLETADA
+  CANCELADA
+}
+
+enum tipo_orden {
+  INCIDENCIA
+  INSTALACION
+  MANTENIMIENTO
+  REUBICACION
+  RETIRO
+  MEJORA
+}
+
+enum resultado_orden {
+  RESUELTO
+  NO_RESUELTO
+  REQUIERE_SEGUNDA_VISITA
+  CLIENTE_AUSENTE
+  ACCESO_DENEGADO
+  FALLO_EQUIPO
+}
+
+model ticket_soporte {
+  id_ticket               Int                   @id @default(autoincrement())
+  id_cliente              Int
+  cliente                 cliente               @relation(fields: [id_cliente], references: [id_cliente])
+  canal                   canal_contacto
+  descripcion_problema    String
+  severidad               severidad             @default(MEDIA)
+  id_direccion_servicio   Int // dirección del cliente donde ocurre el problema
+  direccion_servicio      clienteDirecciones    @relation(fields: [id_direccion_servicio], references: [id_cliente_direccion])
+  diagnostico_inicial     String? // texto libre del agente
+  id_diagnostico_catalogo Int?
+  diagnostico_catalogo    diagnostico_catalogo? @relation(fields: [id_diagnostico_catalogo], references: [id_diagnostico])
+  pruebas_remotas         String? // ping, traceroute, potencia, etc.
+  requiere_visita         Boolean               @default(false)
+  estado                  estado_ticket         @default(ABIERTO)
+  fecha_apertura          DateTime              @default(now())
+  fecha_cierre            DateTime?
+  cerrado_por_usuario     Int?
+  observaciones_cierre    String?
+  ordenes                 orden_trabajo[] // 1 ticket puede generar múltiples OT (reprogramaciones, etc.)
+}
+
+model diagnostico_catalogo {
+  id_diagnostico Int              @id @default(autoincrement())
+  codigo         String           @unique // ej: LOS_ROJO, POTENCIA_BAJA, CPE_SIN_IP, SNR_BAJO
+  nombre         String
+  descripcion    String?
+  activo         Boolean          @default(true)
+  created_at     DateTime         @default(now())
+  tickets        ticket_soporte[]
+}
+
+model solucion_catalogo {
+  id_solucion    Int              @id @default(autoincrement())
+  codigo         String           @unique // ej: REEMPLAZO_ONU, RECONECTOR, AJUSTE_POTENCIA, CAMBIO_PUERTO_OLT
+  nombre         String
+  descripcion    String?
+  activo         Boolean          @default(true)
+  created_at     DateTime         @default(now())
+  ot_actividades ot_actividades[]
+}
+
+model motivo_cierre_catalogo {
+  id_motivo  Int             @id @default(autoincrement())
+  codigo     String          @unique
+  nombre     String
+  activo     Boolean         @default(true)
+  created_at DateTime        @default(now())
+  ordenes    orden_trabajo[]
+}
+
+model orden_trabajo {
+  id_orden                   Int                     @id @default(autoincrement())
+  codigo                     String                  @unique // OT-YYYYMM-#####
+  id_ticket                  Int?
+  ticket                     ticket_soporte?         @relation(fields: [id_ticket], references: [id_ticket])
+  tipo                       tipo_orden
+  estado                     estado_orden            @default(PENDIENTE_ASIGNACION)
+  id_cliente                 Int
+  cliente                    cliente                 @relation(fields: [id_cliente], references: [id_cliente])
+  id_direccion_servicio      Int
+  direccion_servicio         clienteDirecciones      @relation(fields: [id_direccion_servicio], references: [id_cliente_direccion])
+  id_tecnico_asignado        Int?
+  tecnico_asignado           usuarios?               @relation(fields: [id_tecnico_asignado], references: [id_usuario])
+  ventana_programada_inicio  DateTime?
+  ventana_programada_fin     DateTime?
+  fecha_asignacion           DateTime?
+  fecha_llegada              DateTime?
+  fecha_inicio_trabajo       DateTime?
+  fecha_fin_trabajo          DateTime?
+  resultado                  resultado_orden?
+  id_motivo_cierre           Int?
+  motivo_cierre              motivo_cierre_catalogo? @relation(fields: [id_motivo_cierre], references: [id_motivo])
+  observaciones_tecnico      String?
+  firma_cliente_url          String? // evidencia firma
+  calificacion_cliente       Int? // 1-5
+  notas_cierre               String?
+  fecha_creacion             DateTime                @default(now())
+  fecha_ultima_actualizacion DateTime                @updatedAt
+  actividades                ot_actividades[]
+  materiales                 ot_materiales[]
+  evidencias                 ot_evidencias[]
+  agendas                    agenda_visitas[]
+  historico_estados          ot_historial_estado[]
+}
+
+model ot_historial_estado {
+  id_historial Int           @id @default(autoincrement())
+  id_orden     Int
+  orden        orden_trabajo @relation(fields: [id_orden], references: [id_orden])
+  estado       estado_orden
+  comentario   String?
+  cambiado_por Int // id_usuario que ejecuta el cambio
+  tecnico      usuarios?     @relation(fields: [cambiado_por], references: [id_usuario])
+  fecha_cambio DateTime      @default(now())
+}
+
+model ot_actividades {
+  id_actividad    Int                @id @default(autoincrement())
+  id_orden        Int
+  orden           orden_trabajo      @relation(fields: [id_orden], references: [id_orden])
+  id_solucion     Int?
+  solucion        solucion_catalogo? @relation(fields: [id_solucion], references: [id_solucion])
+  descripcion     String // p.ej. "Ajuste potencia en OLT", "Cambio conector SC/APC"
+  valor_medido    String? // potencia dBm, SNR, latencias
+  requerido_firma Boolean            @default(false)
+  completado      Boolean            @default(false)
+  fecha_creacion  DateTime           @default(now())
+}
+
+model ot_materiales {
+  id_material    Int           @id @default(autoincrement())
+  id_orden       Int
+  orden          orden_trabajo @relation(fields: [id_orden], references: [id_orden])
+  sku            String
+  nombre         String
+  cantidad       Int
+  serie          String? // serie de ONU/CPE si aplica
+  costo_unitario Decimal?      @db.Decimal(10, 2)
+  fecha_registro DateTime      @default(now())
+}
+
+model ot_evidencias {
+  id_evidencia Int           @id @default(autoincrement())
+  id_orden     Int
+  orden        orden_trabajo @relation(fields: [id_orden], references: [id_orden])
+  tipo         String // foto_antes, foto_despues, speedtest, firma, audio
+  url          String
+  metadata     String? // JSON: { "ping": ..., "download": ... }
+  fecha_subida DateTime      @default(now())
+  subido_por   Int // id_usuario
+  tecnico      usuarios?     @relation(fields: [subido_por], references: [id_usuario])
+}
+
+model agenda_visitas {
+  id_agenda      Int           @id @default(autoincrement())
+  id_orden       Int
+  orden          orden_trabajo @relation(fields: [id_orden], references: [id_orden])
+  inicio         DateTime
+  fin            DateTime
+  id_tecnico     Int?
+  tecnico        usuarios?     @relation(fields: [id_tecnico], references: [id_usuario])
+  motivo         String? // reprogramación, coordinación con cliente, lluvia, etc.
+  activo         Boolean       @default(true) // solo un slot activo por OT
+  creado_por     Int
+  fecha_creacion DateTime      @default(now())
 }
