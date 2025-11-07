@@ -80,6 +80,12 @@ model usuarios {
   agenda_visitas                 agenda_visitas[]
   ot_historial_estado            ot_historial_estado[]
   ot_evidencias                  ot_evidencias[]
+  bodegas_responsable            bodegas[]
+  importaciones_solicita         importaciones[]                 @relation("usuario_solicita_importacion")
+  movimientos_inventario         movimientos_inventario[]
+  reservas_inventario            reservas_inventario[]
+  historial_series               historial_series[]
+  retaceo_importacion            retaceo_importacion[]
 }
 
 model cliente {
@@ -102,11 +108,12 @@ model cliente {
   fecha_creacion             DateTime @default(now())
   fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 
-  direcciones      clienteDirecciones[]
-  datosfacturacion clienteDatosFacturacion[]
-  documentos       clienteDocumentos[]
-  ticket_soporte   ticket_soporte[]
-  orden_trabajo    orden_trabajo[]
+  direcciones       clienteDirecciones[]
+  datosfacturacion  clienteDatosFacturacion[]
+  documentos        clienteDocumentos[]
+  ticket_soporte    ticket_soporte[]
+  orden_trabajo     orden_trabajo[]
+  inventario_series inventario_series[]
 }
 
 model clienteDocumentos {
@@ -238,51 +245,71 @@ model sucursales {
 }
 
 model bodegas {
-  id_bodega                  Int          @id @default(autoincrement())
+  id_bodega                  Int                      @id @default(autoincrement())
   nombre                     String
   descripcion                String?
+  tipo                       tipo_ubicacion           @default(BODEGA) // BODEGA o CUADRILLA
   id_sucursal                Int
-  sucursal                   sucursales   @relation(fields: [id_sucursal], references: [id_sucursal])
-  estado                     estado       @default(ACTIVO)
-  fecha_creacion             DateTime     @default(now())
-  fecha_ultima_actualizacion DateTime     @default(now()) @updatedAt
+  sucursal                   sucursales               @relation(fields: [id_sucursal], references: [id_sucursal])
+  id_responsable             Int? // técnico responsable si es cuadrilla
+  responsable                usuarios?                @relation(fields: [id_responsable], references: [id_usuario], map: "fk_bodega_responsable")
+  placa_vehiculo             String? // si es cuadrilla
+  estado                     estado                   @default(ACTIVO)
+  fecha_creacion             DateTime                 @default(now())
+  fecha_ultima_actualizacion DateTime                 @default(now()) @updatedAt
   compras                    compras[]
   estantes                   estantes[]
   inventario                 inventario[]
+  movimientos_origen         movimientos_inventario[] @relation("bodega_origen")
+  movimientos_destino        movimientos_inventario[] @relation("bodega_destino")
+  reservas                   reservas_inventario[]
+  ot_materiales              ot_materiales[]
 }
 
 model estantes {
-  id_estante Int          @id @default(autoincrement())
-  nombre     String
-  estado     estado       @default(ACTIVO)
-  id_bodega  Int
-  bodegas    bodegas      @relation(fields: [id_bodega], references: [id_bodega], onDelete: NoAction, onUpdate: NoAction)
-  inventario inventario[]
+  id_estante                 Int          @id @default(autoincrement())
+  nombre                     String
+  estado                     estado       @default(ACTIVO)
+  id_bodega                  Int
+  bodegas                    bodegas      @relation(fields: [id_bodega], references: [id_bodega], onDelete: NoAction, onUpdate: NoAction)
+  inventario                 inventario[]
+  fecha_creacion             DateTime     @default(now())
+  fecha_ultima_actualizacion DateTime     @default(now()) @updatedAt
 }
 
 model categorias {
   id_categoria               Int        @id @default(autoincrement())
   nombre                     String
+  codigo                     String     @unique @db.Char(2)
   estado                     estado     @default(ACTIVO)
   catalogo                   catalogo[]
   fecha_creacion             DateTime   @default(now())
   fecha_ultima_actualizacion DateTime   @default(now()) @updatedAt
+
+  id_categoria_padre Int?
+  categoria_padre    categorias?  @relation("Subcategorias", fields: [id_categoria_padre], references: [id_categoria], onDelete: NoAction, onUpdate: NoAction)
+  sub_categorias     categorias[] @relation("Subcategorias")
+
+  @@index([id_categoria_padre])
 }
 
 model catalogo {
-  id_catalogo                Int              @id @default(autoincrement())
+  id_catalogo                Int                      @id @default(autoincrement())
   id_categoria               Int
-  categoria                  categorias       @relation(fields: [id_categoria], references: [id_categoria])
+  categoria                  categorias               @relation(fields: [id_categoria], references: [id_categoria])
   codigo                     String
   codigo_proveedor           String?
   nombre                     String
   descripcion                String?
-  estado                     estado           @default(ACTIVO)
-  fecha_creacion             DateTime         @default(now())
-  fecha_ultima_actualizacion DateTime         @default(now()) @updatedAt
+  estado                     estado                   @default(ACTIVO)
+  fecha_creacion             DateTime                 @default(now())
+  fecha_ultima_actualizacion DateTime                 @default(now()) @updatedAt
   comprasDetalle             comprasDetalle[]
   inventario                 inventario[]
-  kardex                     kardex[]
+  movimientos                movimientos_inventario[]
+  reservas                   reservas_inventario[]
+  ot_materiales              ot_materiales[]
+  importaciones_detalle      importaciones_detalle[]
 }
 
 model log {
@@ -353,8 +380,6 @@ model dTEActividadEconomica {
   estado                     estado                    @default(ACTIVO)
   fecha_creacion             DateTime                  @default(now())
   fecha_ultima_actualizacion DateTime                  @default(now()) @updatedAt
-  // cliente      Cliente[]
-  // Proveedores  Proveedores[]
   clienteDatosFacturacion    clienteDatosFacturacion[]
   proveedores                proveedores[]
 }
@@ -593,6 +618,8 @@ model proveedores {
   telefono                       String?                         @default("")
   correo                         String?                         @default("")
   dias_credito                   String?                         @default("0")
+  es_internacional               Boolean                         @default(false)
+  pais                           String?
   estado                         estado                          @default(ACTIVO)
   fecha_creacion                 DateTime                        @default(now())
   nombre_contac_1                String?                         @default("")
@@ -606,122 +633,80 @@ model proveedores {
   id_usuario                     Int
   usuario                        usuarios                        @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_proveedor_usuario")
   compras                        compras[]
+  importaciones                  importaciones[]
   fecha_actualizacion            DateTime                        @default(now()) @updatedAt
 }
 
 model compras {
-  id_compras          Int              @id @default(autoincrement())
-  numero_factura      String           @default("0")
-  numero_quedan       String?          @default("0")
-  detalle             String?          @db.Text
-  nombre_proveedor    String?          @default("")
-  dui_proveedor       String?          @default("")
-  no_cheque           String?          @default("") // esto para cuando sea de credito y se paga
+  id_compras          Int                      @id @default(autoincrement())
+  numero_factura      String                   @default("0")
+  numero_quedan       String?                  @default("0")
+  detalle             String?                  @db.Text
+  nombre_proveedor    String?                  @default("")
   id_proveedor        Int?
-  proveedor           proveedores?     @relation(fields: [id_proveedor], references: [id_proveedor], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_proveedor")
+  proveedor           proveedores?             @relation(fields: [id_proveedor], references: [id_proveedor], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_proveedor")
   id_forma_pago       Int?
-  dTEFormaPago        dTEFormaPago?    @relation(fields: [id_forma_pago], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_metodo_pago")
+  dTEFormaPago        dTEFormaPago?            @relation(fields: [id_forma_pago], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_metodo_pago")
   id_usuario          Int
-  usuario             usuarios         @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_compra_usuario")
-  dias_credito        Int?             @default(0)
-  subtotal            Float?           @default(0)
-  descuento           Float?           @default(0)
-  cesc                Float?           @default(0)
-  fovial              Float?           @default(0)
-  cotrans             Float?           @default(0)
-  iva                 Float?           @default(0)
-  iva_retenido        Float?           @default(0)
-  iva_percivido       Float?           @default(0)
-  total               Float?           @default(0)
-  estado              estado           @default(ACTIVO)
+  usuario             usuarios                 @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_compra_usuario")
+  dias_credito        Int?                     @default(0)
+  subtotal            Float?                   @default(0)
+  descuento           Float?                   @default(0)
+  cesc                Float?                   @default(0)
+  fovial              Float?                   @default(0)
+  cotrans             Float?                   @default(0)
+  iva                 Float?                   @default(0)
+  iva_retenido        Float?                   @default(0)
+  iva_percivido       Float?                   @default(0)
+  total               Float?                   @default(0)
+  estado              estado                   @default(ACTIVO)
   id_sucursal         Int?
-  sucursales          sucursales?      @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_sucursal")
+  sucursales          sucursales?              @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_sucursal")
   id_bodega           Int?
-  bodegas             bodegas?         @relation(fields: [id_bodega], references: [id_bodega], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_bodega")
-  id_tipo_factura     Int?             @default(2)
-  facturasTipos       facturasTipos?   @relation(fields: [id_tipo_factura], references: [id_tipo_factura], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_tipo_factura")
+  bodegas             bodegas?                 @relation(fields: [id_bodega], references: [id_bodega], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_bodega")
+  id_tipo_factura     Int?                     @default(2)
+  facturasTipos       facturasTipos?           @relation(fields: [id_tipo_factura], references: [id_tipo_factura], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_tipo_factura")
   ComprasDetalle      comprasDetalle[]
-  fecha_creacion      DateTime         @default(now())
-  fecha_actualizacion DateTime         @default(now())
+  movimientos         movimientos_inventario[]
+  fecha_creacion      DateTime                 @default(now())
+  fecha_actualizacion DateTime                 @default(now())
   fecha_factura       DateTime?
   fecha_de_pago       DateTime?
-  is_dte              Boolean          @default(false) // false=Fisica, true=Electronica
-  json_dte            String?          @db.Text
-  numeroControl       String?          @default("")
-  codigoGeneracion    String?          @default("")
+  is_dte              Boolean                  @default(false)
+  json_dte            String?                  @db.Text
+  numeroControl       String?                  @default("")
+  codigoGeneracion    String?                  @default("")
 
   @@index([id_tipo_factura], name: "fk_compras_tipo_factura_id")
   @@index([id_sucursal], name: "fk_compras_sucursal_id")
   @@index([id_bodega], name: "fk_compras_bodega_id")
   @@index([id_usuario], name: "fk_compra_usuario_id")
   @@index([id_proveedor], name: "fk_compras_proveedor_id")
-  @@map("Compras")
 }
 
 model comprasDetalle {
-  id_compras_detalle   Int          @id @default(autoincrement())
+  id_compras_detalle   Int                 @id @default(autoincrement())
   id_compras           Int
-  Compras              compras      @relation(fields: [id_compras], references: [id_compras], onDelete: NoAction, onUpdate: NoAction, map: "fk_compra_detalle")
+  Compras              compras             @relation(fields: [id_compras], references: [id_compras], onDelete: NoAction, onUpdate: NoAction, map: "fk_compra_detalle")
   id_catalogo          Int?
-  catalogo             catalogo?    @relation(fields: [id_catalogo], references: [id_catalogo], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_detalle_catalogo")
-  codigo               String?      @db.Text
+  catalogo             catalogo?           @relation(fields: [id_catalogo], references: [id_catalogo], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_detalle_catalogo")
+  codigo               String?             @db.Text
   nombre               String
-  descripcion          String?      @db.Text
-  costo_unitario       Float?       @default(0)
-  cantidad             Float        @default(0)
-  cantidad_inventario  Float        @default(0)
-  subtotal             Float?       @default(0)
-  descuento_porcentaje Float?       @default(0)
-  descuento_monto      Float?       @default(0)
-  iva                  Float?       @default(0)
-  total                Float?       @default(0)
-  fecha_creacion       DateTime     @default(now())
-  kardex               kardex[]
-  inventario           inventario[]
+  descripcion          String?             @db.Text
+  tiene_serie          Boolean             @default(false) // indica si el item requiere serie
+  costo_unitario       Float?              @default(0)
+  cantidad             Float               @default(0)
+  cantidad_inventario  Float               @default(0)
+  subtotal             Float?              @default(0)
+  descuento_porcentaje Float?              @default(0)
+  descuento_monto      Float?              @default(0)
+  iva                  Float?              @default(0)
+  total                Float?              @default(0)
+  fecha_creacion       DateTime            @default(now())
+  series               inventario_series[]
 
   @@index([id_compras], name: "fk_compra_detalle_id")
   @@index([id_catalogo], name: "fk_compras_detalle_catalogo_id")
-}
-
-model inventario {
-  id_inventario      Int             @id @default(autoincrement())
-  id_catalogo        Int
-  Catalogo           catalogo        @relation(fields: [id_catalogo], references: [id_catalogo], onDelete: NoAction, onUpdate: NoAction, map: "fk_inventario_catalogo")
-  id_compras_detalle Int?
-  ComprasDetalle     comprasDetalle? @relation(fields: [id_compras_detalle], references: [id_compras_detalle], onDelete: NoAction, onUpdate: NoAction, map: "fk_inventario_detalle")
-  id_bodega          Int?
-  bodegas            bodegas?        @relation(fields: [id_bodega], references: [id_bodega], onDelete: NoAction, onUpdate: NoAction, map: "fk_inventario_bodega")
-  id_estante         Int?
-  estantes           estantes?       @relation(fields: [id_estante], references: [id_estante], onDelete: NoAction, onUpdate: NoAction, map: "fk_inventario_estante")
-  costo_unitario     Float?          @default(0)
-  existencia         Int?            @default(0)
-  costo_total        Float?          @default(0)
-
-  @@index([id_bodega], name: "fk_inventario_bodega_id")
-  @@index([id_catalogo], name: "fk_inventario_catalogo_id")
-  @@index([id_compras_detalle], name: "fk_inventario_detalle_id")
-}
-
-model kardex {
-  id_kardex           Int             @id @default(autoincrement())
-  id_catalogo         Int
-  Catalogo            catalogo        @relation(fields: [id_catalogo], references: [id_catalogo], onDelete: NoAction, onUpdate: NoAction, map: "fk_kardex_catalogo")
-  id_compras_detalle  Int?
-  ComprasDetalle      comprasDetalle? @relation(fields: [id_compras_detalle], references: [id_compras_detalle], onDelete: NoAction, onUpdate: NoAction, map: "fk_kardex_detalle")
-  tipo_movimiento     Int             @default(1) // 1=entrada, 2=salida
-  id_factura          Int?
-  descripcion         String?         @db.Text
-  costo               Float?          @default(0)
-  cantidad            Float?          @default(0)
-  subtotal            Float?          @default(0)
-  costo_promedio      Float?          @default(0)
-  inventario          Float?          @default(0)
-  total               Float?          @default(0)
-  fecha_actualizacion DateTime        @default(now())
-  fecha_creacion      DateTime        @default(now()) @db.Timestamp()
-
-  @@index([id_catalogo], name: "fk_kardex_catalogo_id")
-  @@index([id_compras_detalle], name: "fk_kardex_detalle_id")
 }
 
 //ORDEN DE TRABAJO MODELS
@@ -830,18 +815,18 @@ model motivo_cierre_catalogo {
 }
 
 model orden_trabajo {
-  id_orden                   Int                     @id @default(autoincrement())
-  codigo                     String                  @unique // OT-YYYYMM-#####
+  id_orden                   Int                      @id @default(autoincrement())
+  codigo                     String                   @unique // OT-YYYYMM-#####
   id_ticket                  Int?
-  ticket                     ticket_soporte?         @relation(fields: [id_ticket], references: [id_ticket])
+  ticket                     ticket_soporte?          @relation(fields: [id_ticket], references: [id_ticket])
   tipo                       tipo_orden
-  estado                     estado_orden            @default(PENDIENTE_ASIGNACION)
+  estado                     estado_orden             @default(PENDIENTE_ASIGNACION)
   id_cliente                 Int
-  cliente                    cliente                 @relation(fields: [id_cliente], references: [id_cliente])
+  cliente                    cliente                  @relation(fields: [id_cliente], references: [id_cliente])
   id_direccion_servicio      Int
-  direccion_servicio         clienteDirecciones      @relation(fields: [id_direccion_servicio], references: [id_cliente_direccion])
+  direccion_servicio         clienteDirecciones       @relation(fields: [id_direccion_servicio], references: [id_cliente_direccion])
   id_tecnico_asignado        Int?
-  tecnico_asignado           usuarios?               @relation(fields: [id_tecnico_asignado], references: [id_usuario])
+  tecnico_asignado           usuarios?                @relation(fields: [id_tecnico_asignado], references: [id_usuario])
   ventana_programada_inicio  DateTime?
   ventana_programada_fin     DateTime?
   fecha_asignacion           DateTime?
@@ -850,18 +835,21 @@ model orden_trabajo {
   fecha_fin_trabajo          DateTime?
   resultado                  resultado_orden?
   id_motivo_cierre           Int?
-  motivo_cierre              motivo_cierre_catalogo? @relation(fields: [id_motivo_cierre], references: [id_motivo])
+  motivo_cierre              motivo_cierre_catalogo?  @relation(fields: [id_motivo_cierre], references: [id_motivo])
   observaciones_tecnico      String?
   firma_cliente_url          String? // evidencia firma
   calificacion_cliente       Int? // 1-5
   notas_cierre               String?
-  fecha_creacion             DateTime                @default(now())
-  fecha_ultima_actualizacion DateTime                @updatedAt
+  fecha_creacion             DateTime                 @default(now())
+  fecha_ultima_actualizacion DateTime                 @updatedAt
   actividades                ot_actividades[]
   materiales                 ot_materiales[]
   evidencias                 ot_evidencias[]
   agendas                    agenda_visitas[]
   historico_estados          ot_historial_estado[]
+  reservas                   reservas_inventario[]
+  movimientos                movimientos_inventario[]
+  series_asignadas           inventario_series[]
 }
 
 model ot_historial_estado {
@@ -889,15 +877,22 @@ model ot_actividades {
 }
 
 model ot_materiales {
-  id_material    Int           @id @default(autoincrement())
-  id_orden       Int
-  orden          orden_trabajo @relation(fields: [id_orden], references: [id_orden])
-  sku            String
-  nombre         String
-  cantidad       Int
-  serie          String? // serie de ONU/CPE si aplica
-  costo_unitario Decimal?      @db.Decimal(10, 2)
-  fecha_registro DateTime      @default(now())
+  id_material           Int                @id @default(autoincrement())
+  id_orden              Int
+  orden                 orden_trabajo      @relation(fields: [id_orden], references: [id_orden])
+  id_catalogo           Int?
+  catalogo              catalogo?          @relation(fields: [id_catalogo], references: [id_catalogo])
+  id_bodega_origen      Int? // de dónde se descargó
+  bodega_origen         bodegas?           @relation(fields: [id_bodega_origen], references: [id_bodega])
+  sku                   String?
+  nombre                String?
+  cantidad              Int
+  id_serie              Int? // si es un item con serie
+  serie                 inventario_series? @relation(fields: [id_serie], references: [id_serie])
+  costo_unitario        Decimal?           @db.Decimal(10, 2)
+  descargado_inventario Boolean            @default(false)
+  fecha_descarga        DateTime?
+  fecha_registro        DateTime           @default(now())
 }
 
 model ot_evidencias {
@@ -925,3 +920,409 @@ model agenda_visitas {
   creado_por     Int
   fecha_creacion DateTime      @default(now())
 }
+
+// ======================================================   Estrutura de inventario
+// ============= MÓDULO DE INVENTARIO CON IMPORTACIONES =============
+
+// Tipos de ubicación para bodegas/cuadrillas
+enum tipo_ubicacion {
+  BODEGA
+  CUADRILLA
+}
+
+// Estados del inventario
+enum estado_inventario {
+  DISPONIBLE
+  RESERVADO
+  EN_TRANSITO
+  ASIGNADO
+  DEFECTUOSO
+  BAJA
+}
+
+// Estados de importación
+enum estado_importacion {
+  COTIZACION
+  ORDEN_COLOCADA
+  EN_TRANSITO
+  EN_ADUANA
+  LIBERADA
+  RECIBIDA
+  CANCELADA
+}
+
+// Tipos de gasto de importación
+enum tipo_gasto_importacion {
+  FLETE_INTERNACIONAL
+  SEGURO
+  AGENTE_ADUANAL
+  ALMACENAJE
+  TRANSPORTE_LOCAL
+  DAI // Derechos Arancelarios a la Importación
+  IVA_IMPORTACION
+  OTROS_IMPUESTOS
+  OTROS
+}
+
+// ============= IMPORTACIONES =============
+
+// Orden de importación principal
+model importaciones {
+  id_importacion      Int                @id @default(autoincrement())
+  numero_orden        String             @unique // IMP-2025-001
+  id_proveedor        Int
+  proveedor           proveedores        @relation(fields: [id_proveedor], references: [id_proveedor])
+  id_usuario_solicita Int
+  usuario_solicita    usuarios           @relation("usuario_solicita_importacion", fields: [id_usuario_solicita], references: [id_usuario])
+  estado              estado_importacion @default(COTIZACION)
+
+  // Datos de embarque
+  numero_factura_proveedor String?
+  numero_tracking          String?
+  incoterm                 String? // FOB, CIF, EXW, etc.
+  puerto_origen            String?
+  puerto_destino           String?
+  naviera_courier          String?
+
+  // Fechas
+  fecha_orden             DateTime  @default(now())
+  fecha_embarque          DateTime?
+  fecha_arribo_estimado   DateTime?
+  fecha_arribo_real       DateTime?
+  fecha_liberacion_aduana DateTime?
+  fecha_recepcion         DateTime?
+
+  // Montos en moneda extranjera
+  moneda              String   @default("USD")
+  subtotal_mercancia  Decimal  @db.Decimal(12, 2)
+  flete_internacional Decimal? @default(0) @db.Decimal(12, 2)
+  seguro              Decimal? @default(0) @db.Decimal(12, 2)
+  total_fob           Decimal? @db.Decimal(12, 2) // subtotal + flete + seguro
+
+  // Tipo de cambio
+  tipo_cambio Decimal @db.Decimal(10, 4) // ej: 8.75 USD a moneda local
+
+  // Totales en moneda local (después del retaceo)
+  total_mercancia_local    Decimal? @db.Decimal(12, 2)
+  total_gastos_importacion Decimal? @default(0) @db.Decimal(12, 2)
+  total_importacion        Decimal? @db.Decimal(12, 2)
+
+  // Aduana
+  numero_declaracion String?
+  agente_aduanal     String?
+
+  observaciones String? @db.Text
+
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  // Relaciones
+  detalle                importaciones_detalle[]
+  gastos                 importaciones_gastos[]
+  retaceo                retaceo_importacion[]
+  movimientos_inventario movimientos_inventario[]
+
+  @@index([estado])
+  @@index([id_proveedor])
+  @@index([fecha_orden])
+}
+
+// Detalle de items en la importación
+model importaciones_detalle {
+  id_importacion_detalle Int           @id @default(autoincrement())
+  id_importacion         Int
+  importacion            importaciones @relation(fields: [id_importacion], references: [id_importacion], onDelete: Cascade)
+
+  id_catalogo Int?
+  catalogo    catalogo? @relation(fields: [id_catalogo], references: [id_catalogo])
+
+  codigo      String
+  nombre      String
+  descripcion String? @db.Text
+
+  // Cantidades
+  cantidad_ordenada Int
+  cantidad_recibida Int @default(0)
+
+  // Costos en moneda extranjera
+  precio_unitario_usd Decimal @db.Decimal(10, 2)
+  subtotal_usd        Decimal @db.Decimal(12, 2)
+
+  // Costos en moneda local (antes del retaceo)
+  precio_unitario_local Decimal? @db.Decimal(10, 2)
+  subtotal_local        Decimal? @db.Decimal(12, 2)
+
+  // Después del retaceo (costo final por unidad)
+  costo_unitario_final Decimal? @db.Decimal(10, 2)
+  costo_total_final    Decimal? @db.Decimal(12, 2)
+
+  // Datos físicos para cálculo de retaceo
+  peso_kg    Decimal? @db.Decimal(10, 2)
+  volumen_m3 Decimal? @db.Decimal(10, 4)
+
+  tiene_serie Boolean @default(false)
+
+  observaciones String?
+
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  // Relaciones
+  series          importaciones_series[]
+  retaceo_detalle retaceo_detalle[]
+
+  @@index([id_importacion])
+  @@index([id_catalogo])
+}
+
+// Gastos adicionales de la importación
+model importaciones_gastos {
+  id_gasto       Int           @id @default(autoincrement())
+  id_importacion Int
+  importacion    importaciones @relation(fields: [id_importacion], references: [id_importacion], onDelete: Cascade)
+
+  tipo        tipo_gasto_importacion
+  descripcion String
+
+  monto       Decimal  @db.Decimal(12, 2)
+  moneda      String   @default("USD")
+  tipo_cambio Decimal? @db.Decimal(10, 4)
+  monto_local Decimal? @db.Decimal(12, 2)
+
+  // Para retaceo
+  aplica_retaceo Boolean @default(true) // si se distribuye entre items
+  metodo_retaceo String? @default("VALOR") // VALOR, PESO, VOLUMEN, CANTIDAD
+
+  numero_factura String?
+  fecha_factura  DateTime?
+
+  observaciones String?
+
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  retaceo retaceo_importacion[]
+
+  @@index([id_importacion])
+  @@index([tipo])
+}
+
+// Tabla de retaceo - distribución de gastos
+model retaceo_importacion {
+  id_retaceo     Int           @id @default(autoincrement())
+  id_importacion Int
+  importacion    importaciones @relation(fields: [id_importacion], references: [id_importacion])
+
+  id_gasto Int
+  gasto    importaciones_gastos @relation(fields: [id_gasto], references: [id_gasto])
+
+  metodo_aplicado        String // VALOR, PESO, VOLUMEN, CANTIDAD
+  monto_total_distribuir Decimal @db.Decimal(12, 2)
+
+  fecha_calculo DateTime @default(now())
+  calculado_por Int
+  usuario       usuarios @relation(fields: [calculado_por], references: [id_usuario])
+
+  detalle retaceo_detalle[]
+
+  @@index([id_importacion])
+  @@index([id_gasto])
+}
+
+// Detalle del retaceo por item
+model retaceo_detalle {
+  id_retaceo_detalle Int                 @id @default(autoincrement())
+  id_retaceo         Int
+  retaceo            retaceo_importacion @relation(fields: [id_retaceo], references: [id_retaceo], onDelete: Cascade)
+
+  id_importacion_detalle Int
+  detalle_importacion    importaciones_detalle @relation(fields: [id_importacion_detalle], references: [id_importacion_detalle])
+
+  // Base de cálculo
+  base_calculo        Decimal @db.Decimal(12, 4) // valor, peso, volumen o cantidad
+  porcentaje_asignado Decimal @db.Decimal(8, 4) // % del gasto que le corresponde
+
+  // Monto asignado
+  monto_asignado Decimal @db.Decimal(12, 2)
+  monto_unitario Decimal @db.Decimal(10, 2) // monto_asignado / cantidad
+
+  fecha_creacion DateTime @default(now())
+
+  @@index([id_retaceo])
+  @@index([id_importacion_detalle])
+}
+
+// ============= INVENTARIO =============
+
+// Inventario principal - control de stock por ubicación
+model inventario {
+  id_inventario              Int                 @id @default(autoincrement())
+  id_catalogo                Int
+  catalogo                   catalogo            @relation(fields: [id_catalogo], references: [id_catalogo])
+  id_bodega                  Int
+  bodega                     bodegas             @relation(fields: [id_bodega], references: [id_bodega])
+  id_estante                 Int?
+  estante                    estantes?           @relation(fields: [id_estante], references: [id_estante])
+  cantidad_disponible        Int                 @default(0)
+  cantidad_reservada         Int                 @default(0) // reservado para OT
+  cantidad_minima            Int?                @default(0) // stock mínimo
+  cantidad_maxima            Int?                @default(0) // stock máximo
+  costo_promedio             Decimal?            @db.Decimal(10, 2)
+  estado                     estado              @default(ACTIVO)
+  fecha_creacion             DateTime            @default(now())
+  fecha_ultima_actualizacion DateTime            @default(now()) @updatedAt
+  series                     inventario_series[]
+
+  @@unique([id_catalogo, id_bodega, id_estante])
+  @@index([id_bodega])
+  @@index([id_catalogo])
+}
+
+// Control de series para equipos (ONUs, routers, etc.)
+model inventario_series {
+  id_serie      Int               @id @default(autoincrement())
+  id_inventario Int
+  inventario    inventario        @relation(fields: [id_inventario], references: [id_inventario])
+  numero_serie  String            @unique
+  mac_address   String?
+  estado        estado_inventario @default(DISPONIBLE)
+
+  // Origen
+  id_compra_detalle Int? // si vino de compra local
+  compra_detalle    comprasDetalle? @relation(fields: [id_compra_detalle], references: [id_compras_detalle])
+
+  // Asignación
+  id_orden_trabajo Int? // a qué OT está asignado
+  orden_trabajo    orden_trabajo? @relation(fields: [id_orden_trabajo], references: [id_orden])
+  id_cliente       Int? // si está instalado en cliente
+  cliente          cliente?       @relation(fields: [id_cliente], references: [id_cliente])
+
+  // Costos
+  costo_adquisicion Decimal? @db.Decimal(10, 2) // costo final con retaceo
+
+  // Fechas
+  fecha_ingreso     DateTime  @default(now())
+  fecha_asignacion  DateTime?
+  fecha_instalacion DateTime?
+  fecha_baja        DateTime?
+  motivo_baja       String?
+
+  observaciones              String?
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  historial            historial_series[]
+  ot_materiales        ot_materiales[]
+  importaciones_series importaciones_series[]
+
+  @@index([numero_serie])
+  @@index([estado])
+  @@index([id_inventario])
+}
+
+// Series de equipos en importación
+model importaciones_series {
+  id_importacion_serie   Int                   @id @default(autoincrement())
+  id_importacion_detalle Int
+  detalle                importaciones_detalle @relation(fields: [id_importacion_detalle], references: [id_importacion_detalle])
+
+  numero_serie String  @unique
+  mac_address  String?
+
+  recibido        Boolean   @default(false)
+  fecha_recepcion DateTime?
+
+  id_inventario_serie Int? // vincula con inventario_series cuando se recepciona
+  inventario_serie    inventario_series? @relation(fields: [id_inventario_serie], references: [id_serie])
+
+  observaciones String?
+
+  fecha_creacion DateTime @default(now())
+
+  @@index([id_importacion_detalle])
+  @@index([numero_serie])
+}
+
+// Historial de movimientos de series
+model historial_series {
+  id_historial       Int               @id @default(autoincrement())
+  id_serie           Int
+  serie              inventario_series @relation(fields: [id_serie], references: [id_serie])
+  estado_anterior    estado_inventario
+  estado_nuevo       estado_inventario
+  id_bodega_anterior Int?
+  id_bodega_nueva    Int?
+  id_usuario         Int
+  usuario            usuarios          @relation(fields: [id_usuario], references: [id_usuario])
+  id_orden_trabajo   Int?
+  observaciones      String?
+  fecha_movimiento   DateTime          @default(now())
+
+  @@index([id_serie])
+}
+
+// Tipos de movimiento
+enum tipo_movimiento {
+  ENTRADA_COMPRA
+  ENTRADA_IMPORTACION
+  SALIDA_OT
+  TRANSFERENCIA
+  AJUSTE_INVENTARIO
+  DEVOLUCION
+  BAJA
+}
+
+// Movimientos de inventario
+model movimientos_inventario {
+  id_movimiento     Int             @id @default(autoincrement())
+  tipo              tipo_movimiento
+  id_catalogo       Int
+  catalogo          catalogo        @relation(fields: [id_catalogo], references: [id_catalogo])
+  id_bodega_origen  Int?
+  bodega_origen     bodegas?        @relation("bodega_origen", fields: [id_bodega_origen], references: [id_bodega])
+  id_bodega_destino Int?
+  bodega_destino    bodegas?        @relation("bodega_destino", fields: [id_bodega_destino], references: [id_bodega])
+  cantidad          Int
+  costo_unitario    Decimal?        @db.Decimal(10, 2)
+
+  // Origen del movimiento
+  id_compra        Int? // si es entrada por compra local
+  compra           compras?       @relation(fields: [id_compra], references: [id_compras])
+  id_importacion   Int? // si es entrada por importación
+  importacion      importaciones? @relation(fields: [id_importacion], references: [id_importacion])
+  id_orden_trabajo Int? // si es salida por OT
+  orden_trabajo    orden_trabajo? @relation(fields: [id_orden_trabajo], references: [id_orden])
+
+  id_usuario       Int
+  usuario          usuarios @relation(fields: [id_usuario], references: [id_usuario])
+  observaciones    String?
+  fecha_movimiento DateTime @default(now())
+
+  @@index([tipo])
+  @@index([id_catalogo])
+  @@index([fecha_movimiento])
+}
+
+// Reservas de inventario para OT
+model reservas_inventario {
+  id_reserva         Int           @id @default(autoincrement())
+  id_orden_trabajo   Int
+  orden_trabajo      orden_trabajo @relation(fields: [id_orden_trabajo], references: [id_orden])
+  id_catalogo        Int
+  catalogo           catalogo      @relation(fields: [id_catalogo], references: [id_catalogo])
+  id_bodega          Int
+  bodega             bodegas       @relation(fields: [id_bodega], references: [id_bodega])
+  cantidad_reservada Int
+  cantidad_utilizada Int           @default(0)
+  estado             estado        @default(ACTIVO) // ACTIVO, COMPLETADO, CANCELADO
+  fecha_reserva      DateTime      @default(now())
+  fecha_vencimiento  DateTime? // si la reserva expira
+  fecha_completado   DateTime?
+  id_usuario         Int
+  usuario            usuarios      @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@index([id_orden_trabajo])
+  @@index([estado])
+}
+
+// ============= ACTUALIZACIONES A TABLAS EXISTENTES =============

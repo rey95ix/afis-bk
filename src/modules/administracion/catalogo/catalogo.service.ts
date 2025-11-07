@@ -23,25 +23,44 @@ export class CatalogoService {
     return catalogo;
   }
 
-  async getNextCode(): Promise<{ codigo: string }> {
-    // Obtener el último código registrado
+  async getNextCode(subCategoriaId: number): Promise<{ codigo: string }> {
+    
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    // 1. Obtener la subcategoría y su padre
+    const subCategoria = await this.prisma.categorias.findUnique({
+      where: { id_categoria: subCategoriaId },
+      include: { categoria_padre: true },
+    });
+
+    if (!subCategoria || !subCategoria.categoria_padre) {
+      throw new NotFoundException(`La sub-categoría con ID ${subCategoriaId} no es válida o no tiene una categoría padre.`);
+    }
+
+    // 2. Construir el prefijo del código
+    const prefix = `${subCategoria.categoria_padre.codigo}${subCategoria.codigo}`;
+
+    // 3. Encontrar el último código con ese prefijo
     const lastCatalogo = await this.prisma.catalogo.findFirst({
-      orderBy: { id_catalogo: 'desc' },
-      select: { codigo: true },
+      where: {
+        codigo: {
+          startsWith: prefix,
+        },
+      },
+      orderBy: { codigo: 'desc' },
     });
 
     let nextNumber = 1;
-
-    if (lastCatalogo && lastCatalogo.codigo) {
-      // Extraer el número del último código y sumar 1
-      const lastNumber = parseInt(lastCatalogo.codigo, 10);
+    if (lastCatalogo) {
+      const lastSequentialPart = lastCatalogo.codigo.substring(prefix.length);
+      const lastNumber = parseInt(lastSequentialPart, 10);
       if (!isNaN(lastNumber)) {
         nextNumber = lastNumber + 1;
       }
     }
 
-    // Formatear el código con ceros a la izquierda (6 dígitos)
-    const nextCode = nextNumber.toString().padStart(6, '0');
+    // 4. Formatear el nuevo código
+    const sequentialPart = nextNumber.toString().padStart(4, '0');
+    const nextCode = `${prefix}${sequentialPart}`;
 
     return { codigo: nextCode };
   }

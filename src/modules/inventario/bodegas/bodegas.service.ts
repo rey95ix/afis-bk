@@ -11,11 +11,12 @@ export class BodegasService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createBodegaDto: CreateBodegaDto, id_usuario?: number): Promise<bodegas> {
-    const { id_sucursal, ...rest } = createBodegaDto;
+    const { id_sucursal, id_responsable, ...rest } = createBodegaDto;
     const bodega = await this.prisma.bodegas.create({
       data: {
         ...rest,
         id_sucursal: +id_sucursal,
+        id_responsable: id_responsable ? +id_responsable : undefined,
       },
     });
 
@@ -42,6 +43,11 @@ export class BodegasService {
       where.OR = [
         { nombre: { contains: search, mode: 'insensitive' } },
         { descripcion: { contains: search, mode: 'insensitive' } },
+        { tipo: { contains: search, mode: 'insensitive' } },
+        { placa_vehiculo: { contains: search, mode: 'insensitive' } },
+        { sucursal: { nombre: { contains: search, mode: 'insensitive' } } },
+        { responsable: { nombres: { contains: search, mode: 'insensitive' } } },
+        { responsable: { apellidos: { contains: search, mode: 'insensitive' } } },
       ];
     }
 
@@ -59,6 +65,14 @@ export class BodegasService {
               nombre: true,
             },
           },
+          responsable: {
+            select: {
+              id_usuario: true,
+              nombres: true,
+              apellidos: true,
+            },
+          },
+          estantes: true,
         },
       }),
       this.prisma.bodegas.count({ where }),
@@ -80,6 +94,21 @@ export class BodegasService {
   async findOne(id: number): Promise<bodegas> {
     const bodega = await this.prisma.bodegas.findUnique({
       where: { id_bodega: id },
+      include: {
+        sucursal: {
+          select: {
+            id_sucursal: true,
+            nombre: true,
+          },
+        },
+        responsable: {
+          select: {
+            id_usuario: true,
+            nombres: true,
+            apellidos: true,
+          },
+        },
+      },
     });
     if (!bodega) {
       throw new NotFoundException(`Bodega with ID ${id} not found`);
@@ -89,12 +118,13 @@ export class BodegasService {
 
   async update(id: number, updateBodegaDto: UpdateBodegaDto, id_usuario?: number): Promise<bodegas> {
     await this.findOne(id); // check if exists
-    const { id_sucursal, ...rest } = updateBodegaDto;
+    const { id_sucursal, id_responsable, ...rest } = updateBodegaDto;
     const bodega = await this.prisma.bodegas.update({
       where: { id_bodega: id },
       data: {
         ...rest,
         id_sucursal: id_sucursal ? +id_sucursal : undefined,
+        id_responsable: id_responsable ? +id_responsable : undefined,
       },
     });
 

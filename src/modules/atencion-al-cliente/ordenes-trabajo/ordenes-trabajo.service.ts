@@ -972,11 +972,27 @@ export class OrdenesTrabajoService {
       );
     }
 
+    const { serie, ...materialData } = createMaterialDto;
+
     const result = await this.prisma.$transaction(async (prisma) => {
+      let idSerie: number | undefined = undefined;
+
+      if (serie) {
+        const inventarioSerie = await prisma.inventario_series.findUnique({
+          where: { numero_serie: serie },
+        });
+
+        if (!inventarioSerie) {
+          throw new NotFoundException(`Serie con número ${serie} no encontrada.`);
+        }
+        idSerie = inventarioSerie.id_serie;
+      }
+
       const material = await prisma.ot_materiales.create({
         data: {
           id_orden: idOrden,
-          ...createMaterialDto,
+          ...materialData,
+          id_serie: idSerie,
         },
       });
 
