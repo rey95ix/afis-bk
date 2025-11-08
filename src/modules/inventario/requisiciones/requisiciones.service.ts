@@ -14,6 +14,9 @@ import {
 } from './dto';
 import { requisiciones_inventario, Prisma } from '@prisma/client';
 import { PaginationDto, PaginatedResult } from 'src/common/dto';
+import axios from 'axios';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Tipo para requisición con relaciones incluidas
 type RequisicionWithRelations = Prisma.requisiciones_inventarioGetPayload<{
@@ -1092,5 +1095,99 @@ export class RequisicionesService {
     // En este caso, como no hay campo "estado" en el modelo de requisiciones,
     // simplemente cancelamos la requisición
     return this.cancel(id, id_usuario);
+  }
+
+  /**
+   * Genera un PDF de la requisición usando jsReport
+   */
+  async generatePdf(id: number): Promise<Buffer> {
+    // Obtener requisición completa
+    const requisicion = await this.findOne(id);
+
+    // Leer plantilla HTML 
+    const templatePath = path.join(__dirname, '../../../../src/templates/inventario/requisicion.html'); 
+    if (!fs.existsSync(templatePath)) {
+      throw new NotFoundException('Plantilla de reporte no encontrada');
+    }
+
+    const templateHtml = fs.readFileSync(templatePath, 'utf-8');
+
+    // Formatear fechas
+    const formatDate = (date: Date | null): string => {
+      if (!date) return 'N/A';
+      return new Date(date).toLocaleString('es-SV', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    };
+
+    // Mapear tipo a label
+    const TIPO_LABELS = {
+      TRANSFERENCIA_BODEGA: 'Transferencia entre Bodegas',
+      TRANSFERENCIA_SUCURSAL: 'Transferencia entre Sucursales',
+      CAMBIO_ESTANTE: 'Cambio de Estante',
+    };
+
+    // Mapear estado a clase CSS
+    const ESTADO_CLASS = {
+      PENDIENTE: 'pendiente',
+      APROBADA: 'aprobada',
+      RECHAZADA: 'rechazada',
+      PROCESADA: 'procesada',
+      CANCELADA: 'cancelada',
+    };
+
+    // Preparar datos para la plantilla
+    const templateData = {
+      ...requisicion,
+      tipoLabel: TIPO_LABELS[requisicion.tipo] || requisicion.tipo,
+      estadoClass: ESTADO_CLASS[requisicion.estado] || 'pendiente',
+      fechaCreacion: formatDate(requisicion.fecha_creacion),
+      fechaAutorizacion: formatDate(requisicion.fecha_autorizacion),
+      fechaProceso: formatDate(requisicion.fecha_proceso),
+      fechaGeneracion: new Date().toLocaleString('es-SV', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      mostrarAutorizada: requisicion.estado === 'APROBADA' || requisicion.estado === 'PROCESADA',
+      mostrarProcesada: requisicion.estado === 'PROCESADA',
+    };
+
+    // Configurar petición a jsReport
+    const API_REPORT = process.env.API_REPORT || 'https://reports.edal.group/api/report';
+
+    try {
+      const response = await axios.post(
+        API_REPORT,
+        {
+          template: {
+            content: templateHtml,
+            engine: 'jsrender',
+            recipe: 'chrome-pdf',
+          },
+          data: templateData,
+          options: {
+            reportName: `Requisicion_${requisicion.codigo}`,
+          },
+        },
+        {
+          responseType: 'arraybuffer',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      return Buffer.from(response.data);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      throw new BadRequestException('Error al generar el PDF de la requisición');
+    }
   }
 }

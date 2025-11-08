@@ -10,7 +10,9 @@ import {
   Delete,
   ParseIntPipe,
   Query,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { RequisicionesService } from './requisiciones.service';
 import {
   CreateRequisicionDto,
@@ -225,6 +227,41 @@ export class RequisicionesController {
     @GetUser('id_usuario') id_usuario: number,
   ) {
     return this.requisicionesService.cancel(id, id_usuario);
+  }
+
+  @Get(':id/pdf')
+  @ApiOperation({
+    summary: 'Generar PDF de la requisición',
+    description:
+      'Genera un documento PDF con los detalles completos de la requisición.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'PDF generado exitosamente.',
+    content: {
+      'application/pdf': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Requisición no encontrada.' })
+  @ApiResponse({ status: 400, description: 'Error al generar el PDF.' })
+  async generatePdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ) {
+    const pdfBuffer = await this.requisicionesService.generatePdf(id);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="Requisicion_${id}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+
+    res.end(pdfBuffer);
   }
 
   @Delete(':id')
