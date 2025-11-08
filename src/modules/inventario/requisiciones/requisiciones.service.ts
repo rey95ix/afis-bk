@@ -1104,8 +1104,8 @@ export class RequisicionesService {
     // Obtener requisición completa
     const requisicion = await this.findOne(id);
 
-    // Leer plantilla HTML 
-    const templatePath = path.join(__dirname, '../../../../src/templates/inventario/requisicion.html'); 
+    // Leer plantilla HTML
+    const templatePath = path.join(process.cwd(), 'templates/inventario/requisicion.html');
     if (!fs.existsSync(templatePath)) {
       throw new NotFoundException('Plantilla de reporte no encontrada');
     }

@@ -77,25 +77,32 @@ Tipos de TypeScript (ya incluidos):
 ## 📁 Estructura de Carpetas
 
 ```
-src/
-├── templates/                    # Plantillas HTML para reportes
+afis-backend-nestjs/
+├── templates/                    # Plantillas HTML para reportes (EN LA RAÍZ)
 │   ├── inventario/
-│   │   └── requisicion.html     # Plantilla de requisición
+│   │   ├── requisicion.html     # Plantilla de requisición
+│   │   └── existencias-inventario.html  # Plantilla de existencias
 │   ├── ventas/
 │   │   └── factura.html         # Ejemplo: plantilla de factura
 │   └── compras/
 │       └── orden-compra.html    # Ejemplo: plantilla de orden de compra
 │
-└── modules/
-    └── inventario/
-        └── requisiciones/
-            ├── requisiciones.controller.ts   # Endpoint GET /:id/pdf
-            └── requisiciones.service.ts      # Método generatePdf()
+└── src/
+    └── modules/
+        └── inventario/
+            └── requisiciones/
+                ├── requisiciones.controller.ts   # Endpoint GET /:id/pdf
+                └── requisiciones.service.ts      # Método generatePdf()
 ```
 
 **Convención de nombres:**
 - Carpetas: nombre del módulo en minúsculas
 - Archivos: nombre-de-entidad.html (kebab-case)
+
+**⚠️ IMPORTANTE:**
+- Los templates están en la **RAÍZ del proyecto**, NO en `src/templates/`
+- Esto evita problemas con el build y el Dockerfile
+- La carpeta `templates/` debe estar al mismo nivel que `src/`, `dist/`, `package.json`, etc.
 
 ---
 
@@ -103,7 +110,7 @@ src/
 
 ### Paso 1: Crear la Plantilla HTML
 
-**Ubicación:** `src/templates/{modulo}/{entidad}.html`
+**Ubicación:** `templates/{modulo}/{entidad}.html` **(en la raíz del proyecto)**
 
 ```html
 <!DOCTYPE html>
@@ -182,8 +189,8 @@ export class EntidadService {
 
     // 2. Leer plantilla HTML
     const templatePath = path.join(
-      __dirname,
-      '../../../../src/templates/{modulo}/{entidad}.html'
+      process.cwd(),
+      'templates/{modulo}/{entidad}.html'
     );
 
     if (!fs.existsSync(templatePath)) {
@@ -370,7 +377,7 @@ verPdf(entidad: Entidad): void {
 
 ### Plantilla HTML
 
-**Ubicación:** `src/templates/inventario/requisicion.html`
+**Ubicación:** `templates/inventario/requisicion.html` **(en la raíz del proyecto)**
 
 ```html
 <!DOCTYPE html>
@@ -445,8 +452,8 @@ async generatePdf(id: number): Promise<Buffer> {
   const requisicion = await this.findOne(id);
 
   const templatePath = path.join(
-    __dirname,
-    '../../../../src/templates/inventario/requisicion.html'
+    process.cwd(),
+    'templates/inventario/requisicion.html'
   );
 
   if (!fs.existsSync(templatePath)) {
@@ -725,16 +732,19 @@ async generatePdf(
 
 **Solución:**
 ```typescript
-// Verificar la ruta relativa desde el archivo compilado
+// Usar process.cwd() que apunta a la raíz del proyecto
 const templatePath = path.join(
-  __dirname,
-  '../../../../src/templates/modulo/archivo.html'
+  process.cwd(),
+  'templates/modulo/archivo.html'
 );
 
 // Debug: Imprimir la ruta
 console.log('Template path:', templatePath);
 console.log('Exists:', fs.existsSync(templatePath));
+console.log('Current working directory:', process.cwd());
 ```
+
+**Nota:** Usar `process.cwd()` en lugar de `__dirname` porque los templates están en la raíz del proyecto, no dentro de `src/`. Esto funciona tanto en desarrollo como en producción.
 
 ### Error: Axios timeout
 

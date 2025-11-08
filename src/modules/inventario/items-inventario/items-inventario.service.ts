@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 import {
   QueryInventarioDto,
@@ -6,6 +6,9 @@ import {
   QuerySeriesDto,
 } from './dto';
 import { PaginatedResult } from 'src/common/dto';
+import axios from 'axios';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class ItemsInventarioService {
@@ -533,5 +536,87 @@ export class ItemsInventarioService {
         totalPages,
       },
     };
+  }
+
+  /**
+   * Generar PDF de reporte de existencias de inventario
+   */
+  async generateExistenciasPdf(): Promise<Buffer> {
+    // 1. Obtener distribución del inventario
+    const distribucion = await this.getDistribucion();
+
+    // 2. Obtener alertas de stock bajo
+    const alertas = await this.getAlertas();
+
+    // 3. Leer plantilla HTML
+    const templatePath = path.join(
+      process.cwd(),
+      'templates/inventario/existencias-inventario.html',
+    );
+
+    if (!fs.existsSync(templatePath)) {
+      throw new NotFoundException('Plantilla de reporte no encontrada');
+    }
+
+    const templateHtml = fs.readFileSync(templatePath, 'utf-8');
+
+    // 4. Formatear fecha
+    const formatDate = (date: Date): string => {
+      return new Date(date).toLocaleString('es-SV', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    };
+
+    // 5. Preparar datos para la plantilla
+    const templateData = {
+      fechaGeneracion: formatDate(new Date()),
+      filtrosAplicados: 'Todos los items activos',
+      resumen_general: distribucion.resumen_general,
+      por_bodega: distribucion.por_bodega,
+      por_categoria: distribucion.por_categoria,
+      alertas: alertas.slice(0, 20), // Limitar a las primeras 20 alertas más críticas
+    };
+
+    // 6. Configurar petición a jsReport
+    const API_REPORT = process.env.API_REPORT || 'https://reports.edal.group/api/report';
+
+    try {
+      const response = await axios.post(
+        API_REPORT,
+        {
+          template: {
+            content: templateHtml,
+            engine: 'jsrender',
+            recipe: 'chrome-pdf',
+          },
+          data: templateData,
+          options: {
+            reportName: `Existencias_Inventario_${new Date().getTime()}`,
+          },
+        },
+        {
+          responseType: 'arraybuffer',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          timeout: 60000, // 60 segundos
+        },
+      );
+
+      return Buffer.from(response.data);
+    } catch (error) {
+      console.error('Error generating PDF:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+      throw new BadRequestException(
+        'Error al generar el PDF. Por favor intente nuevamente.',
+      );
+    }
   }
 }

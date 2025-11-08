@@ -4,7 +4,9 @@ import {
   Param,
   Query,
   ParseIntPipe,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ItemsInventarioService } from './items-inventario.service';
 import {
   QueryInventarioDto,
@@ -142,5 +144,44 @@ export class ItemsInventarioController {
     @Query() queryDto: QueryMovimientosDto,
   ) {
     return this.itemsInventarioService.findMovimientos(id_catalogo, queryDto);
+  }
+
+  @Get('distribucion/pdf')
+  @ApiOperation({
+    summary: 'Generar PDF de existencias de inventario',
+    description:
+      'Genera un documento PDF con el reporte completo de existencias de inventario, incluyendo distribución por bodega, por categoría y alertas de stock bajo.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'PDF generado exitosamente.',
+    content: {
+      'application/pdf': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Error al generar el PDF.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Plantilla de reporte no encontrada.',
+  })
+  async generateExistenciasPdf(@Res() res: Response) {
+    const pdfBuffer = await this.itemsInventarioService.generateExistenciasPdf();
+
+    // inline = abrir en navegador, attachment = descargar
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="Existencias_Inventario_${new Date().getTime()}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+
+    res.end(pdfBuffer);
   }
 }
