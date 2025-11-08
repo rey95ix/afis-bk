@@ -27,11 +27,22 @@ export class CreateRequisicionDetalleDto {
   id_catalogo: number;
 
   @ApiProperty({
-    description: 'Cantidad solicitada',
+    description: 'Cantidad solicitada (ignorado si se especifican series)',
     example: 10,
   })
   @IsInt()
   cantidad_solicitada: number;
+
+  @ApiProperty({
+    description: 'IDs de series específicas a transferir (para productos serializados)',
+    example: [1, 2, 3],
+    required: false,
+    type: [Number],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  series?: number[];
 
   @ApiProperty({
     description: 'Observaciones del item',

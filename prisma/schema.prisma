@@ -1228,9 +1228,10 @@ model inventario_series {
   fecha_creacion             DateTime @default(now())
   fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 
-  historial            historial_series[]
-  ot_materiales        ot_materiales[]
-  importaciones_series importaciones_series[]
+  historial                    historial_series[]
+  ot_materiales                ot_materiales[]
+  importaciones_series         importaciones_series[]
+  requisiciones_detalle_series requisiciones_detalle_series[]
 
   @@index([numero_serie])
   @@index([estado])
@@ -1434,8 +1435,27 @@ model requisiciones_detalle {
   fecha_creacion         DateTime                 @default(now())
   fecha_ultima_actualizacion DateTime             @default(now()) @updatedAt
 
+  // Relación con series (para productos serializados)
+  series                 requisiciones_detalle_series[]
+
   @@index([id_requisicion])
   @@index([id_catalogo])
+}
+
+// Series específicas incluidas en requisiciones (para productos serializados)
+model requisiciones_detalle_series {
+  id_requisicion_detalle_serie Int                   @id @default(autoincrement())
+  id_requisicion_detalle       Int
+  requisicion_detalle          requisiciones_detalle @relation(fields: [id_requisicion_detalle], references: [id_requisicion_detalle], onDelete: Cascade)
+
+  id_serie                     Int
+  serie                        inventario_series     @relation(fields: [id_serie], references: [id_serie])
+
+  fecha_creacion               DateTime              @default(now())
+
+  @@unique([id_requisicion_detalle, id_serie])
+  @@index([id_requisicion_detalle])
+  @@index([id_serie])
 }
 
 // ============= MÓDULO DE ÓRDENES DE SALIDA =============

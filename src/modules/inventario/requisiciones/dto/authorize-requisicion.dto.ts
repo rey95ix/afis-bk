@@ -19,11 +19,22 @@ export class AutorizarRequisicionDetalleDto {
   id_requisicion_detalle: number;
 
   @ApiProperty({
-    description: 'Cantidad autorizada',
+    description: 'Cantidad autorizada (ignorado si el producto tiene series)',
     example: 8,
   })
   @IsInt()
   cantidad_autorizada: number;
+
+  @ApiProperty({
+    description: 'IDs de series autorizadas (para productos serializados). Si se omite, se autorizan todas las series solicitadas',
+    example: [1, 2],
+    required: false,
+    type: [Number],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  series_autorizadas?: number[];
 }
 
 export class AuthorizeRequisicionDto {

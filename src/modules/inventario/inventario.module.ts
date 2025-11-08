@@ -15,6 +15,7 @@ import { EstantesController } from './estantes/estantes.controller';
 import { EstantesService } from './estantes/estantes.service';
 import { ItemsInventarioController } from './items-inventario/items-inventario.controller';
 import { ItemsInventarioService } from './items-inventario/items-inventario.service';
+import { SeriesController } from './items-inventario/series.controller';
 import { RequisicionesController } from './requisiciones/requisiciones.controller';
 import { RequisicionesService } from './requisiciones/requisiciones.service';
 import { OrdenesSalidaController } from './ordenes-salida/ordenes-salida.controller';
@@ -30,6 +31,7 @@ import { OrdenesSalidaService } from './ordenes-salida/ordenes-salida.service';
     ImportacionesController,
     EstantesController,
     ItemsInventarioController,
+    SeriesController,
     RequisicionesController,
     OrdenesSalidaController
   ],

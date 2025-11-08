@@ -46,7 +46,7 @@
 
         .info-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: repeat(5, 1fr);
             gap: 10px;
         }
 
@@ -174,6 +174,44 @@
             font-size: 9px;
         }
 
+        .series-container {
+            padding: 5px 10px;
+            margin-top: 5px;
+            background-color: #e3f2fd;
+            border-left: 3px solid #2196f3;
+            border-radius: 3px;
+        }
+
+        .series-title {
+            font-weight: 600;
+            color: #1565c0;
+            font-size: 9px;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+        }
+
+        .series-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .series-item {
+            background-color: white;
+            border: 1px solid #90caf9;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 9px;
+            color: #1565c0;
+        }
+
+        .series-item .mac {
+            display: block;
+            font-size: 8px;
+            color: #666;
+            margin-top: 2px;
+        }
+
         @media print {
             body {
                 padding: 10px;
@@ -189,6 +227,7 @@
     </div>
 
     <!-- Información General -->
+    <h3 class="section-title">Información General</h3>
     <div class="info-section">
         <div class="info-grid">
             <div class="info-item">
@@ -226,14 +265,7 @@
                 <span class="info-label">Procesado por:</span>
                 <span class="info-value">{{:usuario_procesa.nombres}} {{:usuario_procesa.apellidos}}</span>
             </div>
-            {{/if}}
-        </div>
-    </div>
-
-    <!-- Origen y Destino -->
-    <h3 class="section-title">Origen y Destino</h3>
-    <div class="info-section">
-        <div class="info-grid">
+            {{/if}} 
             {{if bodega_origen}}
             <div class="info-item">
                 <span class="info-label">Bodega Origen:</span>
@@ -304,7 +336,24 @@
             <tr>
                 <td>{{:#index + 1}}</td>
                 <td>{{:catalogo.codigo}}</td>
-                <td><strong>{{:catalogo.nombre}}</strong></td>
+                <td>
+                    <strong>{{:catalogo.nombre}}</strong>
+                    {{if series && series.length > 0}}
+                    <div class="series-container">
+                        <div class="series-title">Números de Serie ({{:series.length}}):</div>
+                        <div class="series-list">
+                            {{for series}}
+                            <div class="series-item">
+                                <strong>{{:serie.numero_serie}}</strong>
+                                {{if serie.mac_address}}
+                                <span class="mac">MAC: {{:serie.mac_address}}</span>
+                                {{/if}}
+                            </div>
+                            {{/for}}
+                        </div>
+                    </div>
+                    {{/if}}
+                </td>
                 <td class="text-center">{{:cantidad_solicitada}}</td>
                 {{if ~root.mostrarAutorizada}}
                 <td class="text-center">{{:cantidad_autorizada || 0}}</td>

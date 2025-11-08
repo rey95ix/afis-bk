@@ -24,6 +24,11 @@ type RequisicionWithRelations = Prisma.requisiciones_inventarioGetPayload<{
     detalle: {
       include: {
         catalogo: true;
+        series: {
+          include: {
+            serie: true;
+          };
+        };
       };
     };
     usuario_solicita: {
@@ -93,6 +98,84 @@ export class RequisicionesService {
   }
 
   /**
+   * Valida que las series solicitadas sean válidas y estén disponibles
+   */
+  private async validateSeries(
+    id_catalogo: number,
+    series: number[],
+    id_bodega_origen?: number,
+    id_estante_origen?: number,
+  ): Promise<void> {
+    if (!series || series.length === 0) {
+      return;
+    }
+
+    // Verificar que todas las series existan
+    const seriesData = await this.prisma.inventario_series.findMany({
+      where: {
+        id_serie: { in: series },
+      },
+      include: {
+        inventario: {
+          include: {
+            catalogo: true,
+          },
+        },
+      },
+    });
+
+    if (seriesData.length !== series.length) {
+      const foundIds = seriesData.map((s) => s.id_serie);
+      const missingIds = series.filter((id) => !foundIds.includes(id));
+      throw new NotFoundException(
+        `Series no encontradas: ${missingIds.join(', ')}`,
+      );
+    }
+
+    // Validar que todas las series pertenezcan al catálogo especificado
+    const wrongCatalogo = seriesData.filter(
+      (s) => s.inventario.id_catalogo !== id_catalogo,
+    );
+    if (wrongCatalogo.length > 0) {
+      throw new BadRequestException(
+        `Las series ${wrongCatalogo.map((s) => s.numero_serie).join(', ')} no pertenecen al producto solicitado`,
+      );
+    }
+
+    // Validar que todas las series estén disponibles
+    const notAvailable = seriesData.filter((s) => s.estado !== 'DISPONIBLE');
+    if (notAvailable.length > 0) {
+      throw new BadRequestException(
+        `Las series ${notAvailable.map((s) => s.numero_serie).join(', ')} no están disponibles (estado: ${notAvailable[0].estado})`,
+      );
+    }
+
+    // Si se especifica bodega origen, validar que las series estén en esa bodega
+    if (id_bodega_origen) {
+      const wrongBodega = seriesData.filter(
+        (s) => s.inventario.id_bodega !== id_bodega_origen,
+      );
+      if (wrongBodega.length > 0) {
+        throw new BadRequestException(
+          `Las series ${wrongBodega.map((s) => s.numero_serie).join(', ')} no están en la bodega origen especificada`,
+        );
+      }
+    }
+
+    // Si se especifica estante origen, validar que las series estén en ese estante
+    if (id_estante_origen) {
+      const wrongEstante = seriesData.filter(
+        (s) => s.inventario.id_estante !== id_estante_origen,
+      );
+      if (wrongEstante.length > 0) {
+        throw new BadRequestException(
+          `Las series ${wrongEstante.map((s) => s.numero_serie).join(', ')} no están en el estante origen especificado`,
+        );
+      }
+    }
+  }
+
+  /**
    * Valida que la requisición tenga origen y destino válidos según el tipo
    */
   private validateOrigenDestino(dto: CreateRequisicionDto): void {
@@ -157,10 +240,30 @@ export class RequisicionesService {
     // Validar origen y destino
     this.validateOrigenDestino(createRequisicionDto);
 
+    const { detalle, ...requisicionData } = createRequisicionDto;
+
+    // Validar series para cada item
+    for (const item of detalle) {
+      if (item.series && item.series.length > 0) {
+        // Si se especifican series, validarlas
+        await this.validateSeries(
+          item.id_catalogo,
+          item.series,
+          requisicionData.id_bodega_origen,
+          requisicionData.id_estante_origen,
+        );
+
+        // La cantidad solicitada debe coincidir con el número de series
+        if (item.cantidad_solicitada !== item.series.length) {
+          throw new BadRequestException(
+            `La cantidad solicitada (${item.cantidad_solicitada}) debe coincidir con el número de series especificadas (${item.series.length})`,
+          );
+        }
+      }
+    }
+
     // Generar código único
     const codigo = await this.generateCodigo();
-
-    const { detalle, ...requisicionData } = createRequisicionDto;
 
     // Limpiar campos nulos o con valor 0 (que no existen en BD)
     const cleanedData: any = {
@@ -199,6 +302,13 @@ export class RequisicionesService {
             id_catalogo: item.id_catalogo,
             cantidad_solicitada: item.cantidad_solicitada,
             observaciones: item.observaciones,
+            ...(item.series && item.series.length > 0 && {
+              series: {
+                create: item.series.map((id_serie) => ({
+                  id_serie,
+                })),
+              },
+            }),
           })),
         },
       },
@@ -206,6 +316,11 @@ export class RequisicionesService {
         detalle: {
           include: {
             catalogo: true,
+            series: {
+              include: {
+                serie: true,
+              },
+            },
           },
         },
         usuario_solicita: {
@@ -326,6 +441,11 @@ export class RequisicionesService {
           detalle: {
             include: {
               catalogo: true,
+              series: {
+                include: {
+                  serie: true,
+                },
+              },
             },
           },
         },
@@ -356,6 +476,11 @@ export class RequisicionesService {
         detalle: {
           include: {
             catalogo: true,
+            series: {
+              include: {
+                serie: true,
+              },
+            },
           },
         },
         usuario_solicita: {
@@ -500,8 +625,26 @@ export class RequisicionesService {
       }
     }
 
-    // Si se actualiza el detalle, eliminar el anterior y crear nuevo
+    // Si se actualiza el detalle, validar series y eliminar el anterior
     if (detalle) {
+      // Validar series para cada item
+      for (const item of detalle) {
+        if (item.series && item.series.length > 0) {
+          await this.validateSeries(
+            item.id_catalogo,
+            item.series,
+            cleanedData.id_bodega_origen ?? requisicion.id_bodega_origen,
+            cleanedData.id_estante_origen ?? requisicion.id_estante_origen,
+          );
+
+          if (item.cantidad_solicitada !== item.series.length) {
+            throw new BadRequestException(
+              `La cantidad solicitada (${item.cantidad_solicitada}) debe coincidir con el número de series especificadas (${item.series.length})`,
+            );
+          }
+        }
+      }
+
       await this.prisma.requisiciones_detalle.deleteMany({
         where: { id_requisicion: id },
       });
@@ -517,6 +660,13 @@ export class RequisicionesService {
               id_catalogo: item.id_catalogo,
               cantidad_solicitada: item.cantidad_solicitada,
               observaciones: item.observaciones,
+              ...(item.series && item.series.length > 0 && {
+                series: {
+                  create: item.series.map((id_serie) => ({
+                    id_serie,
+                  })),
+                },
+              }),
             })),
           },
         }),
@@ -525,6 +675,11 @@ export class RequisicionesService {
         detalle: {
           include: {
             catalogo: true,
+            series: {
+              include: {
+                serie: true,
+              },
+            },
           },
         },
         usuario_solicita: {
@@ -584,7 +739,7 @@ export class RequisicionesService {
 
     const { aprobar, observaciones_autorizacion, detalle } = authorizeDto;
 
-    // Si se aprueba, actualizar cantidades autorizadas
+    // Si se aprueba, actualizar cantidades autorizadas y series
     if (aprobar && detalle) {
       for (const item of detalle) {
         const detalleItem = requisicion.detalle.find(
@@ -597,30 +752,87 @@ export class RequisicionesService {
           );
         }
 
-        if (item.cantidad_autorizada > detalleItem.cantidad_solicitada) {
-          throw new BadRequestException(
-            `La cantidad autorizada no puede ser mayor a la solicitada para el item ${detalleItem.catalogo.nombre}`,
-          );
+        // Si el item tiene series solicitadas, manejar autorización de series
+        if (detalleItem.series && detalleItem.series.length > 0) {
+          if (item.series_autorizadas && item.series_autorizadas.length > 0) {
+            // Validar que las series autorizadas estén en las series solicitadas
+            const seriesSolicitadas = detalleItem.series.map((s) => s.id_serie);
+            const seriesNoSolicitadas = item.series_autorizadas.filter(
+              (id) => !seriesSolicitadas.includes(id),
+            );
+
+            if (seriesNoSolicitadas.length > 0) {
+              throw new BadRequestException(
+                `Las series ${seriesNoSolicitadas.join(', ')} no están en la lista de series solicitadas`,
+              );
+            }
+
+            // Eliminar series no autorizadas
+            const seriesToDelete = seriesSolicitadas.filter(
+              (id) => !item.series_autorizadas!.includes(id),
+            );
+
+            if (seriesToDelete.length > 0) {
+              await this.prisma.requisiciones_detalle_series.deleteMany({
+                where: {
+                  id_requisicion_detalle: item.id_requisicion_detalle,
+                  id_serie: { in: seriesToDelete },
+                },
+              });
+            }
+
+            // La cantidad autorizada es el número de series autorizadas
+            await this.prisma.requisiciones_detalle.update({
+              where: {
+                id_requisicion_detalle: item.id_requisicion_detalle,
+              },
+              data: {
+                cantidad_autorizada: item.series_autorizadas.length,
+              },
+            });
+          } else {
+            // Si no se especifican series autorizadas, autorizar todas las solicitadas
+            await this.prisma.requisiciones_detalle.update({
+              where: {
+                id_requisicion_detalle: item.id_requisicion_detalle,
+              },
+              data: {
+                cantidad_autorizada: detalleItem.series.length,
+              },
+            });
+          }
+        } else {
+          // Para items sin series, validar cantidad normal
+          if (item.cantidad_autorizada > detalleItem.cantidad_solicitada) {
+            throw new BadRequestException(
+              `La cantidad autorizada no puede ser mayor a la solicitada para el item ${detalleItem.catalogo.nombre}`,
+            );
+          }
+
+          await this.prisma.requisiciones_detalle.update({
+            where: {
+              id_requisicion_detalle: item.id_requisicion_detalle,
+            },
+            data: {
+              cantidad_autorizada: item.cantidad_autorizada,
+            },
+          });
         }
+      }
+    } else if (aprobar && !detalle) {
+      // Si se aprueba sin detalle, autorizar toda la cantidad/series solicitadas
+      for (const item of requisicion.detalle) {
+        const cantidadAutorizada =
+          item.series && item.series.length > 0
+            ? item.series.length
+            : item.cantidad_solicitada;
 
         await this.prisma.requisiciones_detalle.update({
           where: {
             id_requisicion_detalle: item.id_requisicion_detalle,
           },
           data: {
-            cantidad_autorizada: item.cantidad_autorizada,
-          },
-        });
-      }
-    } else if (aprobar && !detalle) {
-      // Si se aprueba sin detalle, autorizar la cantidad solicitada completa
-      for (const item of requisicion.detalle) {
-        await this.prisma.requisiciones_detalle.update({
-          where: {
-            id_requisicion_detalle: item.id_requisicion_detalle,
-          },
-          data: {
-            cantidad_autorizada: item.cantidad_solicitada,
+            cantidad_autorizada: cantidadAutorizada,
           },
         });
       }
@@ -638,6 +850,11 @@ export class RequisicionesService {
         detalle: {
           include: {
             catalogo: true,
+            series: {
+              include: {
+                serie: true,
+              },
+            },
           },
         },
         usuario_solicita: {
@@ -739,6 +956,11 @@ export class RequisicionesService {
         detalle: {
           include: {
             catalogo: true,
+            series: {
+              include: {
+                serie: true,
+              },
+            },
           },
         },
         usuario_solicita: {
@@ -795,80 +1017,261 @@ export class RequisicionesService {
     for (const item of requisicion.detalle) {
       const cantidad = item.cantidad_autorizada!;
 
-      // Verificar stock disponible en bodega origen
-      const inventarioOrigen = await this.prisma.inventario.findFirst({
-        where: {
-          id_catalogo: item.id_catalogo,
-          id_bodega: requisicion.id_bodega_origen,
-        },
-      });
-
-      if (
-        !inventarioOrigen ||
-        inventarioOrigen.cantidad_disponible < cantidad
-      ) {
-        throw new BadRequestException(
-          `Stock insuficiente en bodega origen para el producto ${item.catalogo.nombre}`,
+      // Si el item tiene series, procesar transferencia de series
+      if (item.series && item.series.length > 0) {
+        await this.procesarTransferenciaConSeries(
+          item,
+          requisicion.id_bodega_origen,
+          requisicion.id_bodega_destino,
+          requisicion.id_estante_origen,
+          requisicion.id_estante_destino,
+          id_usuario,
+          requisicion.codigo,
+        );
+      } else {
+        // Procesar transferencia normal sin series
+        await this.procesarTransferenciaSinSeries(
+          item,
+          cantidad,
+          requisicion.id_bodega_origen,
+          requisicion.id_bodega_destino,
+          id_usuario,
+          requisicion.codigo,
         );
       }
+    }
+  }
 
-      // Reducir stock en bodega origen
-      await this.prisma.inventario.update({
-        where: {
-          id_inventario: inventarioOrigen.id_inventario,
-        },
+  /**
+   * Procesa transferencia de productos con series
+   */
+  private async procesarTransferenciaConSeries(
+    item: any,
+    id_bodega_origen: number,
+    id_bodega_destino: number,
+    id_estante_origen: number | null,
+    id_estante_destino: number | null,
+    id_usuario: number,
+    codigoRequisicion: string,
+  ): Promise<void> {
+    // Obtener inventarios origen
+    const inventarioOrigen = await this.prisma.inventario.findFirst({
+      where: {
+        id_catalogo: item.id_catalogo,
+        id_bodega: id_bodega_origen,
+        ...(id_estante_origen && { id_estante: id_estante_origen }),
+      },
+    });
+
+    if (!inventarioOrigen) {
+      throw new NotFoundException(
+        `Inventario origen no encontrado para ${item.catalogo.nombre}`,
+      );
+    }
+
+    // Buscar o crear inventario destino
+    let inventarioDestino = await this.prisma.inventario.findFirst({
+      where: {
+        id_catalogo: item.id_catalogo,
+        id_bodega: id_bodega_destino,
+        ...(id_estante_destino && { id_estante: id_estante_destino }),
+      },
+    });
+
+    if (!inventarioDestino) {
+      inventarioDestino = await this.prisma.inventario.create({
         data: {
-          cantidad_disponible: {
-            decrement: cantidad,
-          },
-        },
-      });
-
-      // Incrementar stock en bodega destino
-      const inventarioDestino = await this.prisma.inventario.findFirst({
-        where: {
           id_catalogo: item.id_catalogo,
-          id_bodega: requisicion.id_bodega_destino,
-        },
-      });
-
-      if (inventarioDestino) {
-        await this.prisma.inventario.update({
-          where: {
-            id_inventario: inventarioDestino.id_inventario,
-          },
-          data: {
-            cantidad_disponible: {
-              increment: cantidad,
-            },
-          },
-        });
-      } else {
-        // Crear nuevo registro de inventario en bodega destino
-        await this.prisma.inventario.create({
-          data: {
-            id_catalogo: item.id_catalogo,
-            id_bodega: requisicion.id_bodega_destino,
-            cantidad_disponible: cantidad,
-            costo_promedio: inventarioOrigen.costo_promedio,
-          },
-        });
-      }
-
-      // Registrar movimiento
-      await this.prisma.movimientos_inventario.create({
-        data: {
-          tipo: 'TRANSFERENCIA',
-          id_catalogo: item.id_catalogo,
-          id_bodega_origen: requisicion.id_bodega_origen,
-          id_bodega_destino: requisicion.id_bodega_destino,
-          cantidad: cantidad,
-          costo_unitario: inventarioOrigen.costo_promedio,
-          id_usuario: id_usuario,
-          observaciones: `Requisición ${requisicion.codigo}`,
+          id_bodega: id_bodega_destino,
+          id_estante: id_estante_destino,
+          cantidad_disponible: 0,
+          costo_promedio: inventarioOrigen.costo_promedio,
         },
       });
     }
+
+    // Procesar cada serie
+    for (const serieItem of item.series) {
+      const serie = serieItem.serie;
+
+      // Validar que la serie esté en el inventario origen
+      if (serie.id_inventario !== inventarioOrigen.id_inventario) {
+        throw new BadRequestException(
+          `La serie ${serie.numero_serie} no está en el inventario origen`,
+        );
+      }
+
+      // Validar que la serie esté disponible
+      if (serie.estado !== 'DISPONIBLE') {
+        throw new BadRequestException(
+          `La serie ${serie.numero_serie} no está disponible (estado: ${serie.estado})`,
+        );
+      }
+
+      // Actualizar serie al nuevo inventario
+      await this.prisma.inventario_series.update({
+        where: { id_serie: serie.id_serie },
+        data: {
+          id_inventario: inventarioDestino.id_inventario,
+          estado: 'EN_TRANSITO',
+        },
+      });
+
+      // Registrar en historial
+      await this.prisma.historial_series.create({
+        data: {
+          id_serie: serie.id_serie,
+          estado_anterior: 'DISPONIBLE',
+          estado_nuevo: 'EN_TRANSITO',
+          id_bodega_anterior: id_bodega_origen,
+          id_bodega_nueva: id_bodega_destino,
+          id_usuario,
+          observaciones: `Transferencia por requisición ${codigoRequisicion}`,
+        },
+      });
+
+      // Una vez completada la transferencia, marcar como disponible en destino
+      await this.prisma.inventario_series.update({
+        where: { id_serie: serie.id_serie },
+        data: {
+          estado: 'DISPONIBLE',
+        },
+      });
+
+      // Actualizar historial con estado final
+      await this.prisma.historial_series.create({
+        data: {
+          id_serie: serie.id_serie,
+          estado_anterior: 'EN_TRANSITO',
+          estado_nuevo: 'DISPONIBLE',
+          id_bodega_anterior: id_bodega_origen,
+          id_bodega_nueva: id_bodega_destino,
+          id_usuario,
+          observaciones: `Transferencia completada - requisición ${codigoRequisicion}`,
+        },
+      });
+    }
+
+    const cantidad = item.series.length;
+
+    // Actualizar cantidades en inventarios
+    await this.prisma.inventario.update({
+      where: { id_inventario: inventarioOrigen.id_inventario },
+      data: {
+        cantidad_disponible: {
+          decrement: cantidad,
+        },
+      },
+    });
+
+    await this.prisma.inventario.update({
+      where: { id_inventario: inventarioDestino.id_inventario },
+      data: {
+        cantidad_disponible: {
+          increment: cantidad,
+        },
+      },
+    });
+
+    // Registrar movimiento
+    await this.prisma.movimientos_inventario.create({
+      data: {
+        tipo: 'TRANSFERENCIA',
+        id_catalogo: item.id_catalogo,
+        id_bodega_origen,
+        id_bodega_destino,
+        cantidad,
+        costo_unitario: inventarioOrigen.costo_promedio,
+        id_usuario,
+        observaciones: `Requisición ${codigoRequisicion} - ${cantidad} series transferidas`,
+      },
+    });
+  }
+
+  /**
+   * Procesa transferencia de productos sin series
+   */
+  private async procesarTransferenciaSinSeries(
+    item: any,
+    cantidad: number,
+    id_bodega_origen: number,
+    id_bodega_destino: number,
+    id_usuario: number,
+    codigoRequisicion: string,
+  ): Promise<void> {
+    // Verificar stock disponible en bodega origen
+    const inventarioOrigen = await this.prisma.inventario.findFirst({
+      where: {
+        id_catalogo: item.id_catalogo,
+        id_bodega: id_bodega_origen,
+      },
+    });
+
+    if (
+      !inventarioOrigen ||
+      inventarioOrigen.cantidad_disponible < cantidad
+    ) {
+      throw new BadRequestException(
+        `Stock insuficiente en bodega origen para el producto ${item.catalogo.nombre}`,
+      );
+    }
+
+    // Reducir stock en bodega origen
+    await this.prisma.inventario.update({
+      where: {
+        id_inventario: inventarioOrigen.id_inventario,
+      },
+      data: {
+        cantidad_disponible: {
+          decrement: cantidad,
+        },
+      },
+    });
+
+    // Incrementar stock en bodega destino
+    const inventarioDestino = await this.prisma.inventario.findFirst({
+      where: {
+        id_catalogo: item.id_catalogo,
+        id_bodega: id_bodega_destino,
+      },
+    });
+
+    if (inventarioDestino) {
+      await this.prisma.inventario.update({
+        where: {
+          id_inventario: inventarioDestino.id_inventario,
+        },
+        data: {
+          cantidad_disponible: {
+            increment: cantidad,
+          },
+        },
+      });
+    } else {
+      // Crear nuevo registro de inventario en bodega destino
+      await this.prisma.inventario.create({
+        data: {
+          id_catalogo: item.id_catalogo,
+          id_bodega: id_bodega_destino,
+          cantidad_disponible: cantidad,
+          costo_promedio: inventarioOrigen.costo_promedio,
+        },
+      });
+    }
+
+    // Registrar movimiento
+    await this.prisma.movimientos_inventario.create({
+      data: {
+        tipo: 'TRANSFERENCIA',
+        id_catalogo: item.id_catalogo,
+        id_bodega_origen,
+        id_bodega_destino,
+        cantidad,
+        costo_unitario: inventarioOrigen.costo_promedio,
+        id_usuario,
+        observaciones: `Requisición ${codigoRequisicion}`,
+      },
+    });
   }
 
   /**
@@ -935,82 +1338,96 @@ export class RequisicionesService {
     for (const item of requisicion.detalle) {
       const cantidad = item.cantidad_autorizada!;
 
-      // Verificar stock en estante origen
-      const inventarioOrigen = await this.prisma.inventario.findFirst({
-        where: {
-          id_catalogo: item.id_catalogo,
-          id_bodega: requisicion.id_bodega_origen,
-          id_estante: requisicion.id_estante_origen,
-        },
-      });
-
-      if (
-        !inventarioOrigen ||
-        inventarioOrigen.cantidad_disponible < cantidad
-      ) {
-        throw new BadRequestException(
-          `Stock insuficiente en estante origen para el producto ${item.catalogo.nombre}`,
+      // Si el item tiene series, usar procesarTransferenciaConSeries
+      if (item.series && item.series.length > 0) {
+        await this.procesarTransferenciaConSeries(
+          item,
+          requisicion.id_bodega_origen,
+          requisicion.id_bodega_origen, // misma bodega
+          requisicion.id_estante_origen,
+          requisicion.id_estante_destino,
+          id_usuario,
+          requisicion.codigo,
         );
-      }
-
-      // Reducir stock en estante origen
-      await this.prisma.inventario.update({
-        where: {
-          id_inventario: inventarioOrigen.id_inventario,
-        },
-        data: {
-          cantidad_disponible: {
-            decrement: cantidad,
+      } else {
+        // Procesar cambio normal sin series
+        // Verificar stock en estante origen
+        const inventarioOrigen = await this.prisma.inventario.findFirst({
+          where: {
+            id_catalogo: item.id_catalogo,
+            id_bodega: requisicion.id_bodega_origen,
+            id_estante: requisicion.id_estante_origen,
           },
-        },
-      });
+        });
 
-      // Incrementar stock en estante destino
-      const inventarioDestino = await this.prisma.inventario.findFirst({
-        where: {
-          id_catalogo: item.id_catalogo,
-          id_bodega: requisicion.id_bodega_origen,
-          id_estante: requisicion.id_estante_destino,
-        },
-      });
+        if (
+          !inventarioOrigen ||
+          inventarioOrigen.cantidad_disponible < cantidad
+        ) {
+          throw new BadRequestException(
+            `Stock insuficiente en estante origen para el producto ${item.catalogo.nombre}`,
+          );
+        }
 
-      if (inventarioDestino) {
+        // Reducir stock en estante origen
         await this.prisma.inventario.update({
           where: {
-            id_inventario: inventarioDestino.id_inventario,
+            id_inventario: inventarioOrigen.id_inventario,
           },
           data: {
             cantidad_disponible: {
-              increment: cantidad,
+              decrement: cantidad,
             },
           },
         });
-      } else {
-        // Crear nuevo registro en estante destino
-        await this.prisma.inventario.create({
-          data: {
+
+        // Incrementar stock en estante destino
+        const inventarioDestino = await this.prisma.inventario.findFirst({
+          where: {
             id_catalogo: item.id_catalogo,
             id_bodega: requisicion.id_bodega_origen,
             id_estante: requisicion.id_estante_destino,
-            cantidad_disponible: cantidad,
-            costo_promedio: inventarioOrigen.costo_promedio,
+          },
+        });
+
+        if (inventarioDestino) {
+          await this.prisma.inventario.update({
+            where: {
+              id_inventario: inventarioDestino.id_inventario,
+            },
+            data: {
+              cantidad_disponible: {
+                increment: cantidad,
+              },
+            },
+          });
+        } else {
+          // Crear nuevo registro en estante destino
+          await this.prisma.inventario.create({
+            data: {
+              id_catalogo: item.id_catalogo,
+              id_bodega: requisicion.id_bodega_origen,
+              id_estante: requisicion.id_estante_destino,
+              cantidad_disponible: cantidad,
+              costo_promedio: inventarioOrigen.costo_promedio,
+            },
+          });
+        }
+
+        // Registrar movimiento
+        await this.prisma.movimientos_inventario.create({
+          data: {
+            tipo: 'TRANSFERENCIA',
+            id_catalogo: item.id_catalogo,
+            id_bodega_origen: requisicion.id_bodega_origen,
+            id_bodega_destino: requisicion.id_bodega_origen,
+            cantidad: cantidad,
+            costo_unitario: inventarioOrigen.costo_promedio,
+            id_usuario: id_usuario,
+            observaciones: `Cambio de estante - Requisición ${requisicion.codigo}`,
           },
         });
       }
-
-      // Registrar movimiento
-      await this.prisma.movimientos_inventario.create({
-        data: {
-          tipo: 'TRANSFERENCIA',
-          id_catalogo: item.id_catalogo,
-          id_bodega_origen: requisicion.id_bodega_origen,
-          id_bodega_destino: requisicion.id_bodega_origen,
-          cantidad: cantidad,
-          costo_unitario: inventarioOrigen.costo_promedio,
-          id_usuario: id_usuario,
-          observaciones: `Cambio de estante - Requisición ${requisicion.codigo}`,
-        },
-      });
     }
   }
 
@@ -1039,6 +1456,11 @@ export class RequisicionesService {
         detalle: {
           include: {
             catalogo: true,
+            series: {
+              include: {
+                serie: true,
+              },
+            },
           },
         },
         usuario_solicita: {

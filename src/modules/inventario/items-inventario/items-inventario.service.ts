@@ -4,6 +4,7 @@ import {
   QueryInventarioDto,
   QueryMovimientosDto,
   QuerySeriesDto,
+  QuerySeriesDisponiblesDto,
 } from './dto';
 import { PaginatedResult } from 'src/common/dto';
 import axios from 'axios';
@@ -269,6 +270,121 @@ export class ItemsInventarioService {
         orderBy: { fecha_ingreso: 'desc' },
       }),
       this.prisma.inventario_series.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+      },
+    };
+  }
+
+  /**
+   * Buscar series disponibles basándose en filtros (catálogo, bodega, estante, estado)
+   * Usado para requisiciones y transferencias
+   */
+  async findSeriesDisponibles(
+    queryDto: QuerySeriesDisponiblesDto,
+  ): Promise<PaginatedResult<any>> {
+    const {
+      id_catalogo,
+      id_bodega,
+      id_estante,
+      estado,
+      page = 1,
+      limit = 100,
+      search,
+    } = queryDto;
+
+    const skip = (page - 1) * limit;
+
+    // Construir where para buscar el inventario que coincida
+    const inventarioWhere: any = {
+      id_catalogo,
+      id_bodega,
+    };
+
+    if (id_estante) {
+      inventarioWhere.id_estante = id_estante;
+    }
+
+    // Buscar los registros de inventario que coincidan
+    const inventarios = await this.prisma.inventario.findMany({
+      where: inventarioWhere,
+      select: {
+        id_inventario: true,
+      },
+    });
+
+    // Si no hay inventarios, retornar vacío
+    if (inventarios.length === 0) {
+      return {
+        data: [],
+        meta: {
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        },
+      };
+    }
+
+    // Extraer IDs de inventarios
+    const inventarioIds = inventarios.map((inv) => inv.id_inventario);
+
+    // Construir where para series
+    const seriesWhere: any = {
+      id_inventario: { in: inventarioIds },
+      estado,
+    };
+
+    if (search) {
+      seriesWhere.OR = [
+        { numero_serie: { contains: search, mode: 'insensitive' } },
+        { mac_address: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Buscar series
+    const [data, total] = await Promise.all([
+      this.prisma.inventario_series.findMany({
+        where: seriesWhere,
+        include: {
+          inventario: {
+            include: {
+              catalogo: {
+                select: {
+                  id_catalogo: true,
+                  nombre: true,
+                  codigo: true,
+                },
+              },
+              bodega: {
+                select: {
+                  id_bodega: true,
+                  nombre: true,
+                },
+              },
+              estante: {
+                select: {
+                  id_estante: true,
+                  nombre: true,
+                },
+              },
+            },
+          },
+        },
+        skip,
+        take: limit,
+        orderBy: { numero_serie: 'asc' },
+      }),
+      this.prisma.inventario_series.count({ where: seriesWhere }),
     ]);
 
     const totalPages = Math.ceil(total / limit);

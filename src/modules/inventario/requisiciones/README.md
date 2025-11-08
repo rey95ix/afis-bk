@@ -1,234 +1,113 @@
-# MÃ³dulo de Requisiciones de Inventario
+# Módulo de Requisiciones de Inventario
 
-Este mÃ³dulo maneja las solicitudes de transferencia de inventario entre diferentes ubicaciones del sistema.
+Este módulo gestiona las requisiciones de inventario, permitiendo transferencias de productos entre bodegas, sucursales y estantes. **Soporta tanto productos regulares (por cantidad) como productos serializados (con número de serie y MAC address)**.
 
-## CaracterÃ­sticas
+## Índice
 
-- âœ… Crear requisiciones de transferencia entre bodegas, sucursales y estantes
-- âœ… Flujo de aprobaciÃ³n con mÃºltiples estados
-- âœ… AutorizaciÃ³n con cantidades ajustables
-- âœ… Procesamiento automÃ¡tico de transferencias de inventario
-- âœ… GeneraciÃ³n automÃ¡tica de cÃ³digos Ãºnicos (REQ-YYYYMM-#####)
-- âœ… Registro completo en auditorÃ­a (log)
-- âœ… Validaciones de stock disponible
-- âœ… API REST completamente documentada con Swagger
+- [Características](#características)
+- [Flujo de Requisiciones](#flujo-de-requisiciones)
+- [Tipos de Requisición](#tipos-de-requisición)
+- [Estados de Requisición](#estados-de-requisición)
+- [Manejo de Productos Serializados](#manejo-de-productos-serializados)
+- [Endpoints API](#endpoints-api)
+- [Ejemplos de Uso](#ejemplos-de-uso)
 
-## Modelos de Base de Datos
+## Características
 
-### `requisiciones_inventario`
-Tabla principal que almacena las requisiciones.
+-  Tres tipos de transferencia: entre bodegas, entre sucursales, y cambio de estante
+-  Flujo de aprobación: solicitud ’ autorización ’ procesamiento
+-  Soporte completo para productos serializados (ONUs, routers, switches, etc.)
+-  Validación de disponibilidad de stock y series
+-  Autorización parcial de cantidades y series
+-  Generación automática de códigos (formato: REQ-YYYYMM-#####)
+-  Historial completo de movimientos de series
+-  Auditoría de acciones (log de sistema)
+-  Generación de PDF de requisiciones
 
-**Campos principales:**
-- `codigo`: CÃ³digo Ãºnico generado automÃ¡ticamente (REQ-YYYYMM-#####)
-- `tipo`: TRANSFERENCIA_BODEGA | TRANSFERENCIA_SUCURSAL | CAMBIO_ESTANTE
-- `estado`: PENDIENTE | APROBADA | RECHAZADA | PROCESADA | CANCELADA
-- Ubicaciones origen/destino (sucursal, bodega, estante)
-- Usuarios (solicita, autoriza, procesa)
-- Fechas de solicitud, autorizaciÃ³n y proceso
+## Flujo de Requisiciones
 
-### `requisiciones_detalle`
-Detalle de items incluidos en la requisiciÃ³n.
+```mermaid
+graph TD
+    A[Usuario solicita requisición] --> B{¿Productos<br/>con series?}
+    B -->|Sí| C[Especifica series a transferir]
+    B -->|No| D[Especifica cantidades]
+    C --> E[Sistema valida series]
+    D --> F[Sistema valida stock]
+    E --> G[Estado: PENDIENTE]
+    F --> G
 
-**Campos principales:**
-- `id_catalogo`: Producto a transferir
-- `cantidad_solicitada`: Cantidad inicial solicitada
-- `cantidad_autorizada`: Cantidad aprobada (puede ser diferente)
-- `cantidad_procesada`: Cantidad finalmente transferida
+    G --> H[Autorización revisa]
+    H --> I{¿Aprobada?}
+    I -->|No| J[Estado: RECHAZADA - FIN]
+    I -->|Sí| K{¿Autorización<br/>parcial?}
 
-## Estados del Flujo
+    K -->|No| L[Autoriza todo]
+    K -->|Sí| M{¿Productos<br/>con series?}
 
-```
-PENDIENTE â†’ APROBADA â†’ PROCESADA
-    â†“           â†“
-RECHAZADA   CANCELADA
-```
+    M -->|Sí| N[Autoriza solo<br/>algunas series]
+    M -->|No| O[Ajusta cantidades]
 
-### PENDIENTE
-- Estado inicial al crear la requisiciÃ³n
-- Se puede editar y actualizar
-- Se puede autorizar o rechazar
+    N --> P[Estado: APROBADA]
+    O --> P
+    L --> P
 
-### APROBADA
-- La requisiciÃ³n ha sido aprobada por un autorizador
-- Se pueden ajustar las cantidades autorizadas
-- Lista para ser procesada
+    P --> Q[Usuario procesa]
+    Q --> R{¿Productos<br/>con series?}
 
-### RECHAZADA
-- La requisiciÃ³n fue rechazada
-- No se puede procesar ni editar
-- Estado final
+    R -->|Sí| S[Transfiere series específicas]
+    R -->|No| T[Transfiere cantidades]
 
-### PROCESADA
-- La transferencia de inventario se ejecutÃ³ exitosamente
-- El stock fue movido entre ubicaciones
-- Estado final, no se puede modificar
+    S --> U[Actualiza id_inventario de series]
+    S --> V[Cambia estado: EN_TRANSITO ’ DISPONIBLE]
+    S --> W[Registra en historial_series]
 
-### CANCELADA
-- La requisiciÃ³n fue cancelada antes de ser procesada
-- Estado final
+    T --> X[Decrementa inventario origen]
+    T --> Y[Incrementa inventario destino]
 
-## Endpoints API
-
-### Crear RequisiciÃ³n
-```http
-POST /inventario/requisiciones
+    U --> Z[Estado: PROCESADA - FIN]
+    V --> Z
+    W --> Z
+    X --> Z
+    Y --> Z
 ```
 
-**Body:**
-```json
-{
-  "tipo": "TRANSFERENCIA_BODEGA",
-  "id_bodega_origen": 1,
-  "id_bodega_destino": 2,
-  "motivo": "Reabastecimiento de bodega principal",
-  "detalle": [
-    {
-      "id_catalogo": 15,
-      "cantidad_solicitada": 50,
-      "observaciones": "Urgente para instalaciones"
-    }
-  ]
-}
-```
-
-**Respuesta:** RequisiciÃ³n creada con cÃ³digo Ãºnico
-
----
-
-### Listar Requisiciones
-```http
-GET /inventario/requisiciones?page=1&limit=10&estado=PENDIENTE
-```
-
-**Query params:**
-- `page`: NÃºmero de pÃ¡gina (default: 1)
-- `limit`: Items por pÃ¡gina (default: 10)
-- `search`: Buscar por cÃ³digo o motivo
-- `estado`: Filtrar por estado
-- `tipo`: Filtrar por tipo
-- `id_usuario_solicita`: Filtrar por usuario
-
-**Respuesta:** Lista paginada de requisiciones
-
----
-
-### Obtener RequisiciÃ³n por ID
-```http
-GET /inventario/requisiciones/:id
-```
-
-**Respuesta:** RequisiciÃ³n con todos sus detalles, items y usuarios
-
----
-
-### Actualizar RequisiciÃ³n
-```http
-PUT /inventario/requisiciones/:id
-```
-
-**Nota:** Solo se pueden actualizar requisiciones en estado PENDIENTE
-
-**Body:** Similar al de crear, todos los campos opcionales
-
----
-
-### Autorizar/Rechazar RequisiciÃ³n
-```http
-PATCH /inventario/requisiciones/:id/autorizar
-```
-
-**Body para APROBAR:**
-```json
-{
-  "aprobar": true,
-  "observaciones_autorizacion": "Aprobado parcialmente por stock limitado",
-  "detalle": [
-    {
-      "id_requisicion_detalle": 1,
-      "cantidad_autorizada": 30
-    }
-  ]
-}
-```
-
-**Body para RECHAZAR:**
-```json
-{
-  "aprobar": false,
-  "observaciones_autorizacion": "No hay presupuesto disponible"
-}
-```
-
-Si se omite el campo `detalle` al aprobar, se autorizarÃ¡ la cantidad solicitada completa.
-
----
-
-### Procesar RequisiciÃ³n
-```http
-PATCH /inventario/requisiciones/:id/procesar
-```
-
-**Body:**
-```json
-{
-  "observaciones_proceso": "Transferencia completada sin novedades"
-}
-```
-
-Este endpoint:
-1. Valida que hay stock disponible
-2. Reduce stock en origen
-3. Incrementa stock en destino
-4. Crea registros en `movimientos_inventario`
-5. Actualiza estado a PROCESADA
-
-**Validaciones:**
-- Solo requisiciones APROBADAS pueden ser procesadas
-- Verifica stock disponible en origen
-- Valida que todos los items tengan cantidad autorizada
-
----
-
-### Cancelar RequisiciÃ³n
-```http
-PATCH /inventario/requisiciones/:id/cancelar
-```
-
-**Nota:** No se pueden cancelar requisiciones ya procesadas
-
----
-
-### Eliminar RequisiciÃ³n
-```http
-DELETE /inventario/requisiciones/:id
-```
-
-**Nota:** Elimina (cancela) la requisiciÃ³n si no estÃ¡ procesada
-
-## Tipos de Transferencia
+## Tipos de Requisición
 
 ### 1. TRANSFERENCIA_BODEGA
-Mueve inventario entre dos bodegas diferentes.
+Mueve inventario entre bodegas (pueden estar en diferentes sucursales o en la misma).
 
 **Campos requeridos:**
 - `id_bodega_origen`
 - `id_bodega_destino`
 
-**Proceso:**
-- Reduce stock en `inventario` de bodega origen
-- Incrementa stock en `inventario` de bodega destino
-- Crea registro en `movimientos_inventario` tipo TRANSFERENCIA
+**Ejemplo:**
+```json
+{
+  "tipo": "TRANSFERENCIA_BODEGA",
+  "id_bodega_origen": 1,
+  "id_bodega_destino": 2,
+  "motivo": "Reabastecimiento de bodega secundaria",
+  "detalle": [...]
+}
+```
 
 ### 2. TRANSFERENCIA_SUCURSAL
-Mueve inventario entre bodegas principales de diferentes sucursales.
+Mueve inventario entre las bodegas principales de dos sucursales.
 
 **Campos requeridos:**
 - `id_sucursal_origen`
 - `id_sucursal_destino`
 
-**Proceso:**
-- Busca la bodega principal de cada sucursal
-- Ejecuta transferencia entre esas bodegas
+**Ejemplo:**
+```json
+{
+  "tipo": "TRANSFERENCIA_SUCURSAL",
+  "id_sucursal_origen": 1,
+  "id_sucursal_destino": 2,
+  "motivo": "Redistribución de stock entre sucursales",
+  "detalle": [...]
+}
+```
 
 ### 3. CAMBIO_ESTANTE
 Mueve inventario entre estantes dentro de la misma bodega.
@@ -238,124 +117,365 @@ Mueve inventario entre estantes dentro de la misma bodega.
 - `id_estante_origen`
 - `id_estante_destino`
 
-**Proceso:**
-- Reduce stock en estante origen
-- Incrementa stock en estante destino
-- Mantiene la misma bodega
+**Ejemplo:**
+```json
+{
+  "tipo": "CAMBIO_ESTANTE",
+  "id_bodega_origen": 1,
+  "id_estante_origen": 3,
+  "id_estante_destino": 5,
+  "motivo": "Reorganización de bodega",
+  "detalle": [...]
+}
+```
 
-## Validaciones
+## Estados de Requisición
 
-### Al Crear/Actualizar
-- Valida que origen y destino sean diferentes
-- Valida campos requeridos segÃºn el tipo de transferencia
-- Valida que existan los productos en el catÃ¡logo
+| Estado | Descripción |
+|--------|-------------|
+| **PENDIENTE** | Requisición creada, esperando autorización |
+| **APROBADA** | Autorizada, lista para ser procesada |
+| **RECHAZADA** | Rechazada por el autorizador |
+| **PROCESADA** | Transferencia completada exitosamente |
+| **CANCELADA** | Cancelada manualmente (solo si no está procesada) |
 
-### Al Autorizar
-- Solo requisiciones PENDIENTES
-- Cantidad autorizada â‰¤ cantidad solicitada
-- No se puede aprobar sin especificar cantidades
+## Manejo de Productos Serializados
 
-### Al Procesar
-- Solo requisiciones APROBADAS
-- Verifica stock disponible en origen
-- Valida que todos los items tengan cantidad autorizada > 0
-- Actualiza inventario en origen y destino
-- Genera movimientos de inventario
+### ¿Qué son productos serializados?
 
-## AuditorÃ­a
+Productos serializados son aquellos que requieren control individual por número de serie y/o MAC address, como:
+- ONUs (Optical Network Units)
+- Routers
+- Switches
+- Access Points
+- Modems
 
-Todas las acciones quedan registradas en la tabla `log`:
-- CREAR_REQUISICION
-- ACTUALIZAR_REQUISICION
-- APROBAR_REQUISICION
-- RECHAZAR_REQUISICION
-- PROCESAR_REQUISICION
-- CANCELAR_REQUISICION
+### Creación de Requisición con Series
 
-Cada registro incluye:
-- Usuario que ejecutÃ³ la acciÃ³n
-- Timestamp
-- CÃ³digo de la requisiciÃ³n afectada
+Cuando un producto tiene `tiene_serie: true` en el catálogo, puedes especificar las series exactas a transferir:
 
-## AutenticaciÃ³n
+```json
+{
+  "tipo": "TRANSFERENCIA_BODEGA",
+  "id_bodega_origen": 1,
+  "id_bodega_destino": 2,
+  "motivo": "Transferencia de ONUs para instalaciones",
+  "detalle": [
+    {
+      "id_catalogo": 42,
+      "cantidad_solicitada": 3,
+      "series": [101, 102, 103],  // IDs de inventario_series
+      "observaciones": "ONUs para zona norte"
+    }
+  ]
+}
+```
 
-Todos los endpoints requieren autenticaciÃ³n JWT:
-- Header: `Authorization: Bearer <token>`
-- El `id_usuario` se obtiene automÃ¡ticamente del token
+**Validaciones automáticas:**
+-  Las series existen en la base de datos
+-  Las series pertenecen al producto solicitado
+-  Las series están en estado `DISPONIBLE`
+-  Las series están en la bodega/estante origen especificado
+-  La cantidad solicitada coincide con el número de series
 
-## Ejemplos de Uso
+### Autorización de Series
 
-### Caso 1: Transferencia Simple entre Bodegas
-```javascript
-// 1. Crear requisiciÃ³n
-POST /inventario/requisiciones
+El autorizador puede aprobar solo algunas de las series solicitadas:
+
+```json
+{
+  "aprobar": true,
+  "observaciones_autorizacion": "Se autorizan solo 2 de las 3 ONUs solicitadas",
+  "detalle": [
+    {
+      "id_requisicion_detalle": 1,
+      "cantidad_autorizada": 2,
+      "series_autorizadas": [101, 102]  // Solo estas dos series
+    }
+  ]
+}
+```
+
+Si no se especifica `series_autorizadas`, se aprueban todas las series solicitadas.
+
+### Procesamiento de Series
+
+Durante el procesamiento, el sistema:
+
+1. **Actualiza el inventario de cada serie:**
+   - Cambia `id_inventario` al inventario destino
+   - Cambia estado: `DISPONIBLE` ’ `EN_TRANSITO` ’ `DISPONIBLE`
+
+2. **Registra historial completo:**
+   ```sql
+   historial_series:
+   - estado_anterior: DISPONIBLE
+   - estado_nuevo: EN_TRANSITO
+   - id_bodega_anterior: 1
+   - id_bodega_nueva: 2
+   - observaciones: "Transferencia por requisición REQ-202501-00001"
+   ```
+
+3. **Actualiza cantidades agregadas:**
+   - Decrementa `cantidad_disponible` en inventario origen
+   - Incrementa `cantidad_disponible` en inventario destino
+
+4. **Registra movimiento:**
+   ```sql
+   movimientos_inventario:
+   - tipo: TRANSFERENCIA
+   - cantidad: 2
+   - observaciones: "Requisición REQ-202501-00001 - 2 series transferidas"
+   ```
+
+## Endpoints API
+
+### POST `/inventario/requisiciones`
+Crea una nueva requisición.
+
+**Request Body:**
+```json
 {
   "tipo": "TRANSFERENCIA_BODEGA",
   "id_bodega_origen": 1,
   "id_bodega_destino": 2,
   "motivo": "Reabastecimiento",
-  "detalle": [{ "id_catalogo": 10, "cantidad_solicitada": 100 }]
-}
-
-// 2. Autorizar
-PATCH /inventario/requisiciones/1/autorizar
-{ "aprobar": true }
-
-// 3. Procesar
-PATCH /inventario/requisiciones/1/procesar
-{}
-```
-
-### Caso 2: AprobaciÃ³n Parcial
-```javascript
-// Aprobar con cantidad reducida
-PATCH /inventario/requisiciones/1/autorizar
-{
-  "aprobar": true,
-  "observaciones_autorizacion": "Stock limitado",
   "detalle": [
-    { "id_requisicion_detalle": 1, "cantidad_autorizada": 50 }
+    {
+      "id_catalogo": 5,
+      "cantidad_solicitada": 10,
+      "series": [1, 2, 3],  // Opcional, solo para productos serializados
+      "observaciones": "Urgente"
+    }
   ]
 }
 ```
 
-### Caso 3: Rechazo
-```javascript
-PATCH /inventario/requisiciones/1/autorizar
+**Response:** Requisición creada con estado `PENDIENTE`
+
+---
+
+### GET `/inventario/requisiciones`
+Lista todas las requisiciones con paginación y filtros.
+
+**Query Params:**
+- `page`: Número de página (default: 1)
+- `limit`: Items por página (default: 10)
+- `search`: Buscar por código o motivo
+- `estado`: Filtrar por estado (PENDIENTE, APROBADA, etc.)
+- `tipo`: Filtrar por tipo
+- `id_usuario_solicita`: Filtrar por usuario solicitante
+
+---
+
+### GET `/inventario/requisiciones/:id`
+Obtiene una requisición específica con todos sus detalles, incluyendo series.
+
+---
+
+### PUT `/inventario/requisiciones/:id`
+Actualiza una requisición en estado `PENDIENTE`.
+
+---
+
+### PATCH `/inventario/requisiciones/:id/autorizar`
+Autoriza o rechaza una requisición.
+
+**Request Body:**
+```json
 {
-  "aprobar": false,
-  "observaciones_autorizacion": "No hay presupuesto aprobado"
+  "aprobar": true,
+  "observaciones_autorizacion": "Aprobada con ajustes",
+  "detalle": [
+    {
+      "id_requisicion_detalle": 1,
+      "cantidad_autorizada": 8,
+      "series_autorizadas": [1, 2, 3, 4, 5, 6, 7, 8]  // Opcional
+    }
+  ]
 }
 ```
 
-## Estructura de Archivos
+**Response:** Requisición con estado `APROBADA` o `RECHAZADA`
 
-```
-requisiciones/
-â”œâ”€â”€ dto/
-â”‚   â”œâ”€â”€ create-requisicion.dto.ts      # DTO para crear
-â”‚   â”œâ”€â”€ update-requisicion.dto.ts      # DTO para actualizar
-â”‚   â”œâ”€â”€ authorize-requisicion.dto.ts   # DTO para autorizar
-â”‚   â”œâ”€â”€ process-requisicion.dto.ts     # DTO para procesar
-â”‚   â””â”€â”€ index.ts                       # Exportaciones
-â”œâ”€â”€ requisiciones.controller.ts        # Endpoints REST
-â”œâ”€â”€ requisiciones.service.ts           # LÃ³gica de negocio
-â”œâ”€â”€ requisiciones.module.ts            # MÃ³dulo NestJS
-â””â”€â”€ README.md                          # Esta documentaciÃ³n
+---
+
+### PATCH `/inventario/requisiciones/:id/procesar`
+Procesa una requisición aprobada (ejecuta la transferencia física de inventario).
+
+**Request Body:**
+```json
+{
+  "observaciones_proceso": "Transferencia completada sin novedades"
+}
 ```
 
-## Notas TÃ©cnicas
+**Response:** Requisición con estado `PROCESADA`
 
-- **CÃ³digos Ãºnicos**: Se generan automÃ¡ticamente en formato `REQ-YYYYMM-#####` (ejemplo: REQ-202501-00001)
-- **Transacciones**: Las operaciones crÃ­ticas (procesar) deberÃ­an usar transacciones de Prisma en producciÃ³n
-- **Performance**: Los endpoints de listado usan paginaciÃ³n para manejar grandes volÃºmenes
-- **Relaciones**: Se incluyen datos relacionados (usuarios, bodegas, productos) en las respuestas
+---
 
-## Mejoras Futuras
+### PATCH `/inventario/requisiciones/:id/cancelar`
+Cancela una requisición que no ha sido procesada.
 
-- [ ] Notificaciones por email cuando se crea/aprueba una requisiciÃ³n
-- [ ] Dashboard con estadÃ­sticas de requisiciones
-- [ ] Exportar a Excel/PDF
-- [ ] LÃ­mites de aprobaciÃ³n segÃºn rol de usuario
-- [ ] Comentarios/historial de cambios en la requisiciÃ³n
-- [ ] Adjuntar archivos/evidencias
+---
+
+### GET `/inventario/requisiciones/:id/pdf`
+Genera un PDF de la requisición.
+
+**Response:** Archivo PDF
+
+---
+
+### DELETE `/inventario/requisiciones/:id`
+Elimina (cancela) una requisición no procesada.
+
+## Ejemplos de Uso
+
+### Ejemplo 1: Requisición de productos regulares (sin series)
+
+```bash
+POST /inventario/requisiciones
+{
+  "tipo": "TRANSFERENCIA_BODEGA",
+  "id_bodega_origen": 1,
+  "id_bodega_destino": 3,
+  "motivo": "Reabastecimiento mensual",
+  "detalle": [
+    {
+      "id_catalogo": 10,
+      "cantidad_solicitada": 50,
+      "observaciones": "Cable UTP Cat6"
+    },
+    {
+      "id_catalogo": 15,
+      "cantidad_solicitada": 100,
+      "observaciones": "Conectores RJ45"
+    }
+  ]
+}
+```
+
+### Ejemplo 2: Requisición de ONUs (productos serializados)
+
+```bash
+POST /inventario/requisiciones
+{
+  "tipo": "TRANSFERENCIA_BODEGA",
+  "id_bodega_origen": 1,
+  "id_bodega_destino": 2,
+  "motivo": "ONUs para instalaciones zona este",
+  "detalle": [
+    {
+      "id_catalogo": 42,
+      "cantidad_solicitada": 5,
+      "series": [201, 202, 203, 204, 205],
+      "observaciones": "ONUs Huawei HG8546M"
+    }
+  ]
+}
+```
+
+### Ejemplo 3: Autorización parcial de series
+
+```bash
+PATCH /inventario/requisiciones/15/autorizar
+{
+  "aprobar": true,
+  "observaciones_autorizacion": "Solo se autorizan 3 ONUs de las 5 solicitadas",
+  "detalle": [
+    {
+      "id_requisicion_detalle": 1,
+      "cantidad_autorizada": 3,
+      "series_autorizadas": [201, 202, 203]
+    }
+  ]
+}
+```
+
+### Ejemplo 4: Procesamiento de requisición
+
+```bash
+PATCH /inventario/requisiciones/15/procesar
+{
+  "observaciones_proceso": "Transferencia completada. ONUs empacadas y despachadas."
+}
+```
+
+## Estructura de Base de Datos
+
+### Tabla `requisiciones_inventario`
+Almacena la requisición principal con origen, destino y estados.
+
+### Tabla `requisiciones_detalle`
+Almacena cada item/producto de la requisición con cantidades solicitadas, autorizadas y procesadas.
+
+### Tabla `requisiciones_detalle_series` (Nueva)
+Relaciona cada detalle con las series específicas que se van a transferir.
+
+**Relaciones:**
+```
+requisiciones_inventario (1)  
+                                 (N) requisiciones_detalle (1)  
+                                                                   (N) requisiciones_detalle_series   (1) inventario_series
+                                 usuarios (solicita, autoriza, procesa)
+                                 bodegas, sucursales, estantes
+```
+
+## Seguridad y Validaciones
+
+- **Autenticación:** Todos los endpoints requieren JWT token válido
+- **Autorización:** Los usuarios deben tener permisos adecuados
+- **Validación de Stock:** Se verifica disponibilidad antes de procesar
+- **Validación de Series:** Se verifica estado DISPONIBLE y ubicación correcta
+- **Auditoría:** Todos los cambios se registran en el log del sistema
+- **Historial de Series:** Cada cambio de serie se registra en `historial_series`
+
+## Notas Importantes
+
+1. **Productos Serializados:**
+   - Si un producto tiene series, DEBE especificar los IDs de series exactas
+   - La cantidad solicitada debe coincidir con el número de series
+   - No se pueden mezclar transferencias con y sin series en el mismo item
+
+2. **Estados de Series:**
+   - Durante la transferencia, las series pasan temporalmente a estado `EN_TRANSITO`
+   - Al completarse, vuelven a `DISPONIBLE` en la nueva ubicación
+   - El historial completo se mantiene en `historial_series`
+
+3. **Cancelación:**
+   - Solo se pueden cancelar requisiciones NO procesadas
+   - Las requisiciones procesadas son permanentes (se requeriría una requisición inversa)
+
+4. **Autorización Parcial:**
+   - Se puede autorizar menos cantidad de la solicitada
+   - Para series, se pueden autorizar solo algunas de las series solicitadas
+   - Las series no autorizadas se eliminan automáticamente del detalle
+
+## Mantenimiento y Troubleshooting
+
+### Verificar Series Disponibles
+```sql
+SELECT * FROM inventario_series
+WHERE id_inventario IN (
+  SELECT id_inventario FROM inventario
+  WHERE id_bodega = 1 AND id_catalogo = 42
+)
+AND estado = 'DISPONIBLE';
+```
+
+### Ver Historial de una Serie
+```sql
+SELECT * FROM historial_series
+WHERE id_serie = 201
+ORDER BY fecha_movimiento DESC;
+```
+
+### Requisiciones Pendientes de Autorización
+```bash
+GET /inventario/requisiciones?estado=PENDIENTE
+```
+
+### Generar Reporte PDF
+```bash
+GET /inventario/requisiciones/15/pdf
+```
