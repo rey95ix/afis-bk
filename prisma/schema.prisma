@@ -89,6 +89,9 @@ model usuarios {
   requisiciones_solicita         requisiciones_inventario[]      @relation("usuario_solicita_requisicion")
   requisiciones_autoriza         requisiciones_inventario[]      @relation("usuario_autoriza_requisicion")
   requisiciones_procesa          requisiciones_inventario[]      @relation("usuario_procesa_requisicion")
+  ordenes_salida_solicita        ordenes_salida[]                @relation("usuario_solicita_orden_salida")
+  ordenes_salida_autoriza        ordenes_salida[]                @relation("usuario_autoriza_orden_salida")
+  ordenes_salida_procesa         ordenes_salida[]                @relation("usuario_procesa_orden_salida")
 }
 
 model cliente {
@@ -245,6 +248,7 @@ model sucursales {
   compras                    compras[]
   requisiciones_origen       requisiciones_inventario[] @relation("requisicion_sucursal_origen")
   requisiciones_destino      requisiciones_inventario[] @relation("requisicion_sucursal_destino")
+  ordenes_salida             ordenes_salida[]
   fecha_creacion             DateTime                @default(now())
   fecha_ultima_actualizacion DateTime                @default(now()) @updatedAt
 }
@@ -271,6 +275,7 @@ model bodegas {
   ot_materiales              ot_materiales[]
   requisiciones_origen       requisiciones_inventario[] @relation("requisicion_bodega_origen")
   requisiciones_destino      requisiciones_inventario[] @relation("requisicion_bodega_destino")
+  ordenes_salida             ordenes_salida[]
 }
 
 model estantes {
@@ -282,6 +287,7 @@ model estantes {
   inventario                 inventario[]
   requisiciones_origen       requisiciones_inventario[] @relation("requisicion_estante_origen")
   requisiciones_destino      requisiciones_inventario[] @relation("requisicion_estante_destino")
+  ordenes_salida             ordenes_salida[]
   fecha_creacion             DateTime     @default(now())
   fecha_ultima_actualizacion DateTime     @default(now()) @updatedAt
 }
@@ -322,6 +328,7 @@ model catalogo {
   ot_materiales              ot_materiales[]
   importaciones_detalle      importaciones_detalle[]
   requisiciones_detalle      requisiciones_detalle[]
+  ordenes_salida_detalle     ordenes_salida_detalle[]
 }
 
 model log {
@@ -1302,6 +1309,8 @@ model movimientos_inventario {
   importacion      importaciones? @relation(fields: [id_importacion], references: [id_importacion])
   id_orden_trabajo Int? // si es salida por OT
   orden_trabajo    orden_trabajo? @relation(fields: [id_orden_trabajo], references: [id_orden])
+  id_orden_salida  Int? // si es salida por orden de salida
+  orden_salida     ordenes_salida? @relation(fields: [id_orden_salida], references: [id_orden_salida])
 
   id_usuario       Int
   usuario          usuarios @relation(fields: [id_usuario], references: [id_usuario])
@@ -1426,5 +1435,106 @@ model requisiciones_detalle {
   fecha_ultima_actualizacion DateTime             @default(now()) @updatedAt
 
   @@index([id_requisicion])
+  @@index([id_catalogo])
+}
+
+// ============= MÓDULO DE ÓRDENES DE SALIDA =============
+
+// Estados de orden de salida
+enum estado_orden_salida {
+  BORRADOR
+  PENDIENTE_AUTORIZACION
+  AUTORIZADA
+  RECHAZADA
+  PROCESADA
+  CANCELADA
+}
+
+// Tipos de orden de salida
+enum tipo_orden_salida {
+  VENTA
+  DONACION
+  BAJA_INVENTARIO
+  DEVOLUCION_PROVEEDOR
+  TRASLADO_EXTERNO
+  CONSUMO_INTERNO
+  MERMA
+  OTRO
+}
+
+// Órdenes de salida de inventario
+model ordenes_salida {
+  id_orden_salida        Int                    @id @default(autoincrement())
+  codigo                 String                 @unique // OS-YYYYMM-#####
+  tipo                   tipo_orden_salida
+  estado                 estado_orden_salida    @default(BORRADOR)
+
+  // Origen de la salida
+  id_sucursal_origen     Int
+  sucursal_origen        sucursales             @relation(fields: [id_sucursal_origen], references: [id_sucursal])
+  id_bodega_origen       Int
+  bodega_origen          bodegas                @relation(fields: [id_bodega_origen], references: [id_bodega])
+  id_estante             Int?
+  estante                estantes?              @relation(fields: [id_estante], references: [id_estante])
+
+  // Usuarios involucrados
+  id_usuario_solicita    Int
+  usuario_solicita       usuarios               @relation("usuario_solicita_orden_salida", fields: [id_usuario_solicita], references: [id_usuario])
+  id_usuario_autoriza    Int?
+  usuario_autoriza       usuarios?              @relation("usuario_autoriza_orden_salida", fields: [id_usuario_autoriza], references: [id_usuario])
+  id_usuario_procesa     Int?
+  usuario_procesa        usuarios?              @relation("usuario_procesa_orden_salida", fields: [id_usuario_procesa], references: [id_usuario])
+
+  // Observaciones y motivos
+  motivo                 String?                @db.Text
+  observaciones_autorizacion String?            @db.Text
+  observaciones_proceso  String?                @db.Text
+  motivo_rechazo         String?                @db.Text
+
+  // Totales
+  subtotal               Decimal?               @default(0) @db.Decimal(12, 2)
+  total                  Decimal?               @default(0) @db.Decimal(12, 2)
+
+  // Fechas
+  fecha_solicitud        DateTime               @default(now())
+  fecha_autorizacion     DateTime?
+  fecha_proceso          DateTime?
+  fecha_salida_efectiva  DateTime?              // Fecha real de salida física
+  fecha_creacion         DateTime               @default(now())
+  fecha_ultima_actualizacion DateTime           @default(now()) @updatedAt
+
+  // Relaciones
+  detalle                ordenes_salida_detalle[]
+  movimientos            movimientos_inventario[]
+
+  @@index([estado])
+  @@index([tipo])
+  @@index([id_bodega_origen])
+  @@index([id_usuario_solicita])
+  @@index([fecha_solicitud])
+}
+
+// Detalle de órdenes de salida
+model ordenes_salida_detalle {
+  id_orden_salida_detalle Int            @id @default(autoincrement())
+  id_orden_salida         Int
+  orden_salida            ordenes_salida @relation(fields: [id_orden_salida], references: [id_orden_salida], onDelete: Cascade)
+
+  id_catalogo             Int
+  catalogo                catalogo       @relation(fields: [id_catalogo], references: [id_catalogo])
+
+  cantidad_solicitada     Int
+  cantidad_autorizada     Int?
+  cantidad_procesada      Int            @default(0)
+
+  costo_unitario          Decimal?       @db.Decimal(10, 2)
+  subtotal                Decimal?       @db.Decimal(12, 2)
+
+  observaciones           String?
+
+  fecha_creacion          DateTime       @default(now())
+  fecha_ultima_actualizacion DateTime    @default(now()) @updatedAt
+
+  @@index([id_orden_salida])
   @@index([id_catalogo])
 }
