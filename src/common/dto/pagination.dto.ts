@@ -1,6 +1,6 @@
 // src/common/dto/pagination.dto.ts
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsOptional, IsInt, Min, IsString } from 'class-validator';
 
 export class PaginationDto {
@@ -10,6 +10,7 @@ export class PaginationDto {
     minimum: 1,
   })
   @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10))
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -21,6 +22,7 @@ export class PaginationDto {
     minimum: 1,
   })
   @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10))
   @Type(() => Number)
   @IsInt()
   @Min(1)

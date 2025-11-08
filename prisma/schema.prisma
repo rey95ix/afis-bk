@@ -86,6 +86,9 @@ model usuarios {
   reservas_inventario            reservas_inventario[]
   historial_series               historial_series[]
   retaceo_importacion            retaceo_importacion[]
+  requisiciones_solicita         requisiciones_inventario[]      @relation("usuario_solicita_requisicion")
+  requisiciones_autoriza         requisiciones_inventario[]      @relation("usuario_autoriza_requisicion")
+  requisiciones_procesa          requisiciones_inventario[]      @relation("usuario_procesa_requisicion")
 }
 
 model cliente {
@@ -240,6 +243,8 @@ model sucursales {
   facturasBloques            facturasBloques[]
   bodegas                    bodegas[]
   compras                    compras[]
+  requisiciones_origen       requisiciones_inventario[] @relation("requisicion_sucursal_origen")
+  requisiciones_destino      requisiciones_inventario[] @relation("requisicion_sucursal_destino")
   fecha_creacion             DateTime                @default(now())
   fecha_ultima_actualizacion DateTime                @default(now()) @updatedAt
 }
@@ -264,6 +269,8 @@ model bodegas {
   movimientos_destino        movimientos_inventario[] @relation("bodega_destino")
   reservas                   reservas_inventario[]
   ot_materiales              ot_materiales[]
+  requisiciones_origen       requisiciones_inventario[] @relation("requisicion_bodega_origen")
+  requisiciones_destino      requisiciones_inventario[] @relation("requisicion_bodega_destino")
 }
 
 model estantes {
@@ -273,6 +280,8 @@ model estantes {
   id_bodega                  Int
   bodegas                    bodegas      @relation(fields: [id_bodega], references: [id_bodega], onDelete: NoAction, onUpdate: NoAction)
   inventario                 inventario[]
+  requisiciones_origen       requisiciones_inventario[] @relation("requisicion_estante_origen")
+  requisiciones_destino      requisiciones_inventario[] @relation("requisicion_estante_destino")
   fecha_creacion             DateTime     @default(now())
   fecha_ultima_actualizacion DateTime     @default(now()) @updatedAt
 }
@@ -301,6 +310,8 @@ model catalogo {
   codigo_proveedor           String?
   nombre                     String
   descripcion                String?
+  cantidad_minima            Int?                     @default(0) // stock mínimo
+  cantidad_maxima            Int?                     @default(0) // stock máximo
   estado                     estado                   @default(ACTIVO)
   fecha_creacion             DateTime                 @default(now())
   fecha_ultima_actualizacion DateTime                 @default(now()) @updatedAt
@@ -310,6 +321,7 @@ model catalogo {
   reservas                   reservas_inventario[]
   ot_materiales              ot_materiales[]
   importaciones_detalle      importaciones_detalle[]
+  requisiciones_detalle      requisiciones_detalle[]
 }
 
 model log {
@@ -1165,8 +1177,6 @@ model inventario {
   estante                    estantes?           @relation(fields: [id_estante], references: [id_estante])
   cantidad_disponible        Int                 @default(0)
   cantidad_reservada         Int                 @default(0) // reservado para OT
-  cantidad_minima            Int?                @default(0) // stock mínimo
-  cantidad_maxima            Int?                @default(0) // stock máximo
   costo_promedio             Decimal?            @db.Decimal(10, 2)
   estado                     estado              @default(ACTIVO)
   fecha_creacion             DateTime            @default(now())
@@ -1326,3 +1336,95 @@ model reservas_inventario {
 }
 
 // ============= ACTUALIZACIONES A TABLAS EXISTENTES =============
+
+// ============= MÓDULO DE REQUISICIONES =============
+
+// Estados de requisición
+enum estado_requisicion {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+  PROCESADA
+  CANCELADA
+}
+
+// Tipos de requisición
+enum tipo_requisicion {
+  TRANSFERENCIA_BODEGA
+  TRANSFERENCIA_SUCURSAL
+  CAMBIO_ESTANTE
+}
+
+// Requisiciones de inventario
+model requisiciones_inventario {
+  id_requisicion       Int                 @id @default(autoincrement())
+  codigo               String              @unique // REQ-YYYYMM-#####
+  tipo                 tipo_requisicion
+  estado               estado_requisicion  @default(PENDIENTE)
+
+  // Origen
+  id_sucursal_origen   Int?
+  sucursal_origen      sucursales?         @relation("requisicion_sucursal_origen", fields: [id_sucursal_origen], references: [id_sucursal])
+  id_bodega_origen     Int?
+  bodega_origen        bodegas?            @relation("requisicion_bodega_origen", fields: [id_bodega_origen], references: [id_bodega])
+  id_estante_origen    Int?
+  estante_origen       estantes?           @relation("requisicion_estante_origen", fields: [id_estante_origen], references: [id_estante])
+
+  // Destino
+  id_sucursal_destino  Int?
+  sucursal_destino     sucursales?         @relation("requisicion_sucursal_destino", fields: [id_sucursal_destino], references: [id_sucursal])
+  id_bodega_destino    Int?
+  bodega_destino       bodegas?            @relation("requisicion_bodega_destino", fields: [id_bodega_destino], references: [id_bodega])
+  id_estante_destino   Int?
+  estante_destino      estantes?           @relation("requisicion_estante_destino", fields: [id_estante_destino], references: [id_estante])
+
+  // Usuarios
+  id_usuario_solicita  Int
+  usuario_solicita     usuarios            @relation("usuario_solicita_requisicion", fields: [id_usuario_solicita], references: [id_usuario])
+  id_usuario_autoriza  Int?
+  usuario_autoriza     usuarios?           @relation("usuario_autoriza_requisicion", fields: [id_usuario_autoriza], references: [id_usuario])
+  id_usuario_procesa   Int?
+  usuario_procesa      usuarios?           @relation("usuario_procesa_requisicion", fields: [id_usuario_procesa], references: [id_usuario])
+
+  // Observaciones
+  motivo               String?             @db.Text
+  observaciones_autorizacion String?       @db.Text
+  observaciones_proceso String?            @db.Text
+
+  // Fechas
+  fecha_solicitud      DateTime            @default(now())
+  fecha_autorizacion   DateTime?
+  fecha_proceso        DateTime?
+  fecha_creacion       DateTime            @default(now())
+  fecha_ultima_actualizacion DateTime      @default(now()) @updatedAt
+
+  // Relaciones
+  detalle              requisiciones_detalle[]
+
+  @@index([estado])
+  @@index([tipo])
+  @@index([id_usuario_solicita])
+  @@index([fecha_solicitud])
+}
+
+// Detalle de requisiciones
+model requisiciones_detalle {
+  id_requisicion_detalle Int                      @id @default(autoincrement())
+  id_requisicion         Int
+  requisicion            requisiciones_inventario @relation(fields: [id_requisicion], references: [id_requisicion], onDelete: Cascade)
+
+  id_catalogo            Int
+  catalogo               catalogo                 @relation(fields: [id_catalogo], references: [id_catalogo])
+
+  cantidad_solicitada    Int
+  cantidad_autorizada    Int?
+  cantidad_procesada     Int                      @default(0)
+
+  observaciones          String?
+
+  fecha_creacion         DateTime                 @default(now())
+  fecha_ultima_actualizacion DateTime             @default(now()) @updatedAt
+
+  @@index([id_requisicion])
+  @@index([id_catalogo])
+}

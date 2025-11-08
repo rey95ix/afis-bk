@@ -24,4 +24,14 @@ export class CreateCatalogoDto {
   @IsOptional()
   @IsString()
   descripcion?: string;
+
+  @ApiProperty({ description: 'Cantidad mínima en stock', required: false, default: 0 })
+  @IsOptional()
+  @IsInt()
+  cantidad_minima?: number;
+
+  @ApiProperty({ description: 'Cantidad máxima en stock', required: false, default: 0 })
+  @IsOptional()
+  @IsInt()
+  cantidad_maxima?: number;
 }

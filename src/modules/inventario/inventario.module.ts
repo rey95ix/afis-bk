@@ -13,10 +13,32 @@ import { ImportacionesController } from './importaciones/importaciones.controlle
 import { ImportacionesService } from './importaciones/importaciones.service';
 import { EstantesController } from './estantes/estantes.controller';
 import { EstantesService } from './estantes/estantes.service';
+import { ItemsInventarioController } from './items-inventario/items-inventario.controller';
+import { ItemsInventarioService } from './items-inventario/items-inventario.service';
+import { RequisicionesController } from './requisiciones/requisiciones.controller';
+import { RequisicionesService } from './requisiciones/requisiciones.service';
 
 @Module({
   imports: [AuthModule, PrismaModule,],
-  controllers: [SucursalesController, BodegasController, ProveedoresController, CatalogosProveedoresController, ImportacionesController,EstantesController],
-  providers: [SucursalesService, BodegasService, ProveedoresService, CatalogosProveedoresService, ImportacionesService,EstantesService],
+  controllers: [
+    SucursalesController,
+    BodegasController,
+    ProveedoresController,
+    CatalogosProveedoresController,
+    ImportacionesController,
+    EstantesController,
+    ItemsInventarioController,
+    RequisicionesController
+  ],
+  providers: [
+    SucursalesService,
+    BodegasService,
+    ProveedoresService,
+    CatalogosProveedoresService,
+    ImportacionesService,
+    EstantesService,
+    ItemsInventarioService,
+    RequisicionesService
+  ],
 })
 export class InventarioModule { }
