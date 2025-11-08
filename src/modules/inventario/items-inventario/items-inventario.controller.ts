@@ -184,4 +184,40 @@ export class ItemsInventarioController {
 
     res.end(pdfBuffer);
   }
+
+  @Get('distribucion/excel')
+  @ApiOperation({
+    summary: 'Generar Excel de existencias de inventario',
+    description:
+      'Genera un archivo Excel con el reporte completo de existencias de inventario, incluyendo distribución por bodega, por categoría y alertas de stock bajo. El archivo contiene múltiples hojas con datos formateados.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Excel generado exitosamente.',
+    content: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Error al generar el Excel.',
+  })
+  async generateExistenciasExcel(@Res() res: Response) {
+    const excelBuffer = await this.itemsInventarioService.generateExistenciasExcel();
+
+    const fileName = `Existencias_Inventario_${new Date().getTime()}.xlsx`;
+
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${fileName}"`,
+      'Content-Length': excelBuffer.length,
+    });
+
+    res.end(excelBuffer);
+  }
 }

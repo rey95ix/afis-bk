@@ -9,6 +9,7 @@ import { PaginatedResult } from 'src/common/dto';
 import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as ExcelJS from 'exceljs';
 
 @Injectable()
 export class ItemsInventarioService {
@@ -618,5 +619,412 @@ export class ItemsInventarioService {
         'Error al generar el PDF. Por favor intente nuevamente.',
       );
     }
+  }
+
+  /**
+   * Generar Excel de reporte de existencias de inventario
+   */
+  async generateExistenciasExcel(): Promise<Buffer> {
+    // 1. Obtener distribución del inventario
+    const distribucion = await this.getDistribucion();
+
+    // 2. Obtener alertas de stock bajo
+    const alertas = await this.getAlertas();
+
+    // 3. Crear workbook
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Sistema de Inventario';
+    workbook.created = new Date();
+    workbook.modified = new Date();
+
+    // 4. Crear hoja de existencias actuales detalladas (PRIMERA HOJA - DEFAULT)
+    const sheetExistencias = workbook.addWorksheet('Existencias Actuales', {
+      properties: { tabColor: { argb: '9b59b6' } },
+    });
+
+    // Título principal
+    sheetExistencias.mergeCells('A1:H1');
+    sheetExistencias.getCell('A1').value = 'EXISTENCIAS ACTUALES';
+    sheetExistencias.getCell('A1').font = { size: 18, bold: true, color: { argb: '2c3e50' } };
+    sheetExistencias.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+    sheetExistencias.getRow(1).height = 35;
+
+    // Subtítulo - Fecha de generación
+    sheetExistencias.mergeCells('A2:H2');
+    sheetExistencias.getCell('A2').value = `Fecha de generación: ${new Date().toLocaleString('es-SV')}`;
+    sheetExistencias.getCell('A2').font = { size: 11, italic: true, color: { argb: '7f8c8d' } };
+    sheetExistencias.getCell('A2').alignment = { horizontal: 'center' };
+    sheetExistencias.getRow(2).height = 20;
+
+    // Espacio
+    sheetExistencias.addRow([]);
+
+    // Configurar anchos de columna
+    sheetExistencias.getColumn(1).width = 15;  // Código
+    sheetExistencias.getColumn(2).width = 40;  // Producto
+    sheetExistencias.getColumn(3).width = 25;  // Sucursal
+    sheetExistencias.getColumn(4).width = 25;  // Bodega
+    sheetExistencias.getColumn(5).width = 20;  // Estante
+    sheetExistencias.getColumn(6).width = 12;  // Existencia
+    sheetExistencias.getColumn(7).width = 15;  // Costo Promedio
+    sheetExistencias.getColumn(8).width = 15;  // Subtotal
+
+    // Agregar encabezados en la fila 4
+    const headerRow = sheetExistencias.getRow(4);
+    headerRow.values = ['Código', 'Producto', 'Sucursal', 'Bodega', 'Estante', 'Existencia', 'Costo Promedio', 'Subtotal'];
+    headerRow.font = { bold: true, color: { argb: 'FFFFFF' } };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '9b59b6' },
+    };
+    headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
+    headerRow.height = 25;
+
+    // Obtener todos los items del inventario con detalle
+    const inventarioDetallado = await this.prisma.inventario.findMany({
+      where: { estado: 'ACTIVO' },
+      include: {
+        catalogo: true,
+        bodega: {
+          include: {
+            sucursal: true,
+          },
+        },
+        estante: true,
+      },
+      orderBy: [
+        { catalogo: { codigo: 'asc' } },
+      ],
+    });
+
+    // Variable para acumular el total
+    let totalGeneral = 0;
+
+    // Agregar datos
+    inventarioDetallado.forEach((item) => {
+      const existencia = item.cantidad_disponible + item.cantidad_reservada;
+      const costoPromedio = item.costo_promedio || 0;
+      const subtotal = existencia * Number(costoPromedio);
+      totalGeneral += subtotal;
+
+      const row = sheetExistencias.addRow([
+        item.catalogo?.codigo || 'N/A',
+        item.catalogo?.nombre || 'N/A',
+        item.bodega?.sucursal?.nombre || 'N/A',
+        item.bodega?.nombre || 'N/A',
+        item.estante?.nombre || 'N/A',
+        existencia,
+        costoPromedio,
+        subtotal,
+      ]);
+
+      // Formatear columnas numéricas
+      row.getCell(6).numFmt = '#,##0';  // Existencia
+      row.getCell(7).numFmt = '$#,##0.00';  // Costo Promedio
+      row.getCell(8).numFmt = '$#,##0.00';  // Subtotal
+      row.getCell(8).font = { bold: true };
+    });
+
+    // Fila de total
+    const totalRow = sheetExistencias.addRow([
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      'TOTAL GENERAL:',
+      totalGeneral,
+    ]);
+
+    // Estilo de la fila de total
+    totalRow.font = { bold: true, size: 12, color: { argb: 'FFFFFF' } };
+    totalRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '2c3e50' },
+    };
+    totalRow.getCell(7).alignment = { horizontal: 'right' };  // TOTAL GENERAL:
+    totalRow.getCell(8).numFmt = '$#,##0.00';  // Subtotal
+    totalRow.height = 30;
+
+    // Aplicar bordes a todas las celdas con datos
+    sheetExistencias.eachRow((row, rowNumber) => {
+      if (rowNumber >= 4) {
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' },
+          };
+        });
+
+        // Alternar color de fondo en filas (excepto header y total)
+        if (rowNumber > 4 && rowNumber < sheetExistencias.rowCount) {
+          if ((rowNumber - 4) % 2 === 0) {
+            row.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'f8f9fa' },
+            };
+          }
+        }
+      }
+    });
+
+    // 5. Crear hoja de resumen general
+    const sheetResumen = workbook.addWorksheet('Resumen General', {
+      properties: { tabColor: { argb: '3498db' } },
+    });
+
+    // Header del resumen
+    sheetResumen.mergeCells('A1:D1');
+    sheetResumen.getCell('A1').value = 'REPORTE DE EXISTENCIAS DE INVENTARIO';
+    sheetResumen.getCell('A1').font = { size: 16, bold: true, color: { argb: '2c3e50' } };
+    sheetResumen.getCell('A1').alignment = { horizontal: 'center', vertical: 'middle' };
+    sheetResumen.getRow(1).height = 30;
+
+    sheetResumen.mergeCells('A2:D2');
+    sheetResumen.getCell('A2').value = `Fecha de generación: ${new Date().toLocaleString('es-SV')}`;
+    sheetResumen.getCell('A2').font = { size: 10, italic: true };
+    sheetResumen.getCell('A2').alignment = { horizontal: 'center' };
+
+    // Resumen de métricas
+    sheetResumen.addRow([]);
+    sheetResumen.addRow(['Métrica', 'Valor']);
+    sheetResumen.getRow(4).font = { bold: true };
+    sheetResumen.getRow(4).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '2c3e50' },
+    };
+    sheetResumen.getRow(4).font = { color: { argb: 'FFFFFF' }, bold: true };
+
+    sheetResumen.addRow(['Total Items', distribucion.resumen_general.total_items]);
+    sheetResumen.addRow(['Total Disponible', distribucion.resumen_general.total_disponible]);
+    sheetResumen.addRow(['Total Reservado', distribucion.resumen_general.total_reservado]);
+    sheetResumen.addRow(['Total General', distribucion.resumen_general.total_general]);
+
+    sheetResumen.getColumn(1).width = 30;
+    sheetResumen.getColumn(2).width = 20;
+
+    // Aplicar bordes
+    for (let i = 4; i <= 8; i++) {
+      sheetResumen.getRow(i).eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        };
+      });
+    }
+
+    // 6. Crear hoja de distribución por bodega
+    const sheetBodegas = workbook.addWorksheet('Distribución por Bodega', {
+      properties: { tabColor: { argb: '27ae60' } },
+    });
+
+    sheetBodegas.columns = [
+      { header: '#', key: 'index', width: 8 },
+      { header: 'Bodega', key: 'nombre_bodega', width: 30 },
+      { header: 'Tipo', key: 'tipo_bodega', width: 20 },
+      { header: 'Sucursal', key: 'nombre_sucursal', width: 30 },
+      { header: 'Items', key: 'cantidad_items', width: 12 },
+      { header: 'Disponible', key: 'cantidad_disponible', width: 15 },
+      { header: 'Reservado', key: 'cantidad_reservada', width: 15 },
+      { header: 'Total', key: 'cantidad_total', width: 15 },
+    ];
+
+    // Estilo del header
+    sheetBodegas.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
+    sheetBodegas.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '2c3e50' },
+    };
+    sheetBodegas.getRow(1).alignment = { horizontal: 'center', vertical: 'middle' };
+    sheetBodegas.getRow(1).height = 25;
+
+    // Agregar datos
+    distribucion.por_bodega.forEach((bodega, index) => {
+      sheetBodegas.addRow({
+        index: index + 1,
+        nombre_bodega: bodega.nombre_bodega,
+        tipo_bodega: bodega.tipo_bodega,
+        nombre_sucursal: bodega.nombre_sucursal,
+        cantidad_items: bodega.cantidad_items,
+        cantidad_disponible: bodega.cantidad_disponible,
+        cantidad_reservada: bodega.cantidad_reservada,
+        cantidad_total: bodega.cantidad_total,
+      });
+    });
+
+    // Aplicar bordes y formato
+    sheetBodegas.eachRow((row, rowNumber) => {
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        };
+      });
+
+      if (rowNumber > 1 && rowNumber % 2 === 0) {
+        row.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'f8f9fa' },
+        };
+      }
+    });
+
+    // 7. Crear hoja de distribución por categoría
+    const sheetCategorias = workbook.addWorksheet('Distribución por Categoría', {
+      properties: { tabColor: { argb: 'f39c12' } },
+    });
+
+    sheetCategorias.columns = [
+      { header: '#', key: 'index', width: 8 },
+      { header: 'Código', key: 'codigo_item', width: 15 },
+      { header: 'Producto', key: 'nombre_item', width: 40 },
+      { header: 'Categoría', key: 'nombre_categoria', width: 25 },
+      { header: 'Disponible', key: 'cantidad_disponible', width: 15 },
+      { header: 'Reservado', key: 'cantidad_reservada', width: 15 },
+      { header: 'Total', key: 'cantidad_total', width: 15 },
+    ];
+
+    // Estilo del header
+    sheetCategorias.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
+    sheetCategorias.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '2c3e50' },
+    };
+    sheetCategorias.getRow(1).alignment = { horizontal: 'center', vertical: 'middle' };
+    sheetCategorias.getRow(1).height = 25;
+
+    // Agregar datos
+    distribucion.por_categoria.forEach((categoria, index) => {
+      sheetCategorias.addRow({
+        index: index + 1,
+        codigo_item: categoria.codigo_item,
+        nombre_item: categoria.nombre_item,
+        nombre_categoria: categoria.nombre_categoria,
+        cantidad_disponible: categoria.cantidad_disponible,
+        cantidad_reservada: categoria.cantidad_reservada,
+        cantidad_total: categoria.cantidad_total,
+      });
+    });
+
+    // Aplicar bordes y formato
+    sheetCategorias.eachRow((row, rowNumber) => {
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        };
+      });
+
+      if (rowNumber > 1 && rowNumber % 2 === 0) {
+        row.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'f8f9fa' },
+        };
+      }
+    });
+
+    // 8. Crear hoja de alertas (si existen)
+    if (alertas.length > 0) {
+      const sheetAlertas = workbook.addWorksheet('Alertas de Stock Bajo', {
+        properties: { tabColor: { argb: 'e74c3c' } },
+      });
+
+      sheetAlertas.columns = [
+        { header: '#', key: 'index', width: 8 },
+        { header: 'Criticidad', key: 'nivel_criticidad', width: 15 },
+        { header: 'Código', key: 'codigo', width: 15 },
+        { header: 'Producto', key: 'nombre', width: 40 },
+        { header: 'Categoría', key: 'categoria', width: 25 },
+        { header: 'Bodega', key: 'bodega', width: 30 },
+        { header: 'Disponible', key: 'cantidad_disponible', width: 15 },
+        { header: 'Mínimo', key: 'cantidad_minima', width: 15 },
+        { header: 'Diferencia', key: 'diferencia', width: 15 },
+        { header: '% Stock', key: 'porcentaje_stock', width: 12 },
+      ];
+
+      // Estilo del header
+      sheetAlertas.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
+      sheetAlertas.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'e74c3c' },
+      };
+      sheetAlertas.getRow(1).alignment = { horizontal: 'center', vertical: 'middle' };
+      sheetAlertas.getRow(1).height = 25;
+
+      // Agregar datos (limitado a 20)
+      alertas.slice(0, 20).forEach((alerta, index) => {
+        const row = sheetAlertas.addRow({
+          index: index + 1,
+          nivel_criticidad: alerta.nivel_criticidad,
+          codigo: alerta.catalogo?.codigo,
+          nombre: alerta.catalogo?.nombre,
+          categoria: alerta.catalogo?.categoria?.nombre,
+          bodega: alerta.bodega?.nombre,
+          cantidad_disponible: alerta.cantidad_disponible,
+          cantidad_minima: alerta.catalogo?.cantidad_minima,
+          diferencia: alerta.diferencia,
+          porcentaje_stock: `${alerta.porcentaje_stock}%`,
+        });
+
+        // Colorear según criticidad
+        if (alerta.nivel_criticidad === 'CRITICO') {
+          row.getCell('nivel_criticidad').fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'e74c3c' },
+          };
+          row.getCell('nivel_criticidad').font = { color: { argb: 'FFFFFF' }, bold: true };
+        } else if (alerta.nivel_criticidad === 'ALTO') {
+          row.getCell('nivel_criticidad').fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'f39c12' },
+          };
+          row.getCell('nivel_criticidad').font = { color: { argb: 'FFFFFF' }, bold: true };
+        }
+      });
+
+      // Aplicar bordes
+      sheetAlertas.eachRow((row, rowNumber) => {
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: 'thin' },
+            left: { style: 'thin' },
+            bottom: { style: 'thin' },
+            right: { style: 'thin' },
+          };
+        });
+
+        if (rowNumber > 1 && rowNumber % 2 === 0) {
+          row.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'fff3cd' },
+          };
+        }
+      });
+    }
+
+    // 8. Generar buffer
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
   }
 }
