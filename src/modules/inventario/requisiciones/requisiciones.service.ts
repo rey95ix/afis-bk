@@ -134,7 +134,7 @@ export class RequisicionesService {
 
     // Validar que todas las series pertenezcan al catálogo especificado
     const wrongCatalogo = seriesData.filter(
-      (s) => s.inventario.id_catalogo !== id_catalogo,
+      (s) => s.inventario?.id_catalogo !== id_catalogo,
     );
     if (wrongCatalogo.length > 0) {
       throw new BadRequestException(
@@ -153,7 +153,7 @@ export class RequisicionesService {
     // Si se especifica bodega origen, validar que las series estén en esa bodega
     if (id_bodega_origen) {
       const wrongBodega = seriesData.filter(
-        (s) => s.inventario.id_bodega !== id_bodega_origen,
+        (s) => s.inventario?.id_bodega !== id_bodega_origen,
       );
       if (wrongBodega.length > 0) {
         throw new BadRequestException(
@@ -165,7 +165,7 @@ export class RequisicionesService {
     // Si se especifica estante origen, validar que las series estén en ese estante
     if (id_estante_origen) {
       const wrongEstante = seriesData.filter(
-        (s) => s.inventario.id_estante !== id_estante_origen,
+        (s) => s.inventario?.id_estante !== id_estante_origen,
       );
       if (wrongEstante.length > 0) {
         throw new BadRequestException(

@@ -20,6 +20,8 @@ import { RequisicionesController } from './requisiciones/requisiciones.controlle
 import { RequisicionesService } from './requisiciones/requisiciones.service';
 import { OrdenesSalidaController } from './ordenes-salida/ordenes-salida.controller';
 import { OrdenesSalidaService } from './ordenes-salida/ordenes-salida.service';
+import { ComprasController } from './compras/compras.controller';
+import { ComprasService } from './compras/compras.service';
 
 @Module({
   imports: [AuthModule, PrismaModule,],
@@ -33,7 +35,8 @@ import { OrdenesSalidaService } from './ordenes-salida/ordenes-salida.service';
     ItemsInventarioController,
     SeriesController,
     RequisicionesController,
-    OrdenesSalidaController
+    OrdenesSalidaController,
+    ComprasController
   ],
   providers: [
     SucursalesService,
@@ -44,7 +47,8 @@ import { OrdenesSalidaService } from './ordenes-salida/ordenes-salida.service';
     EstantesService,
     ItemsInventarioService,
     RequisicionesService,
-    OrdenesSalidaService
+    OrdenesSalidaService,
+    ComprasService
   ],
 })
 export class InventarioModule { }

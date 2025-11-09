@@ -3,8 +3,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { CreateBodegaDto } from './dto/create-bodega.dto';
 import { UpdateBodegaDto } from './dto/update-bodega.dto';
+import { FilterBodegaDto } from './dto/filter-bodega.dto';
 import { bodegas } from '@prisma/client';
-import { PaginationDto, PaginatedResult } from 'src/common/dto';
+import { PaginatedResult } from 'src/common/dto';
 
 @Injectable()
 export class BodegasService {
@@ -30,14 +31,19 @@ export class BodegasService {
     return bodega;
   }
 
-  async findAll(paginationDto: PaginationDto): Promise<PaginatedResult<bodegas>> {
-    const { page = 1, limit = 10, search = '' } = paginationDto;
+  async findAll(filterDto: FilterBodegaDto): Promise<PaginatedResult<bodegas>> {
+    const { page = 1, limit = 10, search = '', id_sucursal } = filterDto;
     const skip = (page - 1) * limit;
 
     // Construir el filtro de búsqueda
     const where: any = {
       estado: 'ACTIVO',
     };
+
+    // Filtrar por sucursal si se proporciona
+    if (id_sucursal) {
+      where.id_sucursal = id_sucursal;
+    }
 
     if (search) {
       where.OR = [

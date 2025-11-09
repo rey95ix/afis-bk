@@ -679,6 +679,8 @@ model compras {
   iva_percivido       Float?                   @default(0)
   total               Float?                   @default(0)
   estado              estado                   @default(ACTIVO)
+  recepcionada        Boolean                  @default(false)
+  fecha_recepcion     DateTime?
   id_sucursal         Int?
   sucursales          sucursales?              @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_sucursal")
   id_bodega           Int?
@@ -1198,8 +1200,8 @@ model inventario {
 // Control de series para equipos (ONUs, routers, etc.)
 model inventario_series {
   id_serie      Int               @id @default(autoincrement())
-  id_inventario Int
-  inventario    inventario        @relation(fields: [id_inventario], references: [id_inventario])
+  id_inventario Int?
+  inventario    inventario?       @relation(fields: [id_inventario], references: [id_inventario])
   numero_serie  String            @unique
   mac_address   String?
   estado        estado_inventario @default(DISPONIBLE)
