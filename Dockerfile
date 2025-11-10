@@ -96,7 +96,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/prisma ./prisma
 
 # Copiar archivos estáticos necesarios
-# COPY reports ./reports
+COPY templates ./templates
 # COPY assets ./assets
 
 # Cambiar permisos y usuario
