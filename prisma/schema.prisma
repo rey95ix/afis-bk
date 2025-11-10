@@ -60,6 +60,8 @@ model usuarios {
   id_usuario                     Int                             @id @default(autoincrement())
   usuario                        String
   password                       String
+  reset_password_token           String?                         @unique
+  reset_password_expires         DateTime?
   nombres                        String
   apellidos                      String
   id_sucursal                    Int?

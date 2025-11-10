@@ -1,11 +1,16 @@
-import { Injectable, InternalServerErrorException, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { CreateAuthDto } from './dto/create-auth.dto';
 import { UpdateAuthDto } from './dto/update-auth.dto';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { JwtPayload } from './interfaces';
 import { usuarios } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePassworDto } from './dto/change-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -14,15 +19,23 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly mailService: MailService,
   ) { }
 
   async login(createUserDto: CreateAuthDto): Promise<any> {
+
+    //agregar un delay de 2 segundos para evitar ataques de fuerza bruta
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
     const { usuario, password } = createUserDto;
     const usuarioDB = await this.prisma.usuarios.findFirst({
       where: {
         usuario,
         estado: "ACTIVO",
       },
+      include: {
+        roles: true
+      }
     });
 
     if (!usuarioDB) {
@@ -53,6 +66,89 @@ export class AuthService {
     }
   }
 
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<void> {
+    const { email } = forgotPasswordDto;
+    const user = await this.prisma.usuarios.findFirst({ where: { usuario: email } });
+
+    if (!user) {
+      throw new NotFoundException('No existe un usuario con ese correo electrónico.');
+    } 
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const passwordResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000);
+ 
+    await this.prisma.usuarios.update({
+      where: { id_usuario: user.id_usuario },
+      data: {
+        reset_password_token: passwordResetToken,
+        reset_password_expires: passwordResetExpires,
+      },
+    }); 
+
+    try { 
+      await this.mailService.sendPasswordResetEmail({ nombres: user.nombres, correo_electronico: user.usuario }, resetToken);
+    } catch (error) {
+      this.logger.error(error);
+      await this.prisma.usuarios.update({
+        where: { id_usuario: user.id_usuario },
+        data: {
+          reset_password_token: null,
+          reset_password_expires: null,
+        },
+      });
+      throw new InternalServerErrorException('No se pudo enviar el correo de recuperación. Inténtelo de nuevo más tarde.');
+    }
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<void> {
+    const { token, password } = resetPasswordDto;
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await this.prisma.usuarios.findFirst({
+      where: {
+        reset_password_token: hashedToken,
+        reset_password_expires: { gte: new Date() },
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('El token es inválido o ha expirado.');
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await this.prisma.usuarios.update({
+      where: { id_usuario: user.id_usuario },
+      data: {
+        password: hashedPassword,
+        reset_password_token: null,
+        reset_password_expires: null,
+      },
+    });
+  }
+
+  async changePassword(user: usuarios, changePasswordDto: ChangePassworDto): Promise<void> {
+    const { oldPassword, newPassword } = changePasswordDto;
+
+    const usuarioDB = await this.prisma.usuarios.findUnique({ where: { id_usuario: user.id_usuario } });
+
+    if (!usuarioDB) {
+      throw new NotFoundException('El usuario no fue encontrado.');
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, usuarioDB.password);
+    if (!isMatch) {
+      throw new UnauthorizedException('La contraseña actual es incorrecta.');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.usuarios.update({
+      where: { id_usuario: user.id_usuario },
+      data: { password: hashedPassword },
+    });
+  }
+
   async checkStatus(user: usuarios) {
     const usuarioDB = await this.prisma.usuarios.findFirst({
       where: {
@@ -80,3 +176,4 @@ export class AuthService {
     return token;
   }
 }
+

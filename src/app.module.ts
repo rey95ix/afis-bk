@@ -6,6 +6,7 @@ import { SeedModule } from './modules/seed/seed.module';
 import { InventarioModule } from './modules/inventario/inventario.module';
 import { AdministracionModule } from './modules/administracion/administracion.module';
 import { AtencionAlClienteModule } from './modules/atencion-al-cliente/atencion-al-cliente.module';
+import { MailModule } from './modules/mail/mail.module';
 // import { UtilidadesModule } from './modules/utilidades/utilidades.module';
 
 @Module({
@@ -21,6 +22,7 @@ import { AtencionAlClienteModule } from './modules/atencion-al-cliente/atencion-
     InventarioModule,
     AdministracionModule,
     AtencionAlClienteModule,
+    MailModule,
     // UtilidadesModule, //TODO Habilitar módulo de utilidades
   ],
   controllers: [],
