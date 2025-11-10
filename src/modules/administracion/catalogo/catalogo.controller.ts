@@ -24,10 +24,10 @@ export class CatalogoController {
   }
 
   @Get('next-code')
-  @ApiOperation({ summary: 'Obtener el siguiente código disponible para el catálogo' })
+  @ApiOperation({ summary: 'Obtener el siguiente código disponible para el catálogo basado en la categoría' })
   @ApiResponse({ status: 200, description: 'Retorna el siguiente código.' })
-  getNextCode() {
-    return this.catalogoService.getNextCode();
+  getNextCode(@Query('subCategoriaId', ParseIntPipe) subCategoriaId: number) {
+    return this.catalogoService.getNextCode(subCategoriaId);
   }
 
   @Get()

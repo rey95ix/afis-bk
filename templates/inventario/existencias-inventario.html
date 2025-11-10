@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reporte de Existencias de Inventario</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 11px;
+            line-height: 1.4;
+            color: #333;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 25px;
+            border-bottom: 3px solid #2c3e50;
+            padding-bottom: 15px;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .header .subtitle {
+            color: #7f8c8d;
+            font-size: 12px;
+        }
+
+        .info-section {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3498db;
+        }
+
+        .info-row {
+            display: flex;
+            margin-bottom: 8px;
+        }
+
+        .info-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .info-label {
+            font-weight: 600;
+            min-width: 120px;
+            color: #2c3e50;
+        }
+
+        .info-value {
+            color: #555;
+        }
+
+        .summary-cards {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 25px;
+            gap: 15px;
+        }
+
+        .summary-card {
+            flex: 1;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .summary-card.disponible {
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+        }
+
+        .summary-card.reservado {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+        }
+
+        .summary-card.total {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        }
+
+        .summary-card.items {
+            background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
+        }
+
+        .summary-card .value {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .summary-card .label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            opacity: 0.9;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background-color: white;
+        }
+
+        table thead {
+            background-color: #2c3e50;
+            color: white;
+        }
+
+        table th {
+            padding: 10px 8px;
+            text-align: left;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            font-weight: 600;
+        }
+
+        table td {
+            padding: 8px;
+            border-bottom: 1px solid #ecf0f1;
+            font-size: 10px;
+        }
+
+        table tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        table tbody tr:hover {
+            background-color: #e8f4f8;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge.disponible {
+            background-color: #d1f2eb;
+            color: #0c5460;
+        }
+
+        .badge.reservado {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .badge.activo {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .badge.alerta {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-success {
+            color: #27ae60;
+            font-weight: 600;
+        }
+
+        .text-warning {
+            color: #f39c12;
+            font-weight: 600;
+        }
+
+        .text-danger {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 2px solid #ecf0f1;
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 9px;
+        }
+
+        .page-break {
+            page-break-after: always;
+        }
+
+        @media print {
+            body {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>REPORTE DE EXISTENCIAS DE INVENTARIO</h1>
+        <div class="subtitle">Fecha de generación: {{:fechaGeneracion}}</div>
+    </div>
+
+    <!-- Información General -->
+    <div class="info-section">
+        <div class="info-row">
+            <div class="info-label">Filtros Aplicados:</div>
+            <div class="info-value">{{:filtrosAplicados}}</div>
+        </div>
+    </div>
+
+    <!-- Resumen General -->
+    <div class="summary-cards">
+        <div class="summary-card items">
+            <div class="value">{{:resumen_general.total_items}}</div>
+            <div class="label">Total Items</div>
+        </div>
+        <div class="summary-card disponible">
+            <div class="value">{{:resumen_general.total_disponible}}</div>
+            <div class="label">Disponibles</div>
+        </div>
+        <div class="summary-card reservado">
+            <div class="value">{{:resumen_general.total_reservado}}</div>
+            <div class="label">Reservados</div>
+        </div>
+        <div class="summary-card total">
+            <div class="value">{{:resumen_general.total_general}}</div>
+            <div class="label">Total General</div>
+        </div>
+    </div>
+
+    <!-- Distribución por Bodega -->
+    <h3 class="section-title">Distribución por Bodega</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Bodega</th>
+                <th>Tipo</th>
+                <th>Sucursal</th>
+                <th class="text-center">Items</th>
+                <th class="text-center">Disponible</th>
+                <th class="text-center">Reservado</th>
+                <th class="text-center">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{for por_bodega}}
+            <tr>
+                <td>{{:#index + 1}}</td>
+                <td><strong>{{:nombre_bodega}}</strong></td>
+                <td><span class="badge activo">{{:tipo_bodega}}</span></td>
+                <td>{{:nombre_sucursal}}</td>
+                <td class="text-center">{{:cantidad_items}}</td>
+                <td class="text-center text-success">{{:cantidad_disponible}}</td>
+                <td class="text-center text-warning">{{:cantidad_reservada}}</td>
+                <td class="text-center"><strong>{{:cantidad_total}}</strong></td>
+            </tr>
+            {{/for}}
+        </tbody>
+    </table>
+
+    <!-- Distribución por Categoría -->
+    <h3 class="section-title">Distribución por Categoría / Producto</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Código</th>
+                <th>Producto</th>
+                <th>Categoría</th>
+                <th class="text-center">Disponible</th>
+                <th class="text-center">Reservado</th>
+                <th class="text-center">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{for por_categoria}}
+            <tr>
+                <td>{{:#index + 1}}</td>
+                <td>{{:codigo_item}}</td>
+                <td><strong>{{:nombre_item}}</strong></td>
+                <td><span class="badge activo">{{:nombre_categoria}}</span></td>
+                <td class="text-center text-success">{{:cantidad_disponible}}</td>
+                <td class="text-center text-warning">{{:cantidad_reservada}}</td>
+                <td class="text-center"><strong>{{:cantidad_total}}</strong></td>
+            </tr>
+            {{/for}}
+        </tbody>
+    </table>
+
+    {{if alertas && alertas.length > 0}}
+    <!-- Page break -->
+    <div class="page-break"></div>
+
+    <!-- Alertas de Stock Bajo -->
+    <h3 class="section-title">Alertas de Stock Bajo</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Criticidad</th>
+                <th>Código</th>
+                <th>Producto</th>
+                <th>Bodega</th>
+                <th class="text-center">Disponible</th>
+                <th class="text-center">Mínimo</th>
+                <th class="text-center">Diferencia</th>
+                <th class="text-center">% Stock</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{for alertas}}
+            <tr>
+                <td>{{:#index + 1}}</td>
+                <td><span class="badge alerta">{{:nivel_criticidad}}</span></td>
+                <td>{{:catalogo.codigo}}</td>
+                <td><strong>{{:catalogo.nombre}}</strong></td>
+                <td>{{:bodega.nombre}}</td>
+                <td class="text-center {{if cantidad_disponible === 0}}text-danger{{else}}text-warning{{/if}}">
+                    {{:cantidad_disponible}}
+                </td>
+                <td class="text-center">{{:catalogo.cantidad_minima}}</td>
+                <td class="text-center text-danger"><strong>-{{:diferencia}}</strong></td>
+                <td class="text-center">{{:porcentaje_stock}}%</td>
+            </tr>
+            {{/for}}
+        </tbody>
+    </table>
+    {{/if}}
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>Reporte generado automáticamente por el Sistema de Inventario</p>
+        <p>Este documento contiene información confidencial de la empresa</p>
+    </div>
+</body>
+</html>

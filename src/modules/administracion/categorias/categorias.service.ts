@@ -11,6 +11,18 @@ export class CategoriasService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createCategoriaDto: CreateCategoriaDto, id_usuario?: number): Promise<categorias> {
+
+    //agregar validacion que si ya exite una categoria con el mismo codigo y estado ACTIVO, no permita crearla
+    const existingCategoria = await this.prisma.categorias.findFirst({
+      where: {
+        codigo: createCategoriaDto.codigo,
+        estado: 'ACTIVO',
+      },
+    });
+    if (existingCategoria) {
+      throw new NotFoundException(`Ya existe una categoría con el código ${createCategoriaDto.codigo}`);
+    }
+    // Crear la categoría
     const categoria = await this.prisma.categorias.create({ data: createCategoriaDto });
 
     // Registrar en el log
@@ -30,10 +42,15 @@ export class CategoriasService {
     // Construir el filtro de búsqueda
     const where: any = {
       estado: 'ACTIVO',
+      // Devolver solo categorías de nivel superior en la consulta principal
+      id_categoria_padre: null,
     };
 
     if (search) {
-      where.nombre = { contains: search, mode: 'insensitive' };
+      where.OR = [
+        { nombre: { contains: search, mode: 'insensitive' } },
+        { codigo: { contains: search, mode: 'insensitive' } },
+      ];
     }
 
     // Ejecutar consultas en paralelo
@@ -43,6 +60,12 @@ export class CategoriasService {
         skip,
         take: limit,
         orderBy: { fecha_creacion: 'desc' },
+        include: {
+          sub_categorias: {
+            where: { estado: 'ACTIVO' },
+            orderBy: { nombre: 'asc' },
+          },
+        },
       }),
       this.prisma.categorias.count({ where }),
     ]);
@@ -63,6 +86,13 @@ export class CategoriasService {
   async findOne(id: number): Promise<categorias> {
     const categoria = await this.prisma.categorias.findUnique({
       where: { id_categoria: id },
+      include: {
+        categoria_padre: true,
+        sub_categorias: {
+          where: { estado: 'ACTIVO' },
+          orderBy: { nombre: 'asc' },
+        },
+      },
     });
     if (!categoria) {
       throw new NotFoundException(`Categoria with ID ${id} not found`);
@@ -102,5 +132,23 @@ export class CategoriasService {
     );
 
     return categoria;
+  }
+
+  async findAllSubcategories(): Promise<categorias[]> {
+    return this.prisma.categorias.findMany({
+      where: {
+        estado: 'ACTIVO',
+        id_categoria_padre: {
+          not: null,
+        },
+      },
+      include: {
+        categoria_padre: true, // Incluir categoría padre para agrupación
+      },
+      orderBy: [
+        { categoria_padre: { nombre: 'asc' } },
+        { nombre: 'asc' },
+      ],
+    });
   }
 }

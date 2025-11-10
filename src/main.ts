@@ -6,6 +6,8 @@ import * as bodyParser from 'body-parser';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { TransformInterceptor } from './common/intersectors';
 import { HEADER_API_BEARER_AUTH } from './common/const';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 
 let PORT = 3000;
 let APP_URL = 'http://localhost';
@@ -13,7 +15,12 @@ let DB_URL = 'localhost';
 let DB_PORT = 'localhost';
 const logger = new Logger('IXC_API');
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Configurar archivos estáticos
+  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+    prefix: '/uploads/',
+  });
 
   app.useGlobalInterceptors(new TransformInterceptor());
 

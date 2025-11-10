@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Requisición {{:codigo}}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 11px;
+            line-height: 1.4;
+            color: #333;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 25px;
+            border-bottom: 3px solid #2c3e50;
+            padding-bottom: 15px;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .header .subtitle {
+            color: #7f8c8d;
+            font-size: 12px;
+        }
+
+        .info-section {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3498db;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+        }
+
+        .info-item {
+            margin-bottom: 8px;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #2c3e50;
+            display: block;
+            margin-bottom: 3px;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        .info-value {
+            color: #555;
+            font-size: 11px;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            margin-top: 20px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background-color: white;
+        }
+
+        table thead {
+            background-color: #2c3e50;
+            color: white;
+        }
+
+        table th {
+            padding: 10px 8px;
+            text-align: left;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            font-weight: 600;
+        }
+
+        table td {
+            padding: 8px;
+            border-bottom: 1px solid #ecf0f1;
+            font-size: 10px;
+        }
+
+        table tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge.pendiente {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .badge.aprobada {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .badge.rechazada {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge.procesada {
+            background-color: #d1f2eb;
+            color: #155724;
+        }
+
+        .badge.cancelada {
+            background-color: #e2e3e5;
+            color: #383d41;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .observaciones-box {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 3px;
+        }
+
+        .observaciones-box strong {
+            display: block;
+            margin-bottom: 5px;
+            color: #856404;
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 2px solid #ecf0f1;
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 9px;
+        }
+
+        .series-container {
+            padding: 5px 10px;
+            margin-top: 5px;
+            background-color: #e3f2fd;
+            border-left: 3px solid #2196f3;
+            border-radius: 3px;
+        }
+
+        .series-title {
+            font-weight: 600;
+            color: #1565c0;
+            font-size: 9px;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+        }
+
+        .series-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .series-item {
+            background-color: white;
+            border: 1px solid #90caf9;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 9px;
+            color: #1565c0;
+        }
+
+        .series-item .mac {
+            display: block;
+            font-size: 8px;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        @media print {
+            body {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>REQUISICIÓN DE INVENTARIO</h1>
+        <div class="subtitle">{{:codigo}}</div>
+    </div>
+
+    <!-- Información General -->
+    <h3 class="section-title">Información General</h3>
+    <div class="info-section">
+        <div class="info-grid">
+            <div class="info-item">
+                <span class="info-label">Tipo de Requisición:</span>
+                <span class="info-value">{{:tipoLabel}}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Estado:</span>
+                <span class="badge {{:estadoClass}}">{{:estado}}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Fecha de Creación:</span>
+                <span class="info-value">{{:fechaCreacion}}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Solicitado por:</span>
+                <span class="info-value">{{:usuario_solicita.nombres}} {{:usuario_solicita.apellidos}}</span>
+            </div>
+            {{if usuario_autoriza}}
+            <div class="info-item">
+                <span class="info-label">Fecha de Autorización:</span>
+                <span class="info-value">{{:fechaAutorizacion}}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Autorizado por:</span>
+                <span class="info-value">{{:usuario_autoriza.nombres}} {{:usuario_autoriza.apellidos}}</span>
+            </div>
+            {{/if}}
+            {{if usuario_procesa}}
+            <div class="info-item">
+                <span class="info-label">Fecha de Proceso:</span>
+                <span class="info-value">{{:fechaProceso}}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Procesado por:</span>
+                <span class="info-value">{{:usuario_procesa.nombres}} {{:usuario_procesa.apellidos}}</span>
+            </div>
+            {{/if}} 
+            {{if bodega_origen}}
+            <div class="info-item">
+                <span class="info-label">Bodega Origen:</span>
+                <span class="info-value">{{:bodega_origen.nombre}}</span>
+            </div>
+            {{/if}}
+            {{if bodega_destino}}
+            <div class="info-item">
+                <span class="info-label">Bodega Destino:</span>
+                <span class="info-value">{{:bodega_destino.nombre}}</span>
+            </div>
+            {{/if}}
+            {{if sucursal_origen}}
+            <div class="info-item">
+                <span class="info-label">Sucursal Origen:</span>
+                <span class="info-value">{{:sucursal_origen.nombre}}</span>
+            </div>
+            {{/if}}
+            {{if sucursal_destino}}
+            <div class="info-item">
+                <span class="info-label">Sucursal Destino:</span>
+                <span class="info-value">{{:sucursal_destino.nombre}}</span>
+            </div>
+            {{/if}}
+            {{if estante_origen}}
+            <div class="info-item">
+                <span class="info-label">Estante Origen:</span>
+                <span class="info-value">{{:estante_origen.nombre}}</span>
+            </div>
+            {{/if}}
+            {{if estante_destino}}
+            <div class="info-item">
+                <span class="info-label">Estante Destino:</span>
+                <span class="info-value">{{:estante_destino.nombre}}</span>
+            </div>
+            {{/if}}
+        </div>
+    </div>
+
+    <!-- Motivo -->
+    {{if motivo}}
+    <div class="observaciones-box">
+        <strong>Motivo de la Requisición:</strong>
+        {{:motivo}}
+    </div>
+    {{/if}}
+
+    <!-- Detalle de Productos -->
+    <h3 class="section-title">Detalle de Productos</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Código</th>
+                <th>Producto</th>
+                <th class="text-center">Cant. Solicitada</th>
+                {{if mostrarAutorizada}}
+                <th class="text-center">Cant. Autorizada</th>
+                {{/if}}
+                {{if mostrarProcesada}}
+                <th class="text-center">Cant. Procesada</th>
+                {{/if}}
+                <th>Observaciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{for detalle}}
+            <tr>
+                <td>{{:#index + 1}}</td>
+                <td>{{:catalogo.codigo}}</td>
+                <td>
+                    <strong>{{:catalogo.nombre}}</strong>
+                    {{if series && series.length > 0}}
+                    <div class="series-container">
+                        <div class="series-title">Números de Serie ({{:series.length}}):</div>
+                        <div class="series-list">
+                            {{for series}}
+                            <div class="series-item">
+                                <strong>{{:serie.numero_serie}}</strong>
+                                {{if serie.mac_address}}
+                                <span class="mac">MAC: {{:serie.mac_address}}</span>
+                                {{/if}}
+                            </div>
+                            {{/for}}
+                        </div>
+                    </div>
+                    {{/if}}
+                </td>
+                <td class="text-center">{{:cantidad_solicitada}}</td>
+                {{if ~root.mostrarAutorizada}}
+                <td class="text-center">{{:cantidad_autorizada || 0}}</td>
+                {{/if}}
+                {{if ~root.mostrarProcesada}}
+                <td class="text-center">{{:cantidad_procesada || 0}}</td>
+                {{/if}}
+                <td>{{:observaciones || '-'}}</td>
+            </tr>
+            {{/for}}
+        </tbody>
+    </table>
+
+    <!-- Observaciones de Autorización -->
+    {{if observaciones_autorizacion}}
+    <div class="observaciones-box">
+        <strong>Observaciones de Autorización:</strong>
+        {{:observaciones_autorizacion}}
+    </div>
+    {{/if}}
+
+    <!-- Observaciones de Proceso -->
+    {{if observaciones_proceso}}
+    <div class="observaciones-box">
+        <strong>Observaciones de Proceso:</strong>
+        {{:observaciones_proceso}}
+    </div>
+    {{/if}}
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>Reporte generado el {{:fechaGeneracion}}</p>
+        <p>Este documento contiene información confidencial de la empresa</p>
+    </div>
+</body>
+</html>

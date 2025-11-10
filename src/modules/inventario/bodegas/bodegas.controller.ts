@@ -13,6 +13,7 @@ import {
 import { BodegasService } from './bodegas.service';
 import { CreateBodegaDto } from './dto/create-bodega.dto';
 import { UpdateBodegaDto } from './dto/update-bodega.dto';
+import { FilterBodegaDto } from './dto/filter-bodega.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -21,7 +22,6 @@ import {
 } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
-import { PaginationDto } from 'src/common/dto';
 
 @ApiTags('Bodegas')
 @ApiBearerAuth(HEADER_API_BEARER_AUTH)
@@ -39,7 +39,7 @@ export class BodegasController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Obtener todas las bodegas activas con paginación y búsqueda' })
+  @ApiOperation({ summary: 'Obtener todas las bodegas activas con paginación, búsqueda y filtros' })
   @ApiResponse({
     status: 200,
     description: 'Retorna las bodegas paginadas.',
@@ -62,8 +62,8 @@ export class BodegasController {
       }
     }
   })
-  findAll(@Query() paginationDto: PaginationDto) {
-    return this.bodegasService.findAll(paginationDto);
+  findAll(@Query() filterDto: FilterBodegaDto) {
+    return this.bodegasService.findAll(filterDto);
   }
 
   @Get(':id')

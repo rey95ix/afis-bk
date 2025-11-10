@@ -51,6 +51,13 @@ export class CategoriasController {
     return this.categoriasService.findAll(paginationDto);
   }
 
+  @Get('subcategorias/all')
+  @ApiOperation({ summary: 'Obtener todas las sub-categorías activas para selects' })
+  @ApiResponse({ status: 200, description: 'Retorna un listado de todas las sub-categorías.' })
+  findAllSubcategories() {
+    return this.categoriasService.findAllSubcategories();
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una categoría por su ID' })
   @ApiResponse({ status: 200, description: 'Retorna la categoría.' })

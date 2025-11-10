@@ -9,10 +9,50 @@ import { ProveedoresController } from './proveedores/proveedores.controller';
 import { ProveedoresService } from './proveedores/proveedores.service';
 import { CatalogosProveedoresController } from './catalogos-proveedores/catalogos-proveedores.controller';
 import { CatalogosProveedoresService } from './catalogos-proveedores/catalogos-proveedores.service';
+import { ImportacionesController } from './importaciones/importaciones.controller';
+import { ImportacionesService } from './importaciones/importaciones.service';
+import { EstantesController } from './estantes/estantes.controller';
+import { EstantesService } from './estantes/estantes.service';
+import { ItemsInventarioController } from './items-inventario/items-inventario.controller';
+import { ItemsInventarioService } from './items-inventario/items-inventario.service';
+import { SeriesController } from './items-inventario/series.controller';
+import { RequisicionesController } from './requisiciones/requisiciones.controller';
+import { RequisicionesService } from './requisiciones/requisiciones.service';
+import { OrdenesSalidaController } from './ordenes-salida/ordenes-salida.controller';
+import { OrdenesSalidaService } from './ordenes-salida/ordenes-salida.service';
+import { ComprasController } from './compras/compras.controller';
+import { ComprasService } from './compras/compras.service';
+import { MovimientosInventarioController } from './movimientos-inventario/movimientos-inventario.controller';
+import { MovimientosInventarioService } from './movimientos-inventario/movimientos-inventario.service';
 
 @Module({
   imports: [AuthModule, PrismaModule,],
-  controllers: [SucursalesController, BodegasController, ProveedoresController, CatalogosProveedoresController,],
-  providers: [SucursalesService, BodegasService, ProveedoresService, CatalogosProveedoresService],
+  controllers: [
+    SucursalesController,
+    BodegasController,
+    ProveedoresController,
+    CatalogosProveedoresController,
+    ImportacionesController,
+    EstantesController,
+    ItemsInventarioController,
+    SeriesController,
+    RequisicionesController,
+    OrdenesSalidaController,
+    ComprasController,
+    MovimientosInventarioController
+  ],
+  providers: [
+    SucursalesService,
+    BodegasService,
+    ProveedoresService,
+    CatalogosProveedoresService,
+    ImportacionesService,
+    EstantesService,
+    ItemsInventarioService,
+    RequisicionesService,
+    OrdenesSalidaService,
+    ComprasService,
+    MovimientosInventarioService
+  ],
 })
 export class InventarioModule { }
