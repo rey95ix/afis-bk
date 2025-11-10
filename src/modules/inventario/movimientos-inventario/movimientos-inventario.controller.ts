@@ -20,10 +20,18 @@ import { FilterMovimientoInventarioDto } from './dto/filter-movimiento-inventari
 @ApiBearerAuth(HEADER_API_BEARER_AUTH)
 @Controller('inventario/movimientos-inventario')
 @Auth()
+@ApiResponse({
+  status: 401,
+  description: 'No autorizado - Token JWT inválido o no proporcionado',
+})
+@ApiResponse({
+  status: 401,
+  description: 'No autorizado - Token JWT inválido o no proporcionado',
+})
 export class MovimientosInventarioController {
   constructor(
     private readonly movimientosInventarioService: MovimientosInventarioService,
-  ) {}
+  ) { }
 
   @Get()
   @ApiOperation({
@@ -35,10 +43,6 @@ export class MovimientosInventarioController {
     status: 200,
     description:
       'Movimientos obtenidos exitosamente con datos de paginación (data, meta)',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'No autorizado - Token JWT inválido o no proporcionado',
   })
   findAll(@Query() filterDto: FilterMovimientoInventarioDto) {
     return this.movimientosInventarioService.findAll(filterDto);
@@ -57,10 +61,6 @@ export class MovimientosInventarioController {
   @ApiResponse({
     status: 404,
     description: 'Movimiento de inventario no encontrado',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'No autorizado - Token JWT inválido o no proporcionado',
   })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.movimientosInventarioService.findOne(id);
