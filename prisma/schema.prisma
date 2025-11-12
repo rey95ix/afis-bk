@@ -988,6 +988,8 @@ enum tipo_gasto_importacion {
   DAI // Derechos Arancelarios a la Importación
   IVA_IMPORTACION
   OTROS_IMPUESTOS
+  EXTERNOS
+  INTERNOS
   OTROS
 }
 

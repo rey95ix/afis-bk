@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Cuadro de Prorrateo - {{:numero_poliza}}</title>
+    <style>
+        @page {
+            size: landscape;
+            margin: 10mm;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 9px;
+            line-height: 1.3;
+            color: #000;
+            padding: 15px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+        }
+
+        .header h1 {
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+
+        .header h2 {
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+
+        .header p {
+            font-size: 8px;
+            margin: 2px 0;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 8px;
+        }
+
+        .info-row strong {
+            font-weight: bold;
+        }
+
+        .table-container {
+            margin-bottom: 15px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+
+        table thead {
+            background-color: #f0f0f0;
+        }
+
+        table th {
+            border: 1px solid #000;
+            padding: 4px 2px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 7px;
+        }
+
+        table td {
+            border: 1px solid #000;
+            padding: 3px 2px;
+            font-size: 8px;
+        }
+
+        table td.number {
+            text-align: right;
+        }
+
+        table td.center {
+            text-align: center;
+        }
+
+        table tfoot {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+
+        table tfoot td {
+            font-weight: bold;
+        }
+
+        .section-title {
+            font-size: 10px;
+            font-weight: bold;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .two-column-layout {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        .column {
+            flex: 1;
+        }
+
+        .gastos-table {
+            width: 100%;
+        }
+
+        .gastos-table th,
+        .gastos-table td {
+            padding: 3px 5px;
+        }
+
+        @media print {
+            body {
+                padding: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- ENCABEZADO -->
+    <div class="header">
+        <h1>{{:nombre_sistema}}</h1>
+        <h2>CUADRO DE PRORRATEO POR IMPORTACIÓN</h2>
+        <p>VALORES EXPRESADOS EN {{:moneda}}</p>
+    </div>
+
+    <!-- INFORMACIÓN GENERAL -->
+    <div class="info-row">
+        <div>
+            <strong>No. DE POLIZA:</strong> {{:numero_poliza}}
+        </div>
+        <div>
+            <strong>FECHA:</strong> {{:fecha_formateada}}
+        </div>
+        <div>
+            <strong>Pág. No.</strong> 1/1
+        </div>
+        <div>
+            {{:fecha_actual}}
+        </div>
+    </div>
+
+    {{if bodega_ingreso}}
+    <div class="info-row">
+        <div>
+            <strong>BODEGA DE INGRESO:</strong> {{:bodega_ingreso}}
+        </div>
+        {{if numero_hoja}}
+        <div>
+            <strong>No. DE HOJA:</strong> {{:numero_hoja}}
+        </div>
+        {{/if}}
+    </div>
+    {{/if}}
+
+    <!-- TABLA PRINCIPAL DE PRODUCTOS -->
+    <div class="section-title">GASTOS</div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th rowspan="2" style="width: 40px;">CANT.</th>
+                    <th rowspan="2" style="width: 60px;">CÓDIGO</th>
+                    <th rowspan="2" style="width: 150px;">PRODUCTO</th>
+                    <th rowspan="2" style="width: 60px;">COSTO<br>UNITARIO</th>
+                    <th colspan="3" style="background-color: #e0e0e0;">VALOR FOB</th>
+                    <th rowspan="2" style="width: 50px;">% DAI</th>
+                    <th rowspan="2" style="width: 60px;">VALOR<br>CIF + DAI</th>
+                    <th colspan="4" style="background-color: #e0e0e0;">GASTOS</th>
+                    <th rowspan="2" style="width: 60px;">TOTAL<br>GASTOS</th>
+                    <th rowspan="2" style="width: 60px;">TOTAL</th>
+                    <th rowspan="2" style="width: 60px;">COSTO UNIT.<br>REAL</th>
+                </tr>
+                <tr>
+                    <th style="width: 60px;">VALOR<br>FOB</th>
+                    <th style="width: 50px;">SEGURO</th>
+                    <th style="width: 60px;">VALOR<br>CIF</th>
+                    <th style="width: 60px;">TRANSPO<br>RTE</th>
+                    <th style="width: 60px;">GASTOS<br>IMPORTAC.</th>
+                    <th style="width: 50px;">GASTOS<br>EXT.</th>
+                    <th style="width: 60px;">GASTOS<br>INT. Y OTROS</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{for detalle_productos}}
+                <tr>
+                    <td class="center">{{:cantidad}}</td>
+                    <td>{{:codigo}}</td>
+                    <td>{{:producto}}</td>
+                    <td class="number">{{:costo_unitario.toFixed(4)}}</td>
+                    <td class="number">{{:valor_fob.toFixed(2)}}</td>
+                    <td class="number">{{:seguro.toFixed(2)}}</td>
+                    <td class="number">{{:valor_cif.toFixed(2)}}</td>
+                    <td class="number">{{:porcentaje_dai.toFixed(2)}}</td>
+                    <td class="number">{{:valor_cif_dai.toFixed(2)}}</td>
+                    <td class="number">{{:transporte.toFixed(2)}}</td>
+                    <td class="number">{{:gastos_importacion.toFixed(2)}}</td>
+                    <td class="number">{{:gastos_externos.toFixed(2)}}</td>
+                    <td class="number">{{:gastos_internos_otros.toFixed(2)}}</td>
+                    <td class="number">{{:total_gastos.toFixed(2)}}</td>
+                    <td class="number">{{:total.toFixed(2)}}</td>
+                    <td class="number">{{:costo_unitario_real.toFixed(4)}}</td>
+                </tr>
+                {{/for}}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="4" style="text-align: right;"><strong>TOTALES:</strong></td>
+                    <td class="number">{{:totales.valor_fob.toFixed(2)}}</td>
+                    <td class="number">{{:totales.seguro.toFixed(2)}}</td>
+                    <td class="number">{{:totales.valor_cif.toFixed(2)}}</td>
+                    <td class="number"></td>
+                    <td class="number">{{:totales.valor_cif_dai.toFixed(2)}}</td>
+                    <td class="number">{{:totales.transporte.toFixed(2)}}</td>
+                    <td class="number">{{:totales.gastos_importacion.toFixed(2)}}</td>
+                    <td class="number">{{:totales.gastos_externos.toFixed(2)}}</td>
+                    <td class="number">{{:totales.gastos_internos_otros.toFixed(2)}}</td>
+                    <td class="number">{{:totales.total_gastos.toFixed(2)}}</td>
+                    <td class="number">{{:totales.total.toFixed(2)}}</td>
+                    <td class="number"></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <!-- LAYOUT DE DOS COLUMNAS -->
+    <div class="two-column-layout">
+        <!-- COLUMNA IZQUIERDA: DETALLE DE PROVEEDORES -->
+        <div class="column">
+            <div class="section-title">Detalle de Proveedores en Importación</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Id. Proveedor</th>
+                        <th>Nombre</th>
+                        <th>Número de<br>Comprobante</th>
+                        <th>Fecha</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{for detalle_proveedores}}
+                    <tr>
+                        <td class="center">{{:id_proveedor}}</td>
+                        <td>{{:nombre}}</td>
+                        <td class="center">{{:numero_comprobante}}</td>
+                        <td class="center">{{:fecha}}</td>
+                        <td class="number">{{:total.toFixed(2)}}</td>
+                    </tr>
+                    {{/for}}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="4" style="text-align: right;"><strong>TOTALES:</strong></td>
+                        <td class="number"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- COLUMNA DERECHA: DETALLE DE GASTOS -->
+        <div class="column">
+            <div class="section-title">Detalle de Gastos en Importación</div>
+            <table class="gastos-table">
+                <thead>
+                    <tr>
+                        <th style="width: 30px;">N°</th>
+                        <th>Gasto</th>
+                        <th style="width: 80px;">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{for detalle_gastos}}
+                    <tr>
+                        <td class="center">{{:numero}}</td>
+                        <td>{{:gasto}}</td>
+                        <td class="number">{{:total.toFixed(2)}}</td>
+                    </tr>
+                    {{/for}}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="2" style="text-align: right;"><strong>TOTALES:</strong></td>
+                        <td class="number">{{:total_gastos.toFixed(2)}}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+</body>
+</html>

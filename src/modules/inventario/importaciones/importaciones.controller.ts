@@ -10,7 +10,9 @@ import {
   ParseIntPipe,
   Query,
   Patch,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ImportacionesService } from './importaciones.service';
 import {
   CreateImportacionDto,
@@ -339,6 +341,44 @@ export class ImportacionesController {
     @GetUser() user: any,
   ) {
     return this.importacionesService.deleteSerie(id_serie, user.id_usuario);
+  }
+
+  @Get(':id/pdf')
+  @ApiOperation({
+    summary: 'Generar PDF del reporte de retaceo de la importación',
+    description:
+      'Genera un documento PDF con el cuadro de prorrateo de gastos de la importación.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'PDF generado exitosamente.',
+    content: {
+      'application/pdf': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Importación no encontrada.' })
+  @ApiResponse({
+    status: 400,
+    description: 'Error al generar el PDF o no existe retaceo calculado.',
+  })
+  async generatePdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ) {
+    const pdfBuffer = await this.importacionesService.generatePdf(id);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="Reporte_Retaceo_${id}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+
+    res.end(pdfBuffer);
   }
 
   @Delete(':id')

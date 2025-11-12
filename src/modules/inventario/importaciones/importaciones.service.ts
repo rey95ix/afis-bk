@@ -17,6 +17,9 @@ import {
 import { importaciones, estado_importacion } from '@prisma/client';
 import { PaginationDto, PaginatedResult } from 'src/common/dto';
 import { Decimal } from '@prisma/client/runtime/library';
+import axios from 'axios';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class ImportacionesService {
@@ -252,6 +255,7 @@ export class ImportacionesService {
         retaceo: {
           include: {
             detalle: true,
+            gasto: true,
           },
         },
       },
@@ -1191,5 +1195,255 @@ export class ImportacionesService {
     });
 
     return finalCounts;
+  }
+
+  /**
+   * Generar datos para el reporte de retaceo
+   */
+  async generarReporteRetaceo(id_importacion: number) {
+    const importacion: any = await this.findOne(id_importacion);
+
+    // Validar que existe un retaceo calculado
+    if (!importacion.retaceo || importacion.retaceo.length === 0) {
+      throw new BadRequestException(
+        'No existe un retaceo calculado para esta importación. Debe calcular el retaceo primero.',
+      );
+    }
+
+    // Obtener nombre del sistema desde GeneralData
+    const generalData = await this.prisma.generalData.findFirst();
+    const nombreSistema = generalData?.nombre_sistema || 'NEW TELECOM, S.A DE C.V';
+
+    // Obtener todos los gastos
+    const gastos = await this.prisma.importaciones_gastos.findMany({
+      where: { id_importacion },
+      orderBy: { fecha_creacion: 'asc' },
+    });
+
+    // Construir estructura de datos para el reporte
+    const detalle_productos = importacion.detalle.map((item) => {
+      // Obtener todos los retaceos aplicados a este item
+      const retaceosItem = importacion.retaceo
+        .map((ret) => {
+          const detalle = ret.detalle.find(
+            (d) => d.id_importacion_detalle === item.id_importacion_detalle,
+          );
+          return detalle
+            ? {
+                gasto: ret.gasto,
+                monto_asignado: detalle.monto_asignado,
+              }
+            : null;
+        })
+        .filter((r) => r !== null);
+
+      // Categorizar gastos según tipo
+      let seguro = new Decimal(0);
+      let transporte = new Decimal(0);
+      let gastos_importacion = new Decimal(0);
+      let gastos_externos = new Decimal(0);
+      let gastos_internos_otros = new Decimal(0);
+
+      retaceosItem.forEach((retaceo) => {
+        const monto = new Decimal(retaceo.monto_asignado);
+        const tipo = retaceo.gasto.tipo;
+
+        switch (tipo) {
+          case 'SEGURO':
+            seguro = seguro.plus(monto);
+            break;
+          case 'FLETE_INTERNACIONAL':
+          case 'TRANSPORTE_LOCAL':
+            transporte = transporte.plus(monto);
+            break;
+          case 'DAI':
+          case 'IVA_IMPORTACION':
+          case 'OTROS_IMPUESTOS':
+            gastos_importacion = gastos_importacion.plus(monto);
+            break;
+          case 'ALMACENAJE':
+          case 'EXTERNOS':
+            gastos_externos = gastos_externos.plus(monto);
+            break;
+          case 'AGENTE_ADUANAL':
+          case 'INTERNOS':
+          case 'OTROS':
+            gastos_internos_otros = gastos_internos_otros.plus(monto);
+            break;
+          default:
+            gastos_internos_otros = gastos_internos_otros.plus(monto);
+            break;
+        }
+      });
+
+      const valor_fob = new Decimal(item.subtotal_usd);
+      const valor_cif = valor_fob.plus(seguro);
+      const porcentaje_dai = new Decimal(0); // Esto debería venir de configuración o gasto específico
+      const valor_dai = gastos_importacion;
+      const valor_cif_dai = valor_cif.plus(valor_dai);
+      const total_gastos = seguro
+        .plus(transporte)
+        .plus(gastos_importacion)
+        .plus(gastos_externos)
+        .plus(gastos_internos_otros);
+      const total = valor_fob.plus(total_gastos);
+
+      return {
+        cantidad: item.cantidad_ordenada,
+        codigo: item.codigo,
+        producto: item.nombre,
+        costo_unitario: Number(item.precio_unitario_usd),
+        valor_fob: Number(valor_fob),
+        seguro: Number(seguro),
+        valor_cif: Number(valor_cif),
+        porcentaje_dai: Number(porcentaje_dai),
+        valor_dai: Number(valor_dai),
+        valor_cif_dai: Number(valor_cif_dai),
+        transporte: Number(transporte),
+        gastos_importacion: Number(gastos_importacion),
+        gastos_externos: Number(gastos_externos),
+        gastos_internos_otros: Number(gastos_internos_otros),
+        total_gastos: Number(total_gastos),
+        total: Number(total),
+        costo_unitario_real: Number(item.costo_unitario_final || 0),
+      };
+    });
+
+    // Calcular totales
+    const totales = detalle_productos.reduce(
+      (acc, item) => ({
+        valor_fob: acc.valor_fob + item.valor_fob,
+        seguro: acc.seguro + item.seguro,
+        valor_cif: acc.valor_cif + item.valor_cif,
+        valor_dai: acc.valor_dai + item.valor_dai,
+        valor_cif_dai: acc.valor_cif_dai + item.valor_cif_dai,
+        transporte: acc.transporte + item.transporte,
+        gastos_importacion: acc.gastos_importacion + item.gastos_importacion,
+        gastos_externos: acc.gastos_externos + item.gastos_externos,
+        gastos_internos_otros:
+          acc.gastos_internos_otros + item.gastos_internos_otros,
+        total_gastos: acc.total_gastos + item.total_gastos,
+        total: acc.total + item.total,
+      }),
+      {
+        valor_fob: 0,
+        seguro: 0,
+        valor_cif: 0,
+        valor_dai: 0,
+        valor_cif_dai: 0,
+        transporte: 0,
+        gastos_importacion: 0,
+        gastos_externos: 0,
+        gastos_internos_otros: 0,
+        total_gastos: 0,
+        total: 0,
+      },
+    );
+
+    // Detalle de proveedores
+    const detalle_proveedores = [
+      {
+        id_proveedor: importacion.proveedor.id_proveedor,
+        nombre: importacion.proveedor.nombre_razon_social || '',
+        numero_comprobante: importacion.numero_factura_proveedor || '',
+        fecha: importacion.fecha_orden,
+        total: Number(importacion.total_fob || 0),
+      },
+    ];
+
+    // Detalle de gastos con numeración
+    const detalle_gastos = gastos.map((gasto, index) => ({
+      numero: index + 1,
+      gasto: `${gasto.tipo} - ${gasto.descripcion}`,
+      total: Number(gasto.monto_local || gasto.monto),
+    }));
+
+    const total_gastos = detalle_gastos.reduce((sum, g) => sum + g.total, 0);
+
+    // Estructura final del reporte
+    return {
+      nombre_sistema: nombreSistema,
+      numero_poliza: importacion.numero_orden,
+      fecha: importacion.fecha_orden,
+      bodega_ingreso: '', // TODO: Obtener de la recepción si existe
+      numero_hoja: '', // Opcional
+      moneda: importacion.moneda,
+      detalle_productos,
+      totales,
+      detalle_proveedores,
+      detalle_gastos,
+      total_gastos,
+    };
+  }
+
+  /**
+   * Genera un PDF del reporte de retaceo usando jsReport
+   * @param id_importacion ID de la importación
+   * @returns Buffer con el PDF generado
+   */
+  async generatePdf(id_importacion: number): Promise<Buffer> {
+    // 1. Obtener datos del reporte
+    const reporteData = await this.generarReporteRetaceo(id_importacion);
+
+    // 2. Leer plantilla HTML
+    const templatePath = path.join(
+      process.cwd(),
+      'templates/inventario/reporte-retaceo.html',
+    );
+
+    if (!fs.existsSync(templatePath)) {
+      throw new NotFoundException('Plantilla de reporte no encontrada');
+    }
+
+    const templateHtml = fs.readFileSync(templatePath, 'utf-8');
+
+    // 3. Formatear fecha
+    const formatDate = (date: Date): string => {
+      return new Date(date).toLocaleDateString('es-SV', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+    };
+
+    // 4. Preparar datos para la plantilla
+    const templateData = {
+      ...reporteData,
+      fecha_formateada: formatDate(reporteData.fecha),
+      fecha_actual: formatDate(new Date()),
+    };
+
+    // 5. Configurar petición a jsReport
+    const API_REPORT =
+      process.env.API_REPORT || 'https://reports.edal.group/api/report';
+
+    try {
+      const response = await axios.post(
+        API_REPORT,
+        {
+          template: {
+            content: templateHtml,
+            engine: 'jsrender',
+            recipe: 'chrome-pdf',
+          },
+          data: templateData,
+          options: {
+            reportName: `Reporte_Retaceo_${reporteData.numero_poliza}`,
+          },
+        },
+        {
+          responseType: 'arraybuffer',
+          timeout: 30000,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      return Buffer.from(response.data);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      throw new BadRequestException('Error al generar el PDF');
+    }
   }
 }
