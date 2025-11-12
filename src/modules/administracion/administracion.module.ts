@@ -17,6 +17,8 @@ import { ColoniasController } from './colonias/colonias.controller';
 import { ColoniasService } from './colonias/colonias.service';
 import { DteCatalogosController } from './dte-catalogos/dte-catalogos.controller';
 import { DteCatalogosService } from './dte-catalogos/dte-catalogos.service';
+import { DiagnosticosCatalogoService } from './diagnosticos-catalogo/diagnosticos-catalogo.service';
+import { DiagnosticosCatalogoController } from './diagnosticos-catalogo/diagnosticos-catalogo.controller';
 
 @Module({
   imports: [AuthModule, PrismaModule],
@@ -29,6 +31,7 @@ import { DteCatalogosService } from './dte-catalogos/dte-catalogos.service';
     MunicipiosController,
     ColoniasController,
     DteCatalogosController,
+    DiagnosticosCatalogoController
   ],
   providers: [
     CategoriasService,
@@ -39,6 +42,7 @@ import { DteCatalogosService } from './dte-catalogos/dte-catalogos.service';
     MunicipiosService,
     ColoniasService,
     DteCatalogosService,
+    DiagnosticosCatalogoService
   ],
 })
 export class AdministracionModule { }
