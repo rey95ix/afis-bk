@@ -41,9 +41,9 @@ export class ImportDataService {
       await this.mysqlService.initializeConnection({
         host: 'localhost',
         port: 3306,
-        user: 'user',
-        password: 'password',
-        database: 'myapp',
+        user: 'cas_user',
+        password: 'G6Q75EQN',
+        database: 'AFIS_DB',
       });
       return {
         success: true,
