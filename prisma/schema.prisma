@@ -94,6 +94,7 @@ model usuarios {
   ordenes_salida_solicita        ordenes_salida[]                @relation("usuario_solicita_orden_salida")
   ordenes_salida_autoriza        ordenes_salida[]                @relation("usuario_autoriza_orden_salida")
   ordenes_salida_procesa         ordenes_salida[]                @relation("usuario_procesa_orden_salida")
+  sms_historial                  sms_historial[]
 }
 
 model cliente {
@@ -122,6 +123,7 @@ model cliente {
   ticket_soporte    ticket_soporte[]
   orden_trabajo     orden_trabajo[]
   inventario_series inventario_series[]
+  sms_historial     sms_historial[]
 }
 
 model clienteDocumentos {
@@ -806,6 +808,7 @@ model ticket_soporte {
   cerrado_por_usuario     Int?
   observaciones_cierre    String?
   ordenes                 orden_trabajo[] // 1 ticket puede generar múltiples OT (reprogramaciones, etc.)
+  sms_historial           sms_historial[]
 }
 
 model diagnostico_catalogo {
@@ -873,6 +876,7 @@ model orden_trabajo {
   reservas                   reservas_inventario[]
   movimientos                movimientos_inventario[]
   series_asignadas           inventario_series[]
+  sms_historial              sms_historial[]
 }
 
 model ot_historial_estado {
@@ -1561,4 +1565,82 @@ model ordenes_salida_detalle {
 
   @@index([id_orden_salida])
   @@index([id_catalogo])
+}
+
+// Enum para tipos de mensajes SMS
+enum tipo_mensaje_sms {
+  NOTIFICACION_FACTURA
+  TECNICO_EN_CAMINO
+  ORDEN_TRABAJO_ASIGNADA
+  ORDEN_TRABAJO_AGENDADA
+  ORDEN_TRABAJO_COMPLETADA
+  TICKET_CREADO
+  TICKET_ACTUALIZADO
+  CAMBIO_ESTADO_SERVICIO
+  RECORDATORIO_PAGO
+  PROMOCION
+  GENERAL
+}
+
+// Enum para estados de envío de SMS
+enum estado_envio_sms {
+  PENDIENTE
+  ENVIADO
+  ENTREGADO
+  FALLIDO
+  EN_COLA
+}
+
+// Tabla de historial de SMS enviados
+model sms_historial {
+  id_sms                    Int               @id @default(autoincrement())
+
+  // Destinatario
+  telefono_destino          String            // Número en formato +503XXXXXXXX
+  id_cliente                Int?
+  cliente                   cliente?          @relation(fields: [id_cliente], references: [id_cliente])
+
+  // Contenido
+  tipo_mensaje              tipo_mensaje_sms
+  mensaje                   String            @db.Text
+
+  // Referencias (opcionales según el tipo de mensaje)
+  id_orden_trabajo          Int?
+  orden_trabajo             orden_trabajo?    @relation(fields: [id_orden_trabajo], references: [id_orden])
+  id_ticket                 Int?
+  ticket                    ticket_soporte?   @relation(fields: [id_ticket], references: [id_ticket])
+  referencia_adicional      String?           // Para facturas, etc.
+
+  // Estado de envío
+  estado                    estado_envio_sms  @default(PENDIENTE)
+
+  // Información de Twilio
+  twilio_sid                String?           @unique // Message SID de Twilio
+  twilio_status             String?           // Status devuelto por Twilio
+  twilio_error_code         String?
+  twilio_error_message      String?
+
+  // Costos
+  costo                     Decimal?          @db.Decimal(10, 4)
+  moneda                    String?           @default("USD")
+
+  // Metadata
+  enviado_por               Int?              // Usuario que solicitó el envío
+  usuario                   usuarios?         @relation(fields: [enviado_por], references: [id_usuario])
+  intentos_envio            Int               @default(1)
+  fecha_ultimo_intento      DateTime?
+
+  // Timestamps
+  fecha_creacion            DateTime          @default(now())
+  fecha_envio               DateTime?
+  fecha_entrega             DateTime?
+  fecha_ultima_actualizacion DateTime         @default(now()) @updatedAt
+
+  @@index([telefono_destino])
+  @@index([estado])
+  @@index([tipo_mensaje])
+  @@index([id_cliente])
+  @@index([id_orden_trabajo])
+  @@index([id_ticket])
+  @@index([fecha_creacion])
 }

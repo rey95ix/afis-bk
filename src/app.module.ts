@@ -7,6 +7,7 @@ import { InventarioModule } from './modules/inventario/inventario.module';
 import { AdministracionModule } from './modules/administracion/administracion.module';
 import { AtencionAlClienteModule } from './modules/atencion-al-cliente/atencion-al-cliente.module';
 import { MailModule } from './modules/mail/mail.module';
+import { SmsModule } from './modules/sms/sms.module';
 // import { UtilidadesModule } from './modules/utilidades/utilidades.module';
 
 @Module({
@@ -23,6 +24,7 @@ import { MailModule } from './modules/mail/mail.module';
     AdministracionModule,
     AtencionAlClienteModule,
     MailModule,
+    SmsModule,
     // UtilidadesModule, //TODO Habilitar módulo de utilidades
   ],
   controllers: [],

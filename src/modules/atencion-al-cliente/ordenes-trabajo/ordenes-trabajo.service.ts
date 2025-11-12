@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SmsService } from '../../sms/sms.service';
 import { CreateOrdenDto } from './dto/create-orden.dto';
 import { UpdateOrdenDto } from './dto/update-orden.dto';
 import { QueryOrdenDto } from './dto/query-orden.dto';
@@ -20,7 +21,10 @@ import { CreateEvidenciaDto } from './dto/create-evidencia.dto';
 
 @Injectable()
 export class OrdenesTrabajoService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly smsService: SmsService,
+  ) { }
 
   private async generarCodigoOrden(): Promise<string> {
     const now = new Date();
@@ -467,12 +471,20 @@ export class OrdenesTrabajoService {
     }
 
     const inicio = new Date(agendarDto.inicio);
-    const fin = new Date(agendarDto.fin);
 
-    if (inicio >= fin) {
-      throw new BadRequestException(
-        'La fecha de inicio debe ser anterior a la fecha de fin',
-      );
+    // Si no se proporciona fin, calcular automáticamente 2 horas después del inicio
+    let fin: Date;
+    if (agendarDto.fin) {
+      fin = new Date(agendarDto.fin);
+      // Validar solo si el usuario proporcionó fin
+      if (inicio >= fin) {
+        throw new BadRequestException(
+          'La fecha de inicio debe ser anterior a la fecha de fin',
+        );
+      }
+    } else {
+      // Calcular automáticamente 2 horas después
+      fin = new Date(inicio.getTime() + 2 * 60 * 60 * 1000); // +2 horas en milisegundos
     }
 
     const result = await this.prisma.$transaction(async (prisma) => {
@@ -529,6 +541,44 @@ export class OrdenesTrabajoService {
       `Orden ${orden.codigo} agendada`,
     );
 
+    // Enviar SMS al cliente notificando la orden agendada
+    try {
+      const ordenCompleta = await this.prisma.orden_trabajo.findUnique({
+        where: { id_orden: id },
+        include: {
+          cliente: true,
+          tecnico_asignado: true,
+        },
+      });
+
+      if (ordenCompleta && ordenCompleta.cliente.telefono1) {
+        // Formato de fecha: DD/MM/YYYY
+        const dia = String(inicio.getDate()).padStart(2, '0');
+        const mes = String(inicio.getMonth() + 1).padStart(2, '0');
+        const anio = inicio.getFullYear();
+        const fechaAgendada = `${dia}/${mes}/${anio}`;
+
+        // Determinar si es AM o PM
+        const hora = inicio.getHours();
+        const horario = hora < 12 ? 'AM' : 'PM';
+ 
+        await this.smsService.enviarNotificacionOrdenAgendada(
+          ordenCompleta.cliente.telefono1,
+          ordenCompleta.cliente.titular,
+          ordenCompleta.codigo,
+          fechaAgendada,
+          horario,
+          '', // ya no se usa horaFin en el mensaje
+          ordenCompleta.id_cliente,
+          ordenCompleta.id_orden,
+          userId,
+        );
+      }
+    } catch (error) {
+      // Log error pero no fallar la operación principal
+      console.error('Error al enviar SMS de orden agendada:', error);
+    }
+
     return result;
   }
 
@@ -546,12 +596,20 @@ export class OrdenesTrabajoService {
     }
 
     const inicio = new Date(reprogramarDto.inicio);
-    const fin = new Date(reprogramarDto.fin);
 
-    if (inicio >= fin) {
-      throw new BadRequestException(
-        'La fecha de inicio debe ser anterior a la fecha de fin',
-      );
+    // Si no se proporciona fin, calcular automáticamente 2 horas después del inicio
+    let fin: Date;
+    if (reprogramarDto.fin) {
+      fin = new Date(reprogramarDto.fin);
+      // Validar solo si el usuario proporcionó fin
+      if (inicio >= fin) {
+        throw new BadRequestException(
+          'La fecha de inicio debe ser anterior a la fecha de fin',
+        );
+      }
+    } else {
+      // Calcular automáticamente 2 horas después
+      fin = new Date(inicio.getTime() + 2 * 60 * 60 * 1000); // +2 horas en milisegundos
     }
 
     const result = await this.prisma.$transaction(async (prisma) => {
@@ -678,6 +736,36 @@ export class OrdenesTrabajoService {
       `Orden ${orden.codigo} cambió a estado ${cambiarEstadoDto.estado}${archivos && archivos.length > 0 ? ` con ${archivos.length} evidencia(s)` : ''}`,
     );
 
+    // Si el estado cambió a EN_RUTA, enviar SMS al cliente
+    if (cambiarEstadoDto.estado === 'EN_RUTA') {
+      try {
+        const ordenCompleta = await this.prisma.orden_trabajo.findUnique({
+          where: { id_orden: id },
+          include: {
+            cliente: true,
+            tecnico_asignado: true,
+          },
+        });
+
+        if (ordenCompleta && ordenCompleta.cliente.telefono1 && ordenCompleta.tecnico_asignado) {
+          const nombreTecnico = `${ordenCompleta.tecnico_asignado.nombres} ${ordenCompleta.tecnico_asignado.apellidos}`;
+
+          await this.smsService.enviarNotificacionTecnicoEnCamino(
+            ordenCompleta.cliente.telefono1,
+            nombreTecnico,
+            ordenCompleta.codigo,
+            '30 minutos', // ETA estimado (puede ser personalizado)
+            ordenCompleta.id_cliente,
+            ordenCompleta.id_orden,
+            userId,
+          );
+        }
+      } catch (error) {
+        // Log error pero no fallar la operación principal
+        console.error('Error al enviar SMS de técnico en camino:', error);
+      }
+    }
+
     return result;
   }
 
@@ -792,6 +880,21 @@ export class OrdenesTrabajoService {
         },
       });
 
+      // Cerrar automáticamente el ticket asociado si existe
+      if (orden.id_ticket) {
+        const observacionesCierre = `Ticket cerrado automáticamente - Orden de trabajo ${orden.codigo} completada.\nResultado: ${cerrarDto.resultado}\n${cerrarDto.notas_cierre ? 'Notas: ' + cerrarDto.notas_cierre : ''}`;
+
+        await prisma.ticket_soporte.update({
+          where: { id_ticket: orden.id_ticket },
+          data: {
+            estado: 'CERRADO',
+            fecha_cierre: new Date(),
+            cerrado_por_usuario: userId,
+            observaciones_cierre: observacionesCierre,
+          },
+        });
+      }
+
       await prisma.ot_historial_estado.create({
         data: {
           id_orden: id,
@@ -831,10 +934,14 @@ export class OrdenesTrabajoService {
       return ordenActualizada;
     });
 
+    const logMessage = orden.id_ticket
+      ? `Orden ${orden.codigo} cerrada con resultado ${cerrarDto.resultado}. Ticket #${orden.id_ticket} cerrado automáticamente.`
+      : `Orden ${orden.codigo} cerrada con resultado ${cerrarDto.resultado}`;
+
     await this.prisma.logAction(
       'CERRAR_ORDENES_TRABAJO',
       userId,
-      `Orden ${orden.codigo} cerrada con resultado ${cerrarDto.resultado}`,
+      logMessage,
     );
 
     return result;

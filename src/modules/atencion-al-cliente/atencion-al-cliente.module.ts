@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { MinioModule } from '../minio/minio.module';
+import { SmsModule } from '../sms/sms.module';
 import { ClientesController } from './clientes/clientes.controller';
 import { ClientesService } from './clientes/clientes.service';
 import { ClienteDireccionesController } from './clientes/cliente-direcciones.controller';
@@ -26,6 +27,7 @@ import { TicketsService } from './tickets/tickets.service';
     AuthModule,
     PrismaModule,
     MinioModule,
+    SmsModule,
   ],
   controllers: [
     ClientesController,
