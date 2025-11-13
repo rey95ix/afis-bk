@@ -24,9 +24,12 @@ import { ComprasController } from './compras/compras.controller';
 import { ComprasService } from './compras/compras.service';
 import { MovimientosInventarioController } from './movimientos-inventario/movimientos-inventario.controller';
 import { MovimientosInventarioService } from './movimientos-inventario/movimientos-inventario.service';
+import { AuditoriasInventarioController } from './auditorias-inventario/auditorias-inventario.controller';
+import { AuditoriasInventarioService } from './auditorias-inventario/auditorias-inventario.service';
+import { MinioModule } from '../minio/minio.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule,],
+  imports: [AuthModule, PrismaModule, MinioModule],
   controllers: [
     SucursalesController,
     BodegasController,
@@ -39,7 +42,8 @@ import { MovimientosInventarioService } from './movimientos-inventario/movimient
     RequisicionesController,
     OrdenesSalidaController,
     ComprasController,
-    MovimientosInventarioController
+    MovimientosInventarioController,
+    AuditoriasInventarioController
   ],
   providers: [
     SucursalesService,
@@ -52,7 +56,8 @@ import { MovimientosInventarioService } from './movimientos-inventario/movimient
     RequisicionesService,
     OrdenesSalidaService,
     ComprasService,
-    MovimientosInventarioService
+    MovimientosInventarioService,
+    AuditoriasInventarioService
   ],
 })
 export class InventarioModule { }

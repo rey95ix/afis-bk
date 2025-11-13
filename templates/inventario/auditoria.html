@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Auditoría de Inventario {{:codigo}}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 11px;
+            line-height: 1.4;
+            color: #333;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 25px;
+            border-bottom: 3px solid #2c3e50;
+            padding-bottom: 15px;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .header .subtitle {
+            color: #7f8c8d;
+            font-size: 12px;
+        }
+
+        .info-section {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #3498db;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        .info-item {
+            margin-bottom: 8px;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #2c3e50;
+            display: block;
+            margin-bottom: 3px;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        .info-value {
+            color: #555;
+            font-size: 11px;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            margin-top: 20px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .metric-card {
+            background-color: #fff;
+            border: 2px solid #ecf0f1;
+            border-radius: 5px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .metric-label {
+            font-size: 10px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .metric-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+
+        .metric-value.success {
+            color: #27ae60;
+        }
+
+        .metric-value.warning {
+            color: #f39c12;
+        }
+
+        .metric-value.danger {
+            color: #e74c3c;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 10px;
+        }
+
+        thead {
+            background-color: #34495e;
+            color: white;
+        }
+
+        th {
+            padding: 10px;
+            text-align: left;
+            font-weight: 600;
+            border: 1px solid #2c3e50;
+        }
+
+        td {
+            padding: 8px;
+            border: 1px solid #ddd;
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        tbody tr:hover {
+            background-color: #e8f4f8;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .badge {
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .badge-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .badge-warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .badge-secondary {
+            background-color: #e2e3e5;
+            color: #383d41;
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 2px solid #ecf0f1;
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 9px;
+        }
+
+        .observaciones {
+            background-color: #fff9e6;
+            padding: 12px;
+            border-radius: 5px;
+            border-left: 4px solid #f39c12;
+            margin-bottom: 20px;
+            font-size: 10px;
+        }
+
+        .summary-box {
+            background-color: #e8f8f5;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #27ae60;
+            margin-bottom: 20px;
+        }
+
+        .summary-box h3 {
+            color: #27ae60;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>AUDITORÍA DE INVENTARIO</h1>
+        <div class="subtitle">Código: {{:codigo}}</div>
+    </div>
+
+    <!-- Información General -->
+    <div class="info-section">
+        <div class="info-grid">
+            <div class="info-item">
+                <span class="info-label">Tipo</span>
+                <span class="info-value">{{:tipo}}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Estado</span>
+                <span class="info-value">{{:estado}}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Bodega</span>
+                <span class="info-value">{{:bodega.nombre}}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Estante</span>
+                <span class="info-value">{{:estante ? estante.nombre : 'Toda la bodega'}}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Fecha Planificada</span>
+                <span class="info-value">{{:fecha_planificada}}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Fecha Inicio</span>
+                <span class="info-value">{{:fecha_inicio || 'N/A'}}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Fecha Fin</span>
+                <span class="info-value">{{:fecha_fin || 'N/A'}}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Planificado por</span>
+                <span class="info-value">{{:usuario_planifica ? (usuario_planifica.nombres + ' ' + usuario_planifica.apellidos) : 'N/A'}}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Métricas -->
+    <div class="section-title">Métricas de la Auditoría</div>
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <div class="metric-label">Items Auditados</div>
+            <div class="metric-value">{{:total_items_auditados}}</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Items Conformes</div>
+            <div class="metric-value success">{{:total_items_conformes}}</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Discrepancias</div>
+            <div class="metric-value danger">{{:total_items_con_discrepancia}}</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Accuracy</div>
+            <div class="metric-value {{if porcentaje_accuracy >= 95}}success{{else porcentaje_accuracy >= 90}}warning{{else}}danger{{/if}}">
+                {{:porcentaje_accuracy}}%
+            </div>
+        </div>
+    </div>
+
+    <!-- Resumen Financiero -->
+    {{if valor_total_discrepancias > 0}}
+    <div class="summary-box">
+        <h3>Impacto Financiero</h3>
+        <div class="info-grid">
+            <div class="info-item">
+                <span class="info-label">Valor Total de Discrepancias</span>
+                <span class="info-value">${{:valor_total_discrepancias}}</span>
+            </div>
+        </div>
+    </div>
+    {{/if}}
+
+    <!-- Observaciones -->
+    {{if observaciones}}
+    <div class="observaciones">
+        <strong>Observaciones:</strong><br>
+        {{:observaciones}}
+    </div>
+    {{/if}}
+
+    <!-- Detalle de Items Auditados -->
+    {{if detalle && detalle.length > 0}}
+    <div class="section-title">Detalle de Items Auditados</div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 5%">#</th>
+                <th style="width: 40%">Producto</th>
+                <th class="text-center" style="width: 10%">Stock Sistema</th>
+                <th class="text-center" style="width: 10%">Cantidad Física</th>
+                <th class="text-center" style="width: 10%">Diferencia</th>
+                <th class="text-center" style="width: 10%">Estado</th>
+                <th style="width: 15%">Observaciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{for detalle}}
+            <tr>
+                <td class="text-center">{{:#index + 1}}</td>
+                <td>{{:catalogo ? catalogo.nombre : 'N/A'}}</td>
+                <td class="text-center">{{:stock_sistema || 0}}</td>
+                <td class="text-center">{{:cantidad_fisica || 0}}</td>
+                <td class="text-center">
+                    {{if diferencia > 0}}
+                        <span style="color: #27ae60;">+{{:diferencia}}</span>
+                    {{else diferencia < 0}}
+                        <span style="color: #e74c3c;">{{:diferencia}}</span>
+                    {{else}}
+                        <span>0</span>
+                    {{/if}}
+                </td>
+                <td class="text-center">
+                    {{if tipo_discrepancia === 'CONFORME'}}
+                        <span class="badge badge-success">CONFORME</span>
+                    {{else tipo_discrepancia === 'FALTANTE'}}
+                        <span class="badge badge-danger">FALTANTE</span>
+                    {{else tipo_discrepancia === 'SOBRANTE'}}
+                        <span class="badge badge-warning">SOBRANTE</span>
+                    {{else}}
+                        <span class="badge badge-secondary">PENDIENTE</span>
+                    {{/if}}
+                </td>
+                <td style="font-size: 9px;">{{:observaciones || '-'}}</td>
+            </tr>
+            {{/for}}
+        </tbody>
+    </table>
+    {{/if}}
+
+    <!-- Resumen de Discrepancias por Tipo -->
+    {{if total_items_con_discrepancia > 0}}
+    <div class="section-title">Resumen de Discrepancias</div>
+    <table style="width: 50%; margin: 0 auto;">
+        <thead>
+            <tr>
+                <th>Tipo de Discrepancia</th>
+                <th class="text-center">Cantidad</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Items Conformes</td>
+                <td class="text-center">{{:total_items_conformes}}</td>
+            </tr>
+            <tr>
+                <td>Items con Discrepancia</td>
+                <td class="text-center">{{:total_items_con_discrepancia}}</td>
+            </tr>
+        </tbody>
+    </table>
+    {{/if}}
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>Documento generado el {{:fechaGeneracion}}</p>
+        <p>Sistema de Gestión de Inventario - AFIS</p>
+    </div>
+</body>
+</html>

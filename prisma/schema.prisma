@@ -95,6 +95,14 @@ model usuarios {
   ordenes_salida_autoriza        ordenes_salida[]                @relation("usuario_autoriza_orden_salida")
   ordenes_salida_procesa         ordenes_salida[]                @relation("usuario_procesa_orden_salida")
   sms_historial                  sms_historial[]
+  auditorias_planifica           auditorias_inventario[]         @relation("usuario_planifica_auditoria")
+  auditorias_ejecuta             auditorias_inventario[]         @relation("usuario_ejecuta_auditoria")
+  auditorias_detalle_conteo      auditorias_detalle[]
+  auditorias_evidencias          auditorias_evidencias[]
+  ajustes_solicita               ajustes_inventario[]            @relation("usuario_solicita_ajuste")
+  ajustes_autoriza               ajustes_inventario[]            @relation("usuario_autoriza_ajuste")
+  snapshots_creados              snapshots_inventario[]
+  metricas_calculadas            metricas_inventario[]
 }
 
 model cliente {
@@ -280,6 +288,10 @@ model bodegas {
   requisiciones_origen       requisiciones_inventario[] @relation("requisicion_bodega_origen")
   requisiciones_destino      requisiciones_inventario[] @relation("requisicion_bodega_destino")
   ordenes_salida             ordenes_salida[]
+  auditorias_inventario      auditorias_inventario[]
+  ajustes_inventario         ajustes_inventario[]
+  snapshots_inventario       snapshots_inventario[]
+  metricas_inventario        metricas_inventario[]
 }
 
 model estantes {
@@ -292,6 +304,8 @@ model estantes {
   requisiciones_origen       requisiciones_inventario[] @relation("requisicion_estante_origen")
   requisiciones_destino      requisiciones_inventario[] @relation("requisicion_estante_destino")
   ordenes_salida             ordenes_salida[]
+  auditorias_inventario      auditorias_inventario[]
+  ajustes_inventario         ajustes_inventario[]
   fecha_creacion             DateTime     @default(now())
   fecha_ultima_actualizacion DateTime     @default(now()) @updatedAt
 }
@@ -308,6 +322,7 @@ model categorias {
   id_categoria_padre Int?
   categoria_padre    categorias?  @relation("Subcategorias", fields: [id_categoria_padre], references: [id_categoria], onDelete: NoAction, onUpdate: NoAction)
   sub_categorias     categorias[] @relation("Subcategorias")
+  metricas_inventario metricas_inventario[]
 
   @@index([id_categoria_padre])
 }
@@ -333,6 +348,8 @@ model catalogo {
   importaciones_detalle      importaciones_detalle[]
   requisiciones_detalle      requisiciones_detalle[]
   ordenes_salida_detalle     ordenes_salida_detalle[]
+  auditorias_detalle         auditorias_detalle[]
+  ajustes_inventario         ajustes_inventario[]
 }
 
 model log {
@@ -1593,6 +1610,53 @@ enum estado_envio_sms {
   EN_COLA
 }
 
+// ============= ENUMS PARA AUDITORÍAS DE INVENTARIO =============
+
+enum tipo_auditoria {
+  COMPLETA
+  SORPRESA
+}
+
+enum estado_auditoria {
+  PLANIFICADA
+  EN_PROGRESO
+  PENDIENTE_REVISION
+  COMPLETADA
+  CANCELADA
+}
+
+enum tipo_discrepancia {
+  FALTANTE
+  SOBRANTE
+  CONFORME
+}
+
+enum causa_discrepancia {
+  ROBO
+  MERMA
+  ERROR_REGISTRO
+  ERROR_CONTEO
+  DANO
+  OTRO
+  PENDIENTE_INVESTIGACION
+}
+
+enum estado_ajuste {
+  PENDIENTE_AUTORIZACION
+  AUTORIZADO
+  RECHAZADO
+  APLICADO
+  CANCELADO
+}
+
+enum tipo_snapshot {
+  AUDITORIA
+  MENSUAL
+  TRIMESTRAL
+  ANUAL
+  MANUAL
+}
+
 // Tabla de historial de SMS enviados
 model sms_historial {
   id_sms                    Int               @id @default(autoincrement())
@@ -1645,4 +1709,314 @@ model sms_historial {
   @@index([id_orden_trabajo])
   @@index([id_ticket])
   @@index([fecha_creacion])
+}
+
+// ============= MÓDULO DE AUDITORÍAS DE INVENTARIO =============
+
+// Auditorías de inventario (cabecera)
+model auditorias_inventario {
+  id_auditoria                Int                @id @default(autoincrement())
+  codigo                      String             @unique // AUD-YYYYMM-####
+  tipo                        tipo_auditoria
+  estado                      estado_auditoria   @default(PLANIFICADA)
+
+  // Alcance de la auditoría
+  id_bodega                   Int
+  bodega                      bodegas            @relation(fields: [id_bodega], references: [id_bodega])
+  id_estante                  Int?
+  estante                     estantes?          @relation(fields: [id_estante], references: [id_estante])
+
+  // Auditar todo o solo categorías específicas
+  incluir_todas_categorias    Boolean            @default(true)
+  categorias_a_auditar        String?            @db.Text // JSON array de IDs de categorías
+
+  // Usuarios involucrados
+  id_usuario_planifica        Int
+  usuario_planifica           usuarios           @relation("usuario_planifica_auditoria", fields: [id_usuario_planifica], references: [id_usuario])
+  id_usuario_ejecuta          Int?
+  usuario_ejecuta             usuarios?          @relation("usuario_ejecuta_auditoria", fields: [id_usuario_ejecuta], references: [id_usuario])
+
+  // Fechas
+  fecha_planificada           DateTime?
+  fecha_inicio                DateTime?
+  fecha_fin                   DateTime?
+
+  // Resumen de resultados (calculado al finalizar)
+  total_items_auditados       Int                @default(0)
+  total_items_conformes       Int                @default(0)
+  total_items_con_discrepancia Int               @default(0)
+  valor_total_discrepancias   Decimal?           @db.Decimal(12, 2)
+  porcentaje_accuracy         Decimal?           @db.Decimal(5, 2) // % de items conformes
+
+  observaciones               String?            @db.Text
+  fecha_creacion              DateTime           @default(now())
+  fecha_ultima_actualizacion  DateTime           @default(now()) @updatedAt
+
+  // Relaciones
+  detalle                     auditorias_detalle[]
+  evidencias                  auditorias_evidencias[]
+  ajustes                     ajustes_inventario[]
+  snapshot                    snapshots_inventario?
+
+  @@index([estado])
+  @@index([tipo])
+  @@index([id_bodega])
+  @@index([fecha_planificada])
+  @@index([fecha_creacion])
+}
+
+// Detalle de auditorías por producto
+model auditorias_detalle {
+  id_auditoria_detalle        Int                     @id @default(autoincrement())
+  id_auditoria                Int
+  auditoria                   auditorias_inventario   @relation(fields: [id_auditoria], references: [id_auditoria], onDelete: Cascade)
+
+  id_catalogo                 Int
+  catalogo                    catalogo                @relation(fields: [id_catalogo], references: [id_catalogo])
+
+  // Datos del sistema (al momento del conteo)
+  cantidad_sistema            Int                     // Stock según sistema
+  cantidad_reservada_sistema  Int                     @default(0)
+  costo_promedio_sistema      Decimal                 @db.Decimal(10, 2)
+
+  // Datos del conteo físico
+  cantidad_fisica             Int?                    // Conteo físico real
+  fue_contado                 Boolean                 @default(false)
+
+  // Discrepancia
+  discrepancia                Int?                    // física - sistema
+  discrepancia_valor          Decimal?                @db.Decimal(12, 2) // discrepancia * costo
+  porcentaje_discrepancia     Decimal?                @db.Decimal(5, 2)
+  tipo_discrepancia           tipo_discrepancia?
+
+  // Análisis
+  causa_probable              causa_discrepancia?     @default(PENDIENTE_INVESTIGACION)
+  requiere_investigacion      Boolean                 @default(false)
+  observaciones_conteo        String?                 @db.Text
+
+  // Metadata
+  id_usuario_conteo           Int?
+  usuario_conteo              usuarios?               @relation(fields: [id_usuario_conteo], references: [id_usuario])
+  fecha_conteo                DateTime?
+
+  fecha_creacion              DateTime                @default(now())
+  fecha_ultima_actualizacion  DateTime                @default(now()) @updatedAt
+
+  // Relaciones
+  series                      auditorias_series[]
+
+  @@unique([id_auditoria, id_catalogo])
+  @@index([id_auditoria])
+  @@index([id_catalogo])
+  @@index([tipo_discrepancia])
+}
+
+// Series escaneadas durante auditoría (para productos serializados)
+model auditorias_series {
+  id_auditoria_serie          Int                     @id @default(autoincrement())
+  id_auditoria_detalle        Int
+  detalle                     auditorias_detalle      @relation(fields: [id_auditoria_detalle], references: [id_auditoria_detalle], onDelete: Cascade)
+
+  numero_serie                String
+  encontrado_fisicamente      Boolean                 @default(true)
+
+  // Validación contra sistema
+  existe_en_sistema           Boolean                 @default(false)
+  estado_en_sistema           estado_inventario?
+  ubicacion_esperada_bodega   Int?
+  ubicacion_real_bodega       Int?
+
+  observaciones               String?
+  fecha_escaneo               DateTime                @default(now())
+
+  @@index([id_auditoria_detalle])
+  @@index([numero_serie])
+}
+
+// Evidencias fotográficas de auditorías
+model auditorias_evidencias {
+  id_evidencia                Int                     @id @default(autoincrement())
+  id_auditoria                Int
+  auditoria                   auditorias_inventario   @relation(fields: [id_auditoria], references: [id_auditoria], onDelete: Cascade)
+
+  tipo                        String                  // ESTANTE, PRODUCTO, GENERAL, DISCREPANCIA
+  titulo                      String?
+  descripcion                 String?                 @db.Text
+
+  // Archivo
+  nombre_archivo              String
+  ruta_archivo                String                  @db.Text // Ruta en MinIO
+  mimetype                    String
+  size                        Int
+
+  // Referencia opcional a producto específico
+  id_catalogo                 Int?
+
+  id_usuario_subida           Int
+  usuario_subida              usuarios                @relation(fields: [id_usuario_subida], references: [id_usuario])
+  fecha_subida                DateTime                @default(now())
+
+  @@index([id_auditoria])
+  @@index([id_catalogo])
+}
+
+// Ajustes de inventario post-auditoría
+model ajustes_inventario {
+  id_ajuste                   Int                     @id @default(autoincrement())
+  codigo                      String                  @unique // AJU-YYYYMM-####
+
+  // Vinculado a auditoría
+  id_auditoria                Int?
+  auditoria                   auditorias_inventario?  @relation(fields: [id_auditoria], references: [id_auditoria])
+  id_auditoria_detalle        Int?
+
+  // Ubicación del ajuste
+  id_catalogo                 Int
+  catalogo                    catalogo                @relation(fields: [id_catalogo], references: [id_catalogo])
+  id_bodega                   Int
+  bodega                      bodegas                 @relation(fields: [id_bodega], references: [id_bodega])
+  id_estante                  Int?
+  estante                     estantes?               @relation(fields: [id_estante], references: [id_estante])
+
+  // Cantidades
+  cantidad_anterior           Int
+  cantidad_ajuste             Int                     // + para aumentar, - para reducir
+  cantidad_nueva              Int
+  costo_unitario              Decimal?                @db.Decimal(10, 2)
+
+  // Motivo
+  motivo                      tipo_movimiento         @default(AJUSTE_INVENTARIO)
+  motivo_detallado            String                  @db.Text
+  tipo_discrepancia           tipo_discrepancia?
+  causa_discrepancia          causa_discrepancia?
+
+  // Workflow de autorización
+  estado                      estado_ajuste           @default(PENDIENTE_AUTORIZACION)
+  id_usuario_solicita         Int
+  usuario_solicita            usuarios                @relation("usuario_solicita_ajuste", fields: [id_usuario_solicita], references: [id_usuario])
+  id_usuario_autoriza         Int?
+  usuario_autoriza            usuarios?               @relation("usuario_autoriza_ajuste", fields: [id_usuario_autoriza], references: [id_usuario])
+  observaciones_autorizacion  String?                 @db.Text
+  motivo_rechazo              String?                 @db.Text
+
+  // Fechas
+  fecha_solicitud             DateTime                @default(now())
+  fecha_autorizacion          DateTime?
+  fecha_aplicacion            DateTime?
+
+  // Vinculación a movimiento generado
+  id_movimiento_generado      Int?
+
+  // Documentos soporte
+  documentos_soporte          String?                 @db.Text // JSON array de URLs
+
+  fecha_creacion              DateTime                @default(now())
+  fecha_ultima_actualizacion  DateTime                @default(now()) @updatedAt
+
+  @@index([estado])
+  @@index([id_auditoria])
+  @@index([id_catalogo])
+  @@index([id_bodega])
+  @@index([fecha_solicitud])
+}
+
+// Snapshots de inventario (fotografías del estado)
+model snapshots_inventario {
+  id_snapshot                 Int                     @id @default(autoincrement())
+  codigo                      String                  @unique // SNP-YYYYMM-####
+
+  tipo                        tipo_snapshot
+  periodo                     String?                 // "2025-01" para mensuales
+  descripcion                 String?
+
+  // Vinculado a auditoría si aplica
+  id_auditoria                Int?                    @unique
+  auditoria                   auditorias_inventario?  @relation(fields: [id_auditoria], references: [id_auditoria])
+
+  // Alcance
+  id_bodega                   Int?
+  bodega                      bodegas?                @relation(fields: [id_bodega], references: [id_bodega])
+
+  // Resumen general
+  total_items                 Int                     @default(0)
+  total_cantidad              Int                     @default(0)
+  valor_total_inventario      Decimal?                @db.Decimal(14, 2)
+
+  fecha_snapshot              DateTime                @default(now())
+  creado_por                  Int
+  usuario_creador             usuarios                @relation(fields: [creado_por], references: [id_usuario])
+
+  fecha_creacion              DateTime                @default(now())
+
+  // Relaciones
+  detalle                     snapshots_detalle[]
+
+  @@index([tipo])
+  @@index([periodo])
+  @@index([id_bodega])
+  @@index([fecha_snapshot])
+}
+
+// Detalle de snapshots por producto
+model snapshots_detalle {
+  id_snapshot_detalle         Int                     @id @default(autoincrement())
+  id_snapshot                 Int
+  snapshot                    snapshots_inventario    @relation(fields: [id_snapshot], references: [id_snapshot], onDelete: Cascade)
+
+  id_catalogo                 Int
+  id_bodega                   Int
+  id_estante                  Int?
+
+  cantidad_disponible         Int
+  cantidad_reservada          Int
+  cantidad_total              Int                     // disponible + reservada
+  costo_promedio              Decimal                 @db.Decimal(10, 2)
+  valor_total                 Decimal                 @db.Decimal(12, 2)
+
+  fecha_creacion              DateTime                @default(now())
+
+  @@index([id_snapshot])
+  @@index([id_catalogo])
+  @@index([id_bodega])
+}
+
+// Métricas agregadas de inventario
+model metricas_inventario {
+  id_metrica                  Int                     @id @default(autoincrement())
+
+  periodo                     String                  // "2025-01"
+  tipo_periodo                String                  @default("MENSUAL") // MENSUAL, TRIMESTRAL, ANUAL
+
+  // Alcance
+  id_bodega                   Int?
+  bodega                      bodegas?                @relation(fields: [id_bodega], references: [id_bodega])
+  id_categoria                Int?
+  categoria                   categorias?             @relation(fields: [id_categoria], references: [id_categoria])
+
+  // Métricas de auditorías
+  total_auditorias_realizadas Int                     @default(0)
+  total_items_auditados       Int                     @default(0)
+  total_items_conformes       Int                     @default(0)
+  total_items_con_discrepancia Int                    @default(0)
+  accuracy_porcentaje         Decimal?                @db.Decimal(5, 2)
+
+  // Métricas de valor
+  valor_total_inventario      Decimal?                @db.Decimal(14, 2)
+  valor_discrepancias_positivas Decimal?              @db.Decimal(12, 2) // sobrantes
+  valor_discrepancias_negativas Decimal?              @db.Decimal(12, 2) // faltantes
+  valor_neto_discrepancias    Decimal?                @db.Decimal(12, 2)
+
+  // Métricas de movimientos
+  total_movimientos           Int                     @default(0)
+  total_ajustes               Int                     @default(0)
+  total_ajustes_autorizados   Int                     @default(0)
+
+  fecha_calculo               DateTime                @default(now())
+  calculado_por               Int?
+  usuario_calculo             usuarios?               @relation(fields: [calculado_por], references: [id_usuario])
+
+  @@unique([periodo, id_bodega, id_categoria])
+  @@index([periodo])
+  @@index([id_bodega])
+  @@index([id_categoria])
 }
