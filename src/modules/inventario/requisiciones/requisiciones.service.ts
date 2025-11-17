@@ -401,7 +401,7 @@ export class RequisicionesService {
     }
 
     if (id_usuario_solicita) {
-      where.id_usuario_solicita = id_usuario_solicita;
+      where.id_usuario_solicita = Number(id_usuario_solicita);
     }
 
     const [data, total] = await Promise.all([
@@ -517,7 +517,102 @@ export class RequisicionesService {
       throw new NotFoundException(`Requisición con ID ${id} no encontrada`);
     }
 
-    return requisicion;
+    // Obtener IDs de catálogos únicos
+    const catalogoIds = requisicion.detalle.map((d) => d.id_catalogo);
+
+    // === DEBUG LOGGING ===
+    console.log('=== DEBUG: Existencias Destino ===');
+    console.log('Tipo:', requisicion.tipo);
+    console.log('id_bodega_origen:', requisicion.id_bodega_origen);
+    console.log('id_bodega_destino:', requisicion.id_bodega_destino);
+    console.log('id_estante_origen:', requisicion.id_estante_origen);
+    console.log('id_estante_destino:', requisicion.id_estante_destino);
+    console.log('catalogoIds:', catalogoIds);
+    // === END DEBUG ===
+
+    // Consulta batch: Stock en bodega origen
+    const stocksOrigen = await this.prisma.inventario.findMany({
+      where: {
+        id_catalogo: { in: catalogoIds },
+        ...(requisicion.id_bodega_origen != null && {
+          id_bodega: requisicion.id_bodega_origen,
+        }),
+        // Inventario se rastrea a nivel de bodega, no de estante
+      },
+      select: {
+        id_catalogo: true,
+        cantidad_disponible: true,
+        cantidad_reservada: true,
+      },
+    });
+
+    // Consulta batch: Stock en bodega destino
+    // Para CAMBIO_ESTANTE, el destino está en la misma bodega que el origen
+    let destinoWhereClause: any = {
+      id_catalogo: { in: catalogoIds },
+    };
+
+    if (requisicion.tipo === 'CAMBIO_ESTANTE') {
+      // Mismo bodega, diferente estante
+      if (requisicion.id_bodega_origen != null) {
+        destinoWhereClause.id_bodega = requisicion.id_bodega_origen;
+      }
+      // Inventario se rastrea a nivel de bodega, no de estante
+    } else {
+      // TRANSFERENCIA_BODEGA o TRANSFERENCIA_SUCURSAL
+      if (requisicion.id_bodega_destino != null) {
+        destinoWhereClause.id_bodega = requisicion.id_bodega_destino;
+      }
+      // Inventario se rastrea a nivel de bodega, no de estante
+    }
+
+    const stocksDestino = await this.prisma.inventario.findMany({
+      where: destinoWhereClause,
+      select: {
+        id_catalogo: true,
+        cantidad_disponible: true,
+        cantidad_reservada: true,
+      },
+    });
+
+    // === DEBUG LOGGING ===
+    console.log('destinoWhereClause:', JSON.stringify(destinoWhereClause, null, 2));
+    console.log('stocksDestino result:', JSON.stringify(stocksDestino, null, 2));
+    console.log('stocksDestino.length:', stocksDestino.length);
+    // === END DEBUG ===
+
+    // Enriquecer cada detalle con información de existencias
+    const detalleConStock = requisicion.detalle.map((item) => {
+      const stockOrigen = stocksOrigen.find(
+        (s) => s.id_catalogo === item.id_catalogo,
+      );
+      const stockDestino = stocksDestino.find(
+        (s) => s.id_catalogo === item.id_catalogo,
+      );
+
+      return {
+        ...item,
+        existencias_origen: {
+          disponible: stockOrigen?.cantidad_disponible || 0,
+          reservada: stockOrigen?.cantidad_reservada || 0,
+          total:
+            (stockOrigen?.cantidad_disponible || 0) +
+            (stockOrigen?.cantidad_reservada || 0),
+        },
+        existencias_destino: {
+          disponible: stockDestino?.cantidad_disponible || 0,
+          reservada: stockDestino?.cantidad_reservada || 0,
+          total:
+            (stockDestino?.cantidad_disponible || 0) +
+            (stockDestino?.cantidad_reservada || 0),
+        },
+      };
+    });
+
+    return {
+      ...requisicion,
+      detalle: detalleConStock,
+    };
   }
 
   /**
@@ -754,7 +849,38 @@ export class RequisicionesService {
 
         // Si el item tiene series solicitadas, manejar autorización de series
         if (detalleItem.series && detalleItem.series.length > 0) {
-          if (item.series_autorizadas && item.series_autorizadas.length > 0) {
+          // Para productos con series, se REQUIERE especificar series_autorizadas
+          if (!item.series_autorizadas || item.series_autorizadas.length === 0) {
+            // Si cantidad_autorizada es 0, está bien (se rechaza ese item)
+            if (item.cantidad_autorizada > 0) {
+              throw new BadRequestException(
+                `El producto "${detalleItem.catalogo.nombre}" tiene series. Debe especificar las series a autorizar o establecer cantidad_autorizada en 0 para rechazar este item.`,
+              );
+            }
+
+            // Eliminar todas las series ya que se autorizó cantidad 0
+            await this.prisma.requisiciones_detalle_series.deleteMany({
+              where: {
+                id_requisicion_detalle: item.id_requisicion_detalle,
+              },
+            });
+
+            await this.prisma.requisiciones_detalle.update({
+              where: {
+                id_requisicion_detalle: item.id_requisicion_detalle,
+              },
+              data: {
+                cantidad_autorizada: 0,
+              },
+            });
+          } else {
+            // Validar que cantidad_autorizada coincida con número de series
+            if (item.cantidad_autorizada !== item.series_autorizadas.length) {
+              throw new BadRequestException(
+                `Para el producto "${detalleItem.catalogo.nombre}", la cantidad autorizada (${item.cantidad_autorizada}) debe coincidir con el número de series seleccionadas (${item.series_autorizadas.length})`,
+              );
+            }
+
             // Validar que las series autorizadas estén en las series solicitadas
             const seriesSolicitadas = detalleItem.series.map((s) => s.id_serie);
             const seriesNoSolicitadas = item.series_autorizadas.filter(
@@ -763,7 +889,7 @@ export class RequisicionesService {
 
             if (seriesNoSolicitadas.length > 0) {
               throw new BadRequestException(
-                `Las series ${seriesNoSolicitadas.join(', ')} no están en la lista de series solicitadas`,
+                `Las series ${seriesNoSolicitadas.join(', ')} no están en la lista de series solicitadas para "${detalleItem.catalogo.nombre}"`,
               );
             }
 
@@ -788,16 +914,6 @@ export class RequisicionesService {
               },
               data: {
                 cantidad_autorizada: item.series_autorizadas.length,
-              },
-            });
-          } else {
-            // Si no se especifican series autorizadas, autorizar todas las solicitadas
-            await this.prisma.requisiciones_detalle.update({
-              where: {
-                id_requisicion_detalle: item.id_requisicion_detalle,
-              },
-              data: {
-                cantidad_autorizada: detalleItem.series.length,
               },
             });
           }
@@ -1090,9 +1206,19 @@ export class RequisicionesService {
       });
     }
 
-    // Procesar cada serie
-    for (const serieItem of item.series) {
-      const serie = serieItem.serie;
+    // Obtener series AUTORIZADAS desde la tabla de relación
+    const seriesAutorizadas = await this.prisma.requisiciones_detalle_series.findMany({
+      where: {
+        id_requisicion_detalle: item.id_requisicion_detalle,
+      },
+      include: {
+        serie: true,  // Include completo de inventario_series
+      },
+    });
+
+    // Procesar cada serie AUTORIZADA
+    for (const serieAutorizada of seriesAutorizadas) {
+      const serie = serieAutorizada.serie;
 
       // Validar que la serie esté en el inventario origen
       if (serie.id_inventario !== inventarioOrigen.id_inventario) {
@@ -1108,7 +1234,7 @@ export class RequisicionesService {
         );
       }
 
-      // Actualizar serie al nuevo inventario
+      // Actualizar serie al nuevo inventario (ESTO ES LO CRÍTICO)
       await this.prisma.inventario_series.update({
         where: { id_serie: serie.id_serie },
         data: {
@@ -1152,7 +1278,7 @@ export class RequisicionesService {
       });
     }
 
-    const cantidad = item.series.length;
+    const cantidad = seriesAutorizadas.length;
 
     // Actualizar cantidades en inventarios
     await this.prisma.inventario.update({

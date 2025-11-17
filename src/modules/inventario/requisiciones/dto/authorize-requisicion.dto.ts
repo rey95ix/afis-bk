@@ -19,15 +19,19 @@ export class AutorizarRequisicionDetalleDto {
   id_requisicion_detalle: number;
 
   @ApiProperty({
-    description: 'Cantidad autorizada (ignorado si el producto tiene series)',
+    description:
+      'Cantidad autorizada. Para productos con series, debe coincidir exactamente con el número de series_autorizadas. Para productos sin series, no puede exceder la cantidad solicitada.',
     example: 8,
   })
   @IsInt()
   cantidad_autorizada: number;
 
   @ApiProperty({
-    description: 'IDs de series autorizadas (para productos serializados). Si se omite, se autorizan todas las series solicitadas',
-    example: [1, 2],
+    description:
+      'IDs de series autorizadas (REQUERIDO para productos serializados cuando cantidad_autorizada > 0). ' +
+      'Debe contener exactamente el mismo número de elementos que cantidad_autorizada. ' +
+      'Si no se especifica o está vacío para un producto serializado con cantidad_autorizada > 0, se lanzará un error.',
+    example: [101, 102, 103],
     required: false,
     type: [Number],
   })

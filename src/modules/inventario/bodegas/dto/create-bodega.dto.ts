@@ -33,12 +33,16 @@ export class CreateBodegaDto {
   id_sucursal: number;
 
   @ApiProperty({
-    description: 'ID del usuario responsable (si es cuadrilla)',
-    required: false,
+    description: 'ID del usuario responsable (requerido para todas las bodegas)',
   })
-  @IsOptional()
   @IsInt()
-  id_responsable?: number;
+  id_responsable: number;
+
+  @ApiProperty({
+    description: 'ID del usuario despachador (requerido para todas las bodegas)',
+  })
+  @IsInt()
+  id_despachador: number;
 
   @ApiProperty({
     description: 'Placa del vehículo (si es cuadrilla)',

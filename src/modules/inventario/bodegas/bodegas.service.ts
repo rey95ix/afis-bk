@@ -12,12 +12,19 @@ export class BodegasService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createBodegaDto: CreateBodegaDto, id_usuario?: number): Promise<bodegas> {
-    const { id_sucursal, id_responsable, ...rest } = createBodegaDto;
+    const { id_sucursal, id_responsable, id_despachador, ...rest } = createBodegaDto;
+
+    // Validación: Si es CUADRILLA, placa_vehiculo es requerida
+    if (rest.tipo === 'CUADRILLA' && !rest.placa_vehiculo) {
+      throw new Error('La placa del vehículo es requerida para cuadrillas');
+    }
+
     const bodega = await this.prisma.bodegas.create({
       data: {
         ...rest,
         id_sucursal: +id_sucursal,
-        id_responsable: id_responsable ? +id_responsable : undefined,
+        id_responsable: +id_responsable,
+        id_despachador: +id_despachador,
       },
     });
 
@@ -54,6 +61,8 @@ export class BodegasService {
         { sucursal: { nombre: { contains: search, mode: 'insensitive' } } },
         { responsable: { nombres: { contains: search, mode: 'insensitive' } } },
         { responsable: { apellidos: { contains: search, mode: 'insensitive' } } },
+        { despachador: { nombres: { contains: search, mode: 'insensitive' } } },
+        { despachador: { apellidos: { contains: search, mode: 'insensitive' } } },
       ];
     }
 
@@ -72,6 +81,13 @@ export class BodegasService {
             },
           },
           responsable: {
+            select: {
+              id_usuario: true,
+              nombres: true,
+              apellidos: true,
+            },
+          },
+          despachador: {
             select: {
               id_usuario: true,
               nombres: true,
@@ -114,6 +130,13 @@ export class BodegasService {
             apellidos: true,
           },
         },
+        despachador: {
+          select: {
+            id_usuario: true,
+            nombres: true,
+            apellidos: true,
+          },
+        },
       },
     });
     if (!bodega) {
@@ -124,13 +147,20 @@ export class BodegasService {
 
   async update(id: number, updateBodegaDto: UpdateBodegaDto, id_usuario?: number): Promise<bodegas> {
     await this.findOne(id); // check if exists
-    const { id_sucursal, id_responsable, ...rest } = updateBodegaDto;
+    const { id_sucursal, id_responsable, id_despachador, ...rest } = updateBodegaDto;
+
+    // Validación: Si es CUADRILLA, placa_vehiculo es requerida
+    if (rest.tipo === 'CUADRILLA' && !rest.placa_vehiculo) {
+      throw new Error('La placa del vehículo es requerida para cuadrillas');
+    }
+
     const bodega = await this.prisma.bodegas.update({
       where: { id_bodega: id },
       data: {
         ...rest,
         id_sucursal: id_sucursal ? +id_sucursal : undefined,
         id_responsable: id_responsable ? +id_responsable : undefined,
+        id_despachador: id_despachador ? +id_despachador : undefined, // Mantener condicional para actualizaciones parciales
       },
     });
 

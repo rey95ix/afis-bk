@@ -82,7 +82,8 @@ model usuarios {
   agenda_visitas                 agenda_visitas[]
   ot_historial_estado            ot_historial_estado[]
   ot_evidencias                  ot_evidencias[]
-  bodegas_responsable            bodegas[]
+  bodegas_responsable            bodegas[]                       @relation("bodega_responsable")
+  bodegas_despachador            bodegas[]                       @relation("bodega_despachador")
   importaciones_solicita         importaciones[]                 @relation("usuario_solicita_importacion")
   movimientos_inventario         movimientos_inventario[]
   reservas_inventario            reservas_inventario[]
@@ -272,8 +273,10 @@ model bodegas {
   tipo                       tipo_ubicacion           @default(BODEGA) // BODEGA o CUADRILLA
   id_sucursal                Int
   sucursal                   sucursales               @relation(fields: [id_sucursal], references: [id_sucursal])
-  id_responsable             Int? // técnico responsable si es cuadrilla
-  responsable                usuarios?                @relation(fields: [id_responsable], references: [id_usuario], map: "fk_bodega_responsable")
+  id_responsable             Int // usuario responsable (requerido para todas las bodegas)
+  responsable                usuarios                 @relation("bodega_responsable", fields: [id_responsable], references: [id_usuario], map: "fk_bodega_responsable")
+  id_despachador             Int // usuario despachador (requerido para todas las bodegas)
+  despachador                usuarios                 @relation("bodega_despachador", fields: [id_despachador], references: [id_usuario], map: "fk_bodega_despachador")
   placa_vehiculo             String? // si es cuadrilla
   estado                     estado                   @default(ACTIVO)
   fecha_creacion             DateTime                 @default(now())
