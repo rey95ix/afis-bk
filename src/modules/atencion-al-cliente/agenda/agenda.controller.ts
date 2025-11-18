@@ -21,6 +21,7 @@ import {
 } from '@nestjs/swagger'; 
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 
 @ApiTags('Agenda de Visitas')
 @Controller('api/agenda')
@@ -29,6 +30,7 @@ import { Auth } from 'src/modules/auth/decorators';
 export class AgendaController {
   constructor(private readonly agendaService: AgendaService) {}
 
+  @RequirePermissions('atencion_cliente.agenda:ver')
   @Get()
   @ApiOperation({
     summary: 'Obtener agendas con filtros',
@@ -43,6 +45,7 @@ export class AgendaController {
     return this.agendaService.findAll(queryDto);
   }
 
+  @RequirePermissions('atencion_cliente.agenda:editar')
   @Put(':id')
   @ApiOperation({
     summary: 'Modificar una agenda de visita',

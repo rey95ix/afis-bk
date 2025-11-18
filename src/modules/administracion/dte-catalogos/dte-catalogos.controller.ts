@@ -9,6 +9,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 
 @ApiTags('DTE Catálogos')
@@ -21,6 +22,8 @@ export class DteCatalogosController {
   // ==================== TIPOS DE DOCUMENTO ====================
 
   @Get('tipos-documento')
+  @Auth()
+  @RequirePermissions('administracion.dte:ver')
   @ApiOperation({ summary: 'Obtener todos los tipos de documento activos' })
   @ApiResponse({
     status: 200,
@@ -31,6 +34,8 @@ export class DteCatalogosController {
   }
 
   @Get('tipos-documento/:id')
+  @Auth()
+  @RequirePermissions('administracion.dte:ver')
   @ApiOperation({ summary: 'Obtener un tipo de documento por su ID' })
   @ApiParam({ name: 'id', description: 'ID del tipo de documento', type: Number })
   @ApiResponse({ status: 200, description: 'Retorna el tipo de documento.' })
@@ -42,6 +47,8 @@ export class DteCatalogosController {
   // ==================== ACTIVIDADES ECONÓMICAS ====================
 
   @Get('actividades-economicas')
+  @Auth()
+  @RequirePermissions('administracion.dte:ver')
   @ApiOperation({ summary: 'Obtener todas las actividades económicas activas' })
   @ApiResponse({
     status: 200,
@@ -52,6 +59,8 @@ export class DteCatalogosController {
   }
 
   @Get('actividades-economicas/:id')
+  @Auth()
+  @RequirePermissions('administracion.dte:ver')
   @ApiOperation({ summary: 'Obtener una actividad económica por su ID' })
   @ApiParam({
     name: 'id',
@@ -67,6 +76,8 @@ export class DteCatalogosController {
   // ==================== TIPOS DE ESTABLECIMIENTO ====================
 
   @Get('tipos-establecimiento')
+  @Auth()
+  @RequirePermissions('administracion.dte:ver')
   @ApiOperation({ summary: 'Obtener todos los tipos de establecimiento activos' })
   @ApiResponse({
     status: 200,
@@ -77,6 +88,8 @@ export class DteCatalogosController {
   }
 
   @Get('tipos-establecimiento/:id')
+  @Auth()
+  @RequirePermissions('administracion.dte:ver')
   @ApiOperation({ summary: 'Obtener un tipo de establecimiento por su ID' })
   @ApiParam({
     name: 'id',

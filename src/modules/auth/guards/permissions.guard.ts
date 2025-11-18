@@ -52,12 +52,20 @@ export class PermissionsGuard implements CanActivate {
     }
 
     const id_usuario = user.id_usuario;
+    const id_rol = user.id_rol;
 
     if (!id_usuario) {
       throw new BadRequestException('ID de usuario no válido');
     }
 
-    // Verificar permisos
+    // ✅ SUPER ADMIN BYPASS: Rol 1 tiene acceso total sin restricciones
+    if (id_rol === 1) {
+      // Super Administrador puede hacer TODO
+      // No verificar permisos ni políticas
+      return true;
+    }
+
+    // Verificar permisos (para usuarios que NO son Super Admin)
     const hasPermission = await this.permissionsService.hasAnyPermission(
       id_usuario,
       requiredPermissions,

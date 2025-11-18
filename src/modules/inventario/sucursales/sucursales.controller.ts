@@ -20,6 +20,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { PaginationDto } from 'src/common/dto';
 
@@ -30,6 +31,7 @@ import { PaginationDto } from 'src/common/dto';
 export class SucursalesController {
   constructor(private readonly sucursalesService: SucursalesService) {}
 
+  @RequirePermissions('inventario.sucursales:crear')
   @Post()
   @ApiOperation({ summary: 'Crear una nueva sucursal' })
   @ApiResponse({ status: 201, description: 'La sucursal ha sido creada.' })
@@ -38,6 +40,7 @@ export class SucursalesController {
     return this.sucursalesService.create(createSucursalDto);
   }
 
+  @RequirePermissions('inventario.sucursales:ver')
   @Get()
   @ApiOperation({ summary: 'Obtener todas las sucursales activas con paginación y búsqueda' })
   @ApiResponse({
@@ -66,6 +69,7 @@ export class SucursalesController {
     return this.sucursalesService.findAll(paginationDto);
   }
 
+  @RequirePermissions('inventario.sucursales:ver')
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una sucursal por su ID' })
   @ApiResponse({ status: 200, description: 'Retorna la sucursal.' })
@@ -74,6 +78,7 @@ export class SucursalesController {
     return this.sucursalesService.findOne(id);
   }
 
+  @RequirePermissions('inventario.sucursales:editar')
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar una sucursal' })
   @ApiResponse({ status: 200, description: 'La sucursal ha sido actualizada.' })
@@ -85,6 +90,7 @@ export class SucursalesController {
     return this.sucursalesService.update(id, updateSucursalDto);
   }
 
+  @RequirePermissions('inventario.sucursales:eliminar')
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar una sucursal (cambia estado a INACTIVO)' })
   @ApiResponse({ status: 200, description: 'La sucursal ha sido inactivada.' })

@@ -9,6 +9,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 
 @ApiTags('Departamentos')
@@ -19,6 +20,8 @@ export class DepartamentosController {
   constructor(private readonly departamentosService: DepartamentosService) {}
 
   @Get()
+  @Auth()
+  @RequirePermissions('administracion.departamentos:ver')
   @ApiOperation({ summary: 'Obtener todos los departamentos activos' })
   @ApiResponse({
     status: 200,
@@ -29,6 +32,8 @@ export class DepartamentosController {
   }
 
   @Get(':id')
+  @Auth()
+  @RequirePermissions('administracion.departamentos:ver')
   @ApiOperation({ summary: 'Obtener un departamento por su ID' })
   @ApiParam({ name: 'id', description: 'ID del departamento', type: Number })
   @ApiResponse({ status: 200, description: 'Retorna el departamento.' })

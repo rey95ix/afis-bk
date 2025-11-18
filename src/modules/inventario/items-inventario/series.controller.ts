@@ -8,6 +8,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 
 @ApiTags('Inventario - Series')
@@ -19,6 +20,7 @@ export class SeriesController {
     private readonly itemsInventarioService: ItemsInventarioService,
   ) {}
 
+  @RequirePermissions('inventario.series:ver')
   @Get()
   @ApiOperation({
     summary: 'Obtener series disponibles con filtros',

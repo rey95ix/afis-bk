@@ -12,6 +12,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { MovimientosInventarioService } from './movimientos-inventario.service';
 import { FilterMovimientoInventarioDto } from './dto/filter-movimiento-inventario.dto';
@@ -33,6 +34,7 @@ export class MovimientosInventarioController {
     private readonly movimientosInventarioService: MovimientosInventarioService,
   ) { }
 
+  @RequirePermissions('inventario.movimientos:ver')
   @Get()
   @ApiOperation({
     summary: 'Listar movimientos de inventario',
@@ -48,6 +50,7 @@ export class MovimientosInventarioController {
     return this.movimientosInventarioService.findAll(filterDto);
   }
 
+  @RequirePermissions('inventario.movimientos:ver')
   @Get(':id')
   @ApiOperation({
     summary: 'Obtener un movimiento de inventario por ID',

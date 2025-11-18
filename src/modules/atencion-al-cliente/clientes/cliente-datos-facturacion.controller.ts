@@ -20,6 +20,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 
 @ApiTags('Cliente Datos Facturación')
@@ -31,6 +32,7 @@ export class ClienteDatosFacturacionController {
     private readonly clienteDatosFacturacionService: ClienteDatosFacturacionService,
   ) {}
 
+  @RequirePermissions('atencion_cliente.clientes:gestionar_facturacion')
   @Post()
   @ApiOperation({
     summary: 'Crear nuevos datos de facturación para un cliente',
@@ -49,6 +51,7 @@ export class ClienteDatosFacturacionController {
     );
   }
 
+  @RequirePermissions('atencion_cliente.clientes:gestionar_facturacion')
   @Get('cliente/:id_cliente')
   @ApiOperation({
     summary: 'Obtener todos los datos de facturación activos de un cliente',
@@ -63,6 +66,7 @@ export class ClienteDatosFacturacionController {
     return this.clienteDatosFacturacionService.findAllByCliente(id_cliente);
   }
 
+  @RequirePermissions('atencion_cliente.clientes:gestionar_facturacion')
   @Get(':id')
   @ApiOperation({ summary: 'Obtener datos de facturación por su ID' })
   @ApiParam({
@@ -82,6 +86,7 @@ export class ClienteDatosFacturacionController {
     return this.clienteDatosFacturacionService.findOne(id);
   }
 
+  @RequirePermissions('atencion_cliente.clientes:gestionar_facturacion')
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar datos de facturación' })
   @ApiParam({
@@ -107,6 +112,7 @@ export class ClienteDatosFacturacionController {
     );
   }
 
+  @RequirePermissions('atencion_cliente.clientes:gestionar_facturacion')
   @Delete(':id')
   @ApiOperation({
     summary: 'Eliminar datos de facturación (cambia estado a INACTIVO)',

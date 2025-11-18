@@ -21,6 +21,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { Auth, GetUser } from 'src/modules/auth/decorators';
+import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { PaginationDto } from 'src/common/dto';
 
@@ -31,6 +32,7 @@ import { PaginationDto } from 'src/common/dto';
 export class ClientesController {
   constructor(private readonly clientesService: ClientesService) { }
 
+  @RequirePermissions('atencion_cliente.clientes:crear')
   @Post()
   @ApiOperation({ summary: 'Crear un nuevo cliente' })
   @ApiResponse({ status: 201, description: 'El cliente ha sido creado exitosamente.' })
@@ -43,6 +45,7 @@ export class ClientesController {
     return this.clientesService.create(createClienteDto, usuario.id_usuario);
   }
 
+  @RequirePermissions('atencion_cliente.clientes:ver')
   @Get()
   @ApiOperation({ summary: 'Obtener todos los clientes activos con paginación y búsqueda' })
   @ApiResponse({
@@ -71,6 +74,7 @@ export class ClientesController {
     return this.clientesService.findAll(paginationDto);
   }
 
+  @RequirePermissions('atencion_cliente.clientes:ver')
   @Get(':id')
   @ApiOperation({ summary: 'Obtener un cliente por su ID' })
   @ApiParam({ name: 'id', description: 'ID del cliente', type: Number })
@@ -80,6 +84,7 @@ export class ClientesController {
     return this.clientesService.findOne(id);
   }
 
+  @RequirePermissions('atencion_cliente.clientes:ver')
   @Get('buscar/dui/:dui')
   @ApiOperation({ summary: 'Buscar un cliente por su DUI' })
   @ApiParam({ name: 'dui', description: 'DUI del cliente', type: String })
@@ -89,6 +94,7 @@ export class ClientesController {
     return this.clientesService.findByDui(dui);
   }
 
+  @RequirePermissions('atencion_cliente.clientes:editar')
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar un cliente' })
   @ApiParam({ name: 'id', description: 'ID del cliente', type: Number })
@@ -103,6 +109,7 @@ export class ClientesController {
     return this.clientesService.update(id, updateClienteDto, usuario.id_usuario);
   }
 
+  @RequirePermissions('atencion_cliente.clientes:eliminar')
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar un cliente (cambia estado a INACTIVO)' })
   @ApiParam({ name: 'id', description: 'ID del cliente', type: Number })

@@ -21,6 +21,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 
 @ApiTags('Inventario - Visualización')
@@ -32,6 +33,7 @@ export class ItemsInventarioController {
     private readonly itemsInventarioService: ItemsInventarioService,
   ) {}
 
+  @RequirePermissions('inventario.items:ver')
   @Get()
   @ApiOperation({
     summary: 'Obtener lista de items del inventario con filtros',
@@ -47,6 +49,7 @@ export class ItemsInventarioController {
     return this.itemsInventarioService.findAll(queryDto);
   }
 
+  @RequirePermissions('inventario.items:ver')
   @Get('distribucion')
   @ApiOperation({
     summary: 'Obtener distribución del inventario',
@@ -61,6 +64,7 @@ export class ItemsInventarioController {
     return this.itemsInventarioService.getDistribucion();
   }
 
+  @RequirePermissions('inventario.items:ver')
   @Get('alertas')
   @ApiOperation({
     summary: 'Obtener alertas de stock bajo',
@@ -75,6 +79,7 @@ export class ItemsInventarioController {
     return this.itemsInventarioService.getAlertas();
   }
 
+  @RequirePermissions('inventario.items:ver')
   @Get(':id')
   @ApiOperation({
     summary: 'Obtener detalle de un item del inventario',
@@ -98,6 +103,7 @@ export class ItemsInventarioController {
     return this.itemsInventarioService.findOne(id);
   }
 
+  @RequirePermissions('inventario.items:ver')
   @Get(':id/series')
   @ApiOperation({
     summary: 'Obtener series de un item del inventario',
@@ -124,6 +130,7 @@ export class ItemsInventarioController {
     return this.itemsInventarioService.findSeries(id, queryDto);
   }
 
+  @RequirePermissions('inventario.items:ver')
   @Get('catalogo/:id_catalogo/movimientos')
   @ApiOperation({
     summary: 'Obtener movimientos de un item del catálogo',
@@ -146,6 +153,7 @@ export class ItemsInventarioController {
     return this.itemsInventarioService.findMovimientos(id_catalogo, queryDto);
   }
 
+  @RequirePermissions('inventario.items:ver')
   @Get('distribucion/pdf')
   @ApiOperation({
     summary: 'Generar PDF de existencias de inventario',
@@ -185,6 +193,7 @@ export class ItemsInventarioController {
     res.end(pdfBuffer);
   }
 
+  @RequirePermissions('inventario.items:ver')
   @Get('distribucion/excel')
   @ApiOperation({
     summary: 'Generar Excel de existencias de inventario',

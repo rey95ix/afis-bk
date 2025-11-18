@@ -21,6 +21,7 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { Auth, GetUser } from 'src/modules/auth/decorators';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 
 @ApiTags('Compras')
@@ -30,6 +31,7 @@ import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 export class ComprasController {
   constructor(private readonly comprasService: ComprasService) {}
 
+  @RequirePermissions('inventario.compras:crear')
   @Post()
   @ApiOperation({
     summary: 'Crear una nueva compra',
@@ -49,6 +51,7 @@ export class ComprasController {
     return this.comprasService.create(createCompraDto, user.id_usuario);
   }
 
+  @RequirePermissions('inventario.compras:ver')
   @Get()
   @ApiOperation({
     summary: 'Listar todas las compras',
@@ -63,6 +66,7 @@ export class ComprasController {
     return this.comprasService.findAll(filterDto);
   }
 
+  @RequirePermissions('inventario.compras:ver')
   @Get(':id')
   @ApiOperation({
     summary: 'Obtener una compra por ID',
@@ -78,6 +82,7 @@ export class ComprasController {
     return this.comprasService.findOne(id);
   }
 
+  @RequirePermissions('inventario.compras:editar')
   @Put(':id')
   @ApiOperation({
     summary: 'Actualizar una compra',
@@ -101,6 +106,7 @@ export class ComprasController {
     return this.comprasService.update(id, updateCompraDto, user.id_usuario);
   }
 
+  @RequirePermissions('inventario.compras:eliminar')
   @Delete(':id')
   @ApiOperation({
     summary: 'Eliminar una compra',
@@ -113,6 +119,7 @@ export class ComprasController {
     return this.comprasService.remove(id, user.id_usuario);
   }
 
+  @RequirePermissions('inventario.compras:recepcionar')
   @Post(':id/recepcionar')
   @ApiOperation({
     summary: 'Recepcionar una compra',
@@ -153,6 +160,7 @@ export class ComprasController {
     return this.comprasService.recepcionar(id, user.id_usuario, body.series);
   }
 
+  @RequirePermissions('inventario.compras:ver')
   @Get('catalogos/tipos-factura')
   @ApiOperation({
     summary: 'Obtener tipos de factura',

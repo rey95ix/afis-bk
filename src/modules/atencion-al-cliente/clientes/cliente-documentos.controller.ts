@@ -15,6 +15,7 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { Auth, GetUser } from 'src/modules/auth/decorators';
+import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { ClienteDocumentosService } from './cliente-documentos.service';
 import { memoryStorage } from 'multer';
@@ -28,6 +29,7 @@ export class ClienteDocumentosController {
     private readonly clienteDocumentosService: ClienteDocumentosService,
   ) {}
 
+  @RequirePermissions('atencion_cliente.clientes:gestionar_documentos')
   @Post('upload/:id_cliente')
   @UseInterceptors(
     FileFieldsInterceptor(
@@ -83,6 +85,7 @@ export class ClienteDocumentosController {
     );
   }
 
+  @RequirePermissions('atencion_cliente.clientes:gestionar_documentos')
   @Get(':id_cliente')
   @ApiOperation({ summary: 'Obtener todos los documentos de un cliente' })
   @ApiResponse({ status: 200, description: 'Retorna los documentos del cliente.' })
@@ -91,6 +94,7 @@ export class ClienteDocumentosController {
     return this.clienteDocumentosService.getDocumentosByCliente(id_cliente);
   }
 
+  @RequirePermissions('atencion_cliente.clientes:gestionar_documentos')
   @Get('download/:id')
   @ApiOperation({ summary: 'Descargar un documento específico' })
   @ApiResponse({ status: 200, description: 'Descarga el documento.' })
@@ -110,6 +114,7 @@ export class ClienteDocumentosController {
     res.send(buffer);
   }
 
+  @RequirePermissions('atencion_cliente.clientes:gestionar_documentos')
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar un documento' })
   @ApiResponse({ status: 200, description: 'Documento eliminado exitosamente.' })

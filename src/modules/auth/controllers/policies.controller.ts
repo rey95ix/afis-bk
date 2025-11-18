@@ -15,6 +15,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@ne
 import { CreatePolicyDto } from '../dto/create-policy.dto';
 import { UpdatePolicyDto } from '../dto/update-policy.dto';
 import { Auth } from '../decorators/auth.decorator';
+import { RequirePermissions } from '../decorators/require-permissions.decorator';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { PoliciesService } from '../services/policies.service';
 
@@ -29,6 +30,7 @@ export class PoliciesController {
 
   @Post()
   @Auth()
+  @RequirePermissions('auth.policies:crear')
   @ApiOperation({ summary: 'Crear una nueva política' })
   @ApiResponse({ status: 201, description: 'Política creada exitosamente' })
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
@@ -53,6 +55,7 @@ export class PoliciesController {
 
   @Get()
   @Auth()
+  @RequirePermissions('auth.policies:ver')
   @ApiOperation({ summary: 'Obtener lista de políticas con paginación y filtros' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
@@ -121,6 +124,7 @@ export class PoliciesController {
 
   @Get(':id')
   @Auth()
+  @RequirePermissions('auth.policies:ver')
   @ApiOperation({ summary: 'Obtener una política por ID' })
   @ApiResponse({ status: 200, description: 'Política encontrada' })
   @ApiResponse({ status: 404, description: 'Política no encontrada' })
@@ -159,6 +163,7 @@ export class PoliciesController {
 
   @Patch(':id')
   @Auth()
+  @RequirePermissions('auth.policies:editar')
   @ApiOperation({ summary: 'Actualizar una política' })
   @ApiResponse({ status: 200, description: 'Política actualizada exitosamente' })
   @ApiResponse({ status: 404, description: 'Política no encontrada' })
@@ -190,6 +195,7 @@ export class PoliciesController {
 
   @Delete(':id')
   @Auth()
+  @RequirePermissions('auth.policies:eliminar')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Eliminar una política (soft delete)' })
   @ApiResponse({ status: 200, description: 'Política eliminada exitosamente' })
@@ -210,6 +216,7 @@ export class PoliciesController {
 
   @Get(':codigo/test')
   @Auth()
+  @RequirePermissions('auth.policies:probar')
   @ApiOperation({
     summary: 'Probar evaluación de una política con contexto simulado',
     description:

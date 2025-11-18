@@ -5,6 +5,7 @@ import { CreateCategoriaDto } from './dto/create-categoria.dto';
 import { UpdateCategoriaDto } from './dto/update-categoria.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { PaginationDto } from 'src/common/dto';
 
@@ -16,6 +17,7 @@ export class CategoriasController {
   constructor(private readonly categoriasService: CategoriasService) {}
 
   @Post()
+  @RequirePermissions('administracion.categorias:crear')
   @ApiOperation({ summary: 'Crear una nueva categoría' })
   @ApiResponse({ status: 201, description: 'La categoría ha sido creada.' })
   @ApiResponse({ status: 400, description: 'Petición inválida.' })
@@ -24,6 +26,7 @@ export class CategoriasController {
   }
 
   @Get()
+  @RequirePermissions('administracion.categorias:ver')
   @ApiOperation({ summary: 'Obtener todas las categorías activas con paginación y búsqueda' })
   @ApiResponse({
     status: 200,
@@ -52,6 +55,7 @@ export class CategoriasController {
   }
 
   @Get('subcategorias/all')
+  @RequirePermissions('administracion.categorias:ver')
   @ApiOperation({ summary: 'Obtener todas las sub-categorías activas para selects' })
   @ApiResponse({ status: 200, description: 'Retorna un listado de todas las sub-categorías.' })
   findAllSubcategories() {
@@ -59,6 +63,7 @@ export class CategoriasController {
   }
 
   @Get(':id')
+  @RequirePermissions('administracion.categorias:ver')
   @ApiOperation({ summary: 'Obtener una categoría por su ID' })
   @ApiResponse({ status: 200, description: 'Retorna la categoría.' })
   @ApiResponse({ status: 404, description: 'Categoría no encontrada.' })
@@ -67,6 +72,7 @@ export class CategoriasController {
   }
 
   @Put(':id')
+  @RequirePermissions('administracion.categorias:editar')
   @ApiOperation({ summary: 'Actualizar una categoría' })
   @ApiResponse({ status: 200, description: 'La categoría ha sido actualizada.' })
   @ApiResponse({ status: 404, description: 'Categoría no encontrada.' })
@@ -75,6 +81,7 @@ export class CategoriasController {
   }
 
   @Delete(':id')
+  @RequirePermissions('administracion.categorias:eliminar')
   @ApiOperation({ summary: 'Eliminar una categoría (cambia estado a INACTIVO)' })
   @ApiResponse({ status: 200, description: 'La categoría ha sido inactivada.' })
   @ApiResponse({ status: 404, description: 'Categoría no encontrada.' })

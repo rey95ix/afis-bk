@@ -9,6 +9,7 @@ import {
 } from '@nestjs/swagger'; 
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 
 @ApiTags('Reportes')
 @Controller('api/reportes')
@@ -17,6 +18,7 @@ import { Auth } from 'src/modules/auth/decorators';
 export class ReportesController {
   constructor(private readonly reportesService: ReportesService) {}
 
+  @RequirePermissions('atencion_cliente.reportes:ver')
   @Get('ordenes')
   @ApiOperation({
     summary: 'Reporte de órdenes de trabajo',
@@ -31,6 +33,7 @@ export class ReportesController {
     return this.reportesService.getReporteOrdenes(queryDto);
   }
 
+  @RequirePermissions('atencion_cliente.reportes:ver')
   @Get('tecnicos/productividad')
   @ApiOperation({
     summary: 'Reporte de productividad de técnicos',
@@ -45,6 +48,7 @@ export class ReportesController {
     return this.reportesService.getReporteProductividadTecnicos(queryDto);
   }
 
+  @RequirePermissions('atencion_cliente.reportes:ver')
   @Get('materiales/consumo')
   @ApiOperation({
     summary: 'Reporte de consumo de materiales',

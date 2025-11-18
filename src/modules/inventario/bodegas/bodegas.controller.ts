@@ -21,6 +21,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 
 @ApiTags('Bodegas')
@@ -30,6 +31,7 @@ import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 export class BodegasController {
   constructor(private readonly bodegasService: BodegasService) {}
 
+  @RequirePermissions('inventario.bodegas:crear')
   @Post()
   @ApiOperation({ summary: 'Crear una nueva bodega' })
   @ApiResponse({ status: 201, description: 'La bodega ha sido creada.' })
@@ -38,6 +40,7 @@ export class BodegasController {
     return this.bodegasService.create(createBodegaDto);
   }
 
+  @RequirePermissions('inventario.bodegas:ver')
   @Get()
   @ApiOperation({ summary: 'Obtener todas las bodegas activas con paginación, búsqueda y filtros' })
   @ApiResponse({
@@ -66,6 +69,7 @@ export class BodegasController {
     return this.bodegasService.findAll(filterDto);
   }
 
+  @RequirePermissions('inventario.bodegas:ver')
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una bodega por su ID' })
   @ApiResponse({ status: 200, description: 'Retorna la bodega.' })
@@ -74,6 +78,7 @@ export class BodegasController {
     return this.bodegasService.findOne(id);
   }
 
+  @RequirePermissions('inventario.bodegas:editar')
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar una bodega' })
   @ApiResponse({ status: 200, description: 'La bodega ha sido actualizada.' })
@@ -85,6 +90,7 @@ export class BodegasController {
     return this.bodegasService.update(id, updateBodegaDto);
   }
 
+  @RequirePermissions('inventario.bodegas:eliminar')
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar una bodega (cambia estado a INACTIVO)' })
   @ApiResponse({ status: 200, description: 'La bodega ha sido inactivada.' })

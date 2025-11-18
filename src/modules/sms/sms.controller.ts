@@ -2,9 +2,10 @@ import { Controller, Post, Get, Body, Query, Param, UseGuards, Req } from '@nest
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { SmsService } from './sms.service';
 import { EnviarSmsDto } from './dto/enviar-sms.dto';
-import { QuerySmsDto } from './dto/query-sms.dto'; 
+import { QuerySmsDto } from './dto/query-sms.dto';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { Auth } from '../auth/decorators';
+import { RequirePermissions } from '../auth/decorators/require-permissions.decorator';
 
 @ApiTags('SMS')
 @Controller('sms')
@@ -13,6 +14,7 @@ import { Auth } from '../auth/decorators';
 export class SmsController {
   constructor(private readonly smsService: SmsService) {}
 
+  @RequirePermissions('sms.mensajes:enviar')
   @Post()
   @ApiOperation({
     summary: 'Enviar SMS',
@@ -37,6 +39,7 @@ export class SmsController {
     return this.smsService.enviarSms(enviarSmsDto, userId);
   }
 
+  @RequirePermissions('sms.mensajes:ver')
   @Get()
   @ApiOperation({
     summary: 'Consultar historial de SMS',
@@ -72,6 +75,7 @@ export class SmsController {
     return this.smsService.consultarHistorial(queryDto);
   }
 
+  @RequirePermissions('sms.mensajes:ver')
   @Get(':id')
   @ApiOperation({
     summary: 'Obtener detalle de un SMS',
@@ -83,6 +87,7 @@ export class SmsController {
     return this.smsService.obtenerDetalleSms(parseInt(id));
   }
 
+  @RequirePermissions('sms.mensajes:enviar')
   @Post(':id/reenviar')
   @ApiOperation({
     summary: 'Reenviar SMS fallido',
@@ -95,6 +100,7 @@ export class SmsController {
     return this.smsService.reenviarSms(parseInt(id), userId);
   }
 
+  @RequirePermissions('sms.mensajes:ver')
   @Get('twilio/estado/:sid')
   @ApiOperation({
     summary: 'Consultar estado en Twilio',
@@ -123,6 +129,7 @@ export class SmsController {
 
   // ========== ENDPOINTS DE CONVENIENCIA ==========
 
+  @RequirePermissions('sms.notificaciones:enviar')
   @Post('notificaciones/factura')
   @ApiOperation({
     summary: 'Enviar notificación de factura',
@@ -150,6 +157,7 @@ export class SmsController {
     );
   }
 
+  @RequirePermissions('sms.notificaciones:enviar')
   @Post('notificaciones/tecnico-en-camino')
   @ApiOperation({
     summary: 'Notificar técnico en camino',
@@ -179,6 +187,7 @@ export class SmsController {
     );
   }
 
+  @RequirePermissions('sms.notificaciones:enviar')
   @Post('notificaciones/orden-asignada')
   @ApiOperation({
     summary: 'Notificar orden de trabajo asignada',
@@ -208,6 +217,7 @@ export class SmsController {
     );
   }
 
+  @RequirePermissions('sms.notificaciones:enviar')
   @Post('notificaciones/orden-agendada')
   @ApiOperation({
     summary: 'Notificar orden de trabajo agendada',
@@ -241,6 +251,7 @@ export class SmsController {
     );
   }
 
+  @RequirePermissions('sms.notificaciones:enviar')
   @Post('notificaciones/orden-completada')
   @ApiOperation({
     summary: 'Notificar orden de trabajo completada',
@@ -268,6 +279,7 @@ export class SmsController {
     );
   }
 
+  @RequirePermissions('sms.notificaciones:enviar')
   @Post('notificaciones/ticket-creado')
   @ApiOperation({
     summary: 'Notificar ticket creado',

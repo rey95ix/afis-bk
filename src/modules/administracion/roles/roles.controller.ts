@@ -1,5 +1,7 @@
 import { Controller, Get, Post, Delete, Param, Body, ParseIntPipe, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Auth } from '../../auth/decorators/auth.decorator';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import { RolesService } from './roles.service';
 import { AssignPermissionsToRoleDto } from '../../auth/dto/assign-permissions-to-role.dto';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
@@ -15,12 +17,16 @@ export class RolesController {
   ) {}
 
   @Get()
+  @Auth()
+  @RequirePermissions('administracion.roles:ver')
   @ApiOperation({ summary: 'Obtener todos los roles activos' })
   findAll() {
     return this.rolesService.findAll();
   }
 
   @Get(':id/permissions')
+  @Auth()
+  @RequirePermissions('administracion.roles:ver')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Obtener todos los permisos asignados a un rol' })
   @ApiResponse({ status: 200, description: 'Lista de permisos del rol obtenida exitosamente' })
@@ -65,6 +71,8 @@ export class RolesController {
   }
 
   @Post(':id/permissions')
+  @Auth()
+  @RequirePermissions('administracion.roles:asignar_permisos')
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Asignar permisos a un rol',
@@ -118,6 +126,8 @@ export class RolesController {
   }
 
   @Delete(':id/permissions/:id_permiso')
+  @Auth()
+  @RequirePermissions('administracion.roles:asignar_permisos')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Remover un permiso específico de un rol' })

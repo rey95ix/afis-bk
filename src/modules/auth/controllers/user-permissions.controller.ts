@@ -12,6 +12,7 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { AssignPermissionToUserDto } from '../dto/assign-permission-to-user.dto';
 import { Auth } from '../decorators/auth.decorator';
+import { RequirePermissions } from '../decorators/require-permissions.decorator';
 import { GetUser } from '../decorators/get-user.decorators';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { PermissionsService } from '../services/permissions.service';
@@ -27,6 +28,7 @@ export class UserPermissionsController {
 
   @Get()
   @Auth()
+  @RequirePermissions('auth.user_permissions:ver')
   @ApiOperation({
     summary: 'Obtener todos los permisos de un usuario (rol + individuales)',
   })
@@ -108,6 +110,7 @@ export class UserPermissionsController {
 
   @Post()
   @Auth()
+  @RequirePermissions('auth.user_permissions:asignar')
   @ApiOperation({
     summary: 'Asignar un permiso individual a un usuario',
     description:
@@ -165,6 +168,7 @@ export class UserPermissionsController {
 
   @Delete(':id_permiso')
   @Auth()
+  @RequirePermissions('auth.user_permissions:revocar')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Remover un permiso individual de un usuario',
@@ -203,6 +207,7 @@ export class UserPermissionsController {
 
   @Get('grouped-by-module')
   @Auth()
+  @RequirePermissions('auth.user_permissions:ver')
   @ApiOperation({
     summary: 'Obtener permisos del usuario agrupados por módulo',
   })

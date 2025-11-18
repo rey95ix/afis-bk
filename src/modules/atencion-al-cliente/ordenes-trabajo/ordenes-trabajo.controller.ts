@@ -39,6 +39,7 @@ import {
 } from '@nestjs/swagger'; 
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 
 @ApiTags('Órdenes de Trabajo')
 @ApiBearerAuth(HEADER_API_BEARER_AUTH)
@@ -49,6 +50,7 @@ export class OrdenesTrabajoController {
     private readonly ordenesTrabajoService: OrdenesTrabajoService,
   ) {}
 
+  @RequirePermissions('atencion_cliente.ordenes:crear')
   @Post()
   @ApiOperation({
     summary: 'Crear una nueva orden de trabajo',
@@ -70,6 +72,7 @@ export class OrdenesTrabajoController {
     );
   }
 
+  @RequirePermissions('atencion_cliente.ordenes:ver')
   @Get()
   @ApiOperation({
     summary: 'Listar órdenes de trabajo con filtros',
@@ -84,6 +87,7 @@ export class OrdenesTrabajoController {
     return this.ordenesTrabajoService.findAll(queryDto);
   }
 
+  @RequirePermissions('atencion_cliente.ordenes:ver')
   @Get(':id')
   @ApiOperation({
     summary: 'Obtener una orden de trabajo por ID',
@@ -107,6 +111,7 @@ export class OrdenesTrabajoController {
     return this.ordenesTrabajoService.findOne(id);
   }
 
+  @RequirePermissions('atencion_cliente.ordenes:editar')
   @Put(':id')
   @ApiOperation({
     summary: 'Actualizar una orden de trabajo',
@@ -137,6 +142,7 @@ export class OrdenesTrabajoController {
     );
   }
 
+  @RequirePermissions('atencion_cliente.ordenes:asignar')
   @Post(':id/asignar')
   @ApiOperation({
     summary: 'Asignar técnico a una orden de trabajo',
@@ -164,6 +170,7 @@ export class OrdenesTrabajoController {
     return this.ordenesTrabajoService.asignar(id, asignarDto, req.user.id_usuario);
   }
 
+  @RequirePermissions('atencion_cliente.ordenes:agendar')
   @Post(':id/agendar')
   @ApiOperation({
     summary: 'Agendar una visita técnica',
@@ -195,6 +202,7 @@ export class OrdenesTrabajoController {
     return this.ordenesTrabajoService.agendar(id, agendarDto, req.user.id_usuario);
   }
 
+  @RequirePermissions('atencion_cliente.ordenes:agendar')
   @Post(':id/reprogramar')
   @ApiOperation({
     summary: 'Reprogramar una visita técnica',
@@ -230,6 +238,7 @@ export class OrdenesTrabajoController {
     );
   }
 
+  @RequirePermissions('atencion_cliente.ordenes:ejecutar')
   @Post(':id/cambiar-estado')
   @UseInterceptors(
     FilesInterceptor('archivos', 10, {
@@ -300,6 +309,7 @@ export class OrdenesTrabajoController {
     );
   }
 
+  @RequirePermissions('atencion_cliente.ordenes:ejecutar')
   @Post(':id/iniciar')
   @ApiOperation({
     summary: 'Iniciar el trabajo en campo',
@@ -327,6 +337,7 @@ export class OrdenesTrabajoController {
     return this.ordenesTrabajoService.iniciar(id, iniciarDto, req.user.id_usuario);
   }
 
+  @RequirePermissions('atencion_cliente.ordenes:cerrar')
   @Post(':id/cerrar')
   @UseInterceptors(
     FilesInterceptor('archivos', 10, {
@@ -399,6 +410,7 @@ export class OrdenesTrabajoController {
 
   // === Actividades ===
 
+  @RequirePermissions('atencion_cliente.ordenes:ejecutar')
   @Post(':id/actividades')
   @ApiOperation({
     summary: 'Crear una actividad en la orden de trabajo',
@@ -430,6 +442,7 @@ export class OrdenesTrabajoController {
     );
   }
 
+  @RequirePermissions('atencion_cliente.ordenes:ejecutar')
   @Put(':id/actividades/:idActividad')
   @ApiOperation({
     summary: 'Actualizar una actividad',
@@ -469,6 +482,7 @@ export class OrdenesTrabajoController {
 
   // === Materiales ===
 
+  @RequirePermissions('atencion_cliente.ordenes:ejecutar')
   @Post(':id/materiales')
   @ApiOperation({
     summary: 'Agregar un material a la orden de trabajo',
@@ -500,6 +514,7 @@ export class OrdenesTrabajoController {
     );
   }
 
+  @RequirePermissions('atencion_cliente.ordenes:ejecutar')
   @Delete(':id/materiales/:idMaterial')
   @ApiOperation({
     summary: 'Eliminar un material de la orden de trabajo',
@@ -537,6 +552,7 @@ export class OrdenesTrabajoController {
 
   // === Evidencias ===
 
+  @RequirePermissions('atencion_cliente.ordenes:gestionar_evidencias')
   @Post(':id/evidencias')
   @ApiOperation({
     summary: 'Agregar una evidencia a la orden de trabajo',
@@ -568,6 +584,7 @@ export class OrdenesTrabajoController {
     );
   }
 
+  @RequirePermissions('atencion_cliente.ordenes:gestionar_evidencias')
   @Get(':id/evidencias')
   @ApiOperation({
     summary: 'Obtener todas las evidencias de una orden de trabajo',

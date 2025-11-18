@@ -36,6 +36,7 @@ import {
 } from '@nestjs/swagger';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { Auth, GetUser } from 'src/modules/auth/decorators';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import type  { usuarios } from '@prisma/client';
 
 @ApiTags('Órdenes de Salida')
@@ -45,6 +46,7 @@ import type  { usuarios } from '@prisma/client';
 export class OrdenesSalidaController {
   constructor(private readonly ordenesSalidaService: OrdenesSalidaService) { }
 
+  @RequirePermissions('inventario.ordenes_salida:crear')
   @Post()
   @ApiOperation({ summary: 'Crear una nueva orden de salida' })
   @ApiResponse({
@@ -60,6 +62,7 @@ export class OrdenesSalidaController {
     return this.ordenesSalidaService.create(createOrdenSalidaDto, user);
   }
 
+  @RequirePermissions('inventario.ordenes_salida:ver')
   @Get()
   @ApiOperation({ summary: 'Listar todas las órdenes de salida con filtros' })
   @ApiResponse({
@@ -71,6 +74,7 @@ export class OrdenesSalidaController {
     return this.ordenesSalidaService.findAll(filters);
   }
 
+  @RequirePermissions('inventario.ordenes_salida:ver')
   @Get('estadisticas')
   @ApiOperation({ summary: 'Obtener estadísticas de órdenes de salida' })
   @ApiResponse({
@@ -87,6 +91,7 @@ export class OrdenesSalidaController {
     return this.ordenesSalidaService.obtenerEstadisticas(idBodega);
   }
 
+  @RequirePermissions('inventario.ordenes_salida:ver')
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una orden de salida por ID' })
   @ApiResponse({ status: 200, description: 'Orden de salida encontrada' })
@@ -96,6 +101,7 @@ export class OrdenesSalidaController {
     return this.ordenesSalidaService.findOne(id);
   }
 
+  @RequirePermissions('inventario.ordenes_salida:exportar')
   @Get(':id/pdf')
   @ApiOperation({
     summary: 'Generar PDF de la orden de salida',
@@ -132,6 +138,7 @@ export class OrdenesSalidaController {
     res.end(pdfBuffer);
   }
 
+  @RequirePermissions('inventario.ordenes_salida:editar')
   @Put(':id')
   @ApiOperation({
     summary: 'Actualizar una orden de salida (solo en estado BORRADOR)',
@@ -153,6 +160,7 @@ export class OrdenesSalidaController {
     return this.ordenesSalidaService.update(id, updateOrdenSalidaDto);
   }
 
+  @RequirePermissions('inventario.ordenes_salida:enviar_autorizacion')
   @Post(':id/enviar-autorizacion')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Enviar orden de salida a autorización' })
@@ -173,6 +181,7 @@ export class OrdenesSalidaController {
     return this.ordenesSalidaService.enviarAutorizacion(id, user.id_usuario);
   }
 
+  @RequirePermissions('inventario.ordenes_salida:aprobar')
   @Post(':id/autorizar')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Autorizar una orden de salida' })
@@ -195,6 +204,7 @@ export class OrdenesSalidaController {
     return this.ordenesSalidaService.autorizar(id, autorizarDto, user);
   }
 
+  @RequirePermissions('inventario.ordenes_salida:rechazar')
   @Post(':id/rechazar')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Rechazar una orden de salida' })
@@ -216,6 +226,7 @@ export class OrdenesSalidaController {
     return this.ordenesSalidaService.rechazar(id, rechazarDto, user);
   }
 
+  @RequirePermissions('inventario.ordenes_salida:procesar')
   @Post(':id/procesar')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -240,6 +251,7 @@ export class OrdenesSalidaController {
     return this.ordenesSalidaService.procesar(id, procesarDto, user);
   }
 
+  @RequirePermissions('inventario.ordenes_salida:cancelar')
   @Post(':id/cancelar')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Cancelar una orden de salida' })
@@ -261,6 +273,7 @@ export class OrdenesSalidaController {
     return this.ordenesSalidaService.cancelar(id, cancelarDto, user);
   }
 
+  @RequirePermissions('inventario.ordenes_salida:eliminar')
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

@@ -28,6 +28,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { Auth, GetUser } from 'src/modules/auth/decorators';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { PaginationDto } from 'src/common/dto';
 
@@ -38,6 +39,7 @@ import { PaginationDto } from 'src/common/dto';
 export class RequisicionesController {
   constructor(private readonly requisicionesService: RequisicionesService) {}
 
+  @RequirePermissions('inventario.requisiciones:crear')
   @Post()
   @ApiOperation({
     summary: 'Crear una nueva requisición de inventario',
@@ -60,6 +62,7 @@ export class RequisicionesController {
     return this.requisicionesService.create(createRequisicionDto, id_usuario);
   }
 
+  @RequirePermissions('inventario.requisiciones:ver')
   @Get()
   @ApiOperation({
     summary: 'Listar todas las requisiciones',
@@ -121,6 +124,7 @@ export class RequisicionesController {
     return this.requisicionesService.findAll(paginationDto);
   }
 
+  @RequirePermissions('inventario.requisiciones:ver')
   @Get(':id')
   @ApiOperation({
     summary: 'Obtener una requisición por ID',
@@ -133,6 +137,7 @@ export class RequisicionesController {
     return this.requisicionesService.findOne(id);
   }
 
+  @RequirePermissions('inventario.requisiciones:editar')
   @Put(':id')
   @ApiOperation({
     summary: 'Actualizar una requisición',
@@ -157,6 +162,7 @@ export class RequisicionesController {
     return this.requisicionesService.update(id, updateRequisicionDto, id_usuario);
   }
 
+  @RequirePermissions('inventario.requisiciones:aprobar')
   @Patch(':id/autorizar')
   @ApiOperation({
     summary: 'Autorizar o rechazar una requisición',
@@ -181,6 +187,7 @@ export class RequisicionesController {
     return this.requisicionesService.authorize(id, authorizeDto, id_usuario);
   }
 
+  @RequirePermissions('inventario.requisiciones:procesar')
   @Patch(':id/procesar')
   @ApiOperation({
     summary: 'Procesar una requisición aprobada',
@@ -209,6 +216,7 @@ export class RequisicionesController {
     return this.requisicionesService.process(id, processDto, id_usuario);
   }
 
+  @RequirePermissions('inventario.requisiciones:cancelar')
   @Patch(':id/cancelar')
   @ApiOperation({
     summary: 'Cancelar una requisición',
@@ -229,6 +237,7 @@ export class RequisicionesController {
     return this.requisicionesService.cancel(id, id_usuario);
   }
 
+  @RequirePermissions('inventario.requisiciones:exportar')
   @Get(':id/pdf')
   @ApiOperation({
     summary: 'Generar PDF de la requisición',
@@ -264,6 +273,7 @@ export class RequisicionesController {
     res.end(pdfBuffer);
   }
 
+  @RequirePermissions('inventario.requisiciones:eliminar')
   @Delete(':id')
   @ApiOperation({
     summary: 'Eliminar una requisición',

@@ -20,6 +20,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { PaginationDto } from 'src/common/dto';
 
@@ -30,6 +31,7 @@ import { PaginationDto } from 'src/common/dto';
 export class EstantesController {
   constructor(private readonly estantesService: EstantesService) {}
 
+  @RequirePermissions('inventario.estantes:crear')
   @Post()
   @ApiOperation({ summary: 'Crear un nuevo estante' })
   @ApiResponse({ status: 201, description: 'El estante ha sido creado.' })
@@ -38,6 +40,7 @@ export class EstantesController {
     return this.estantesService.create(createEstanteDto);
   }
 
+  @RequirePermissions('inventario.estantes:ver')
   @Get()
   @ApiOperation({ summary: 'Obtener todos los estantes de una bodega' })
   @ApiResponse({
@@ -48,6 +51,7 @@ export class EstantesController {
     return this.estantesService.findAll(id_bodega, paginationDto);
   }
 
+  @RequirePermissions('inventario.estantes:ver')
   @Get(':id')
   @ApiOperation({ summary: 'Obtener un estante por su ID' })
   @ApiResponse({ status: 200, description: 'Retorna el estante.' })
@@ -56,6 +60,7 @@ export class EstantesController {
     return this.estantesService.findOne(id);
   }
 
+  @RequirePermissions('inventario.estantes:editar')
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar un estante' })
   @ApiResponse({ status: 200, description: 'El estante ha sido actualizado.' })
@@ -67,6 +72,7 @@ export class EstantesController {
     return this.estantesService.update(id, updateEstanteDto);
   }
 
+  @RequirePermissions('inventario.estantes:eliminar')
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar un estante (cambia estado a INACTIVO)' })
   @ApiResponse({ status: 200, description: 'El estante ha sido inactivado.' })

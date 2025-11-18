@@ -20,6 +20,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 
 @ApiTags('Cliente Direcciones')
@@ -31,6 +32,7 @@ export class ClienteDireccionesController {
     private readonly clienteDireccionesService: ClienteDireccionesService,
   ) {}
 
+  @RequirePermissions('atencion_cliente.clientes:gestionar_direcciones')
   @Post()
   @ApiOperation({ summary: 'Crear una nueva dirección para un cliente' })
   @ApiResponse({
@@ -43,6 +45,7 @@ export class ClienteDireccionesController {
     return this.clienteDireccionesService.create(createClienteDireccionDto);
   }
 
+  @RequirePermissions('atencion_cliente.clientes:gestionar_direcciones')
   @Get('cliente/:id_cliente')
   @ApiOperation({ summary: 'Obtener todas las direcciones activas de un cliente' })
   @ApiParam({ name: 'id_cliente', description: 'ID del cliente', type: Number })
@@ -55,6 +58,7 @@ export class ClienteDireccionesController {
     return this.clienteDireccionesService.findAllByCliente(id_cliente);
   }
 
+  @RequirePermissions('atencion_cliente.clientes:gestionar_direcciones')
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una dirección por su ID' })
   @ApiParam({ name: 'id', description: 'ID de la dirección', type: Number })
@@ -64,6 +68,7 @@ export class ClienteDireccionesController {
     return this.clienteDireccionesService.findOne(id);
   }
 
+  @RequirePermissions('atencion_cliente.clientes:gestionar_direcciones')
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar una dirección' })
   @ApiParam({ name: 'id', description: 'ID de la dirección', type: Number })
@@ -79,6 +84,7 @@ export class ClienteDireccionesController {
     return this.clienteDireccionesService.update(id, updateClienteDireccionDto);
   }
 
+  @RequirePermissions('atencion_cliente.clientes:gestionar_direcciones')
   @Delete(':id')
   @ApiOperation({
     summary: 'Eliminar una dirección (cambia estado a INACTIVO)',

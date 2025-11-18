@@ -40,6 +40,7 @@ import {
   UploadEvidenciaDto,
 } from './dto';
 import { Auth, GetUser } from '../../auth/decorators';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from '../../../common/const';
 
 @ApiTags('Auditorías de Inventario')
@@ -53,6 +54,7 @@ export class AuditoriasInventarioController {
 
   // ==================== CRUD de Auditorías ====================
 
+  @RequirePermissions('inventario.auditorias:crear')
   @Post()
   @ApiOperation({
     summary: 'Crear/planificar una auditoría de inventario',
@@ -81,6 +83,7 @@ export class AuditoriasInventarioController {
     );
   }
 
+  @RequirePermissions('inventario.auditorias:ver')
   @Get()
   @ApiOperation({
     summary: 'Listar auditorías con filtros y paginación',
@@ -95,6 +98,7 @@ export class AuditoriasInventarioController {
     return this.auditoriasInventarioService.findAll(filterDto);
   }
 
+  @RequirePermissions('inventario.auditorias:ver')
   @Get(':id')
   @ApiOperation({
     summary: 'Obtener auditoría por ID con todos los detalles',
@@ -118,6 +122,7 @@ export class AuditoriasInventarioController {
     return this.auditoriasInventarioService.findOne(id);
   }
 
+  @RequirePermissions('inventario.auditorias:editar')
   @Patch(':id')
   @ApiOperation({
     summary: 'Actualizar auditoría',
@@ -153,6 +158,7 @@ export class AuditoriasInventarioController {
     );
   }
 
+  @RequirePermissions('inventario.auditorias:eliminar')
   @Delete(':id')
   @ApiOperation({
     summary: 'Cancelar auditoría',
@@ -185,6 +191,7 @@ export class AuditoriasInventarioController {
 
   // ==================== Workflow de Conteo ====================
 
+  @RequirePermissions('inventario.auditorias:ejecutar')
   @Post(':id/iniciar-conteo')
   @ApiOperation({
     summary: 'Iniciar conteo físico',
@@ -220,6 +227,7 @@ export class AuditoriasInventarioController {
     );
   }
 
+  @RequirePermissions('inventario.auditorias:ejecutar')
   @Post(':id/registrar-conteo')
   @ApiOperation({
     summary: 'Registrar conteos físicos de productos',
@@ -255,6 +263,7 @@ export class AuditoriasInventarioController {
     );
   }
 
+  @RequirePermissions('inventario.auditorias:ejecutar')
   @Post(':id/escanear-serie')
   @ApiOperation({
     summary: 'Escanear serie individual',
@@ -290,6 +299,7 @@ export class AuditoriasInventarioController {
     );
   }
 
+  @RequirePermissions('inventario.auditorias:ejecutar')
   @Post(':id/evidencia')
   @ApiOperation({
     summary: 'Subir evidencia fotográfica',
@@ -359,6 +369,7 @@ export class AuditoriasInventarioController {
     );
   }
 
+  @RequirePermissions('inventario.auditorias:finalizar')
   @Post(':id/finalizar')
   @ApiOperation({
     summary: 'Finalizar auditoría',
@@ -396,6 +407,7 @@ export class AuditoriasInventarioController {
 
   // ==================== Análisis y Ajustes ====================
 
+  @RequirePermissions('inventario.auditorias:ver')
   @Get(':id/discrepancias')
   @ApiOperation({
     summary: 'Obtener discrepancias de la auditoría',
@@ -419,6 +431,7 @@ export class AuditoriasInventarioController {
     return this.auditoriasInventarioService.getDiscrepancias(id);
   }
 
+  @RequirePermissions('inventario.auditorias:generar_ajustes')
   @Post(':id/generar-ajustes')
   @ApiOperation({
     summary: 'Generar ajustes de inventario desde discrepancias',
@@ -454,6 +467,7 @@ export class AuditoriasInventarioController {
     );
   }
 
+  @RequirePermissions('inventario.auditorias:exportar')
   @Get(':id/pdf')
   @ApiOperation({
     summary: 'Generar reporte PDF de la auditoría',
@@ -497,6 +511,7 @@ export class AuditoriasInventarioController {
 
   // ==================== Ajustes ====================
 
+  @RequirePermissions('inventario.ajustes:ver')
   @Get('ajustes/listar')
   @ApiOperation({
     summary: 'Listar ajustes con filtros y paginación',
@@ -511,6 +526,7 @@ export class AuditoriasInventarioController {
     return this.auditoriasInventarioService.getAjustes(filterDto);
   }
 
+  @RequirePermissions('inventario.ajustes:aprobar')
   @Post('ajustes/:id/autorizar')
   @ApiOperation({
     summary: 'Autorizar o rechazar ajuste',
@@ -546,6 +562,7 @@ export class AuditoriasInventarioController {
     );
   }
 
+  @RequirePermissions('inventario.ajustes:aplicar')
   @Post('ajustes/:id/aplicar')
   @ApiOperation({
     summary: 'Aplicar ajuste autorizado al inventario',
@@ -578,6 +595,7 @@ export class AuditoriasInventarioController {
 
   // ==================== Métricas ====================
 
+  @RequirePermissions('inventario.auditorias:ver')
   @Get('metricas/dashboard')
   @ApiOperation({
     summary: 'Obtener métricas de auditorías por período',

@@ -20,6 +20,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Auth, GetUser } from 'src/modules/auth/decorators';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { PaginationDto } from 'src/common/dto';
 import { usuarios } from '@prisma/client';
@@ -31,6 +32,7 @@ import { usuarios } from '@prisma/client';
 export class ProveedoresController {
   constructor(private readonly proveedoresService: ProveedoresService) {}
 
+  @RequirePermissions('inventario.proveedores:crear')
   @Post()
   @ApiOperation({ summary: 'Crear un nuevo proveedor' })
   @ApiResponse({ status: 201, description: 'El proveedor ha sido creado.' })
@@ -42,6 +44,7 @@ export class ProveedoresController {
     return this.proveedoresService.create(createProveedorDto,user.id_usuario);
   }
 
+  @RequirePermissions('inventario.proveedores:ver')
   @Get()
   @ApiOperation({ summary: 'Obtener todos los proveedores activos con paginación y búsqueda' })
   @ApiResponse({
@@ -52,6 +55,7 @@ export class ProveedoresController {
     return this.proveedoresService.findAll(paginationDto);
   }
 
+  @RequirePermissions('inventario.proveedores:ver')
   @Get(':id')
   @ApiOperation({ summary: 'Obtener un proveedor por su ID' })
   @ApiResponse({ status: 200, description: 'Retorna el proveedor.' })
@@ -60,6 +64,7 @@ export class ProveedoresController {
     return this.proveedoresService.findOne(id);
   }
 
+  @RequirePermissions('inventario.proveedores:editar')
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar un proveedor' })
   @ApiResponse({ status: 200, description: 'El proveedor ha sido actualizado.' })
@@ -72,6 +77,7 @@ export class ProveedoresController {
     return this.proveedoresService.update(id, updateProveedorDto, user.id_usuario);
   }
 
+  @RequirePermissions('inventario.proveedores:eliminar')
   @Delete(':id')
   @ApiOperation({ summary: 'Eliminar un proveedor (cambia estado a INACTIVO)' })
   @ApiResponse({ status: 200, description: 'El proveedor ha sido inactivado.' })

@@ -8,6 +8,7 @@ import {
 } from '@nestjs/swagger'; 
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 
 @ApiTags('Catálogos')
 @Controller('api/catalogos')
@@ -16,6 +17,7 @@ import { Auth } from 'src/modules/auth/decorators';
 export class CatalogosController {
   constructor(private readonly catalogosService: CatalogosService) {}
 
+  @RequirePermissions('atencion_cliente.catalogos:ver')
   @Get('diagnosticos')
   @ApiOperation({
     summary: 'Obtener catálogo de diagnósticos',
@@ -30,6 +32,7 @@ export class CatalogosController {
     return this.catalogosService.getDiagnosticos();
   }
 
+  @RequirePermissions('atencion_cliente.catalogos:ver')
   @Get('soluciones')
   @ApiOperation({
     summary: 'Obtener catálogo de soluciones',
@@ -44,6 +47,7 @@ export class CatalogosController {
     return this.catalogosService.getSoluciones();
   }
 
+  @RequirePermissions('atencion_cliente.catalogos:ver')
   @Get('motivos-cierre')
   @ApiOperation({
     summary: 'Obtener catálogo de motivos de cierre',
@@ -58,6 +62,7 @@ export class CatalogosController {
     return this.catalogosService.getMotivosCierre();
   }
 
+  @RequirePermissions('atencion_cliente.catalogos:ver')
   @Get('tecnicos')
   @ApiOperation({
     summary: 'Obtener lista de técnicos disponibles',
@@ -72,6 +77,7 @@ export class CatalogosController {
     return this.catalogosService.getTecnicos();
   }
 
+  @RequirePermissions('atencion_cliente.catalogos:ver')
   @Get('tipos-orden')
   @ApiOperation({
     summary: 'Obtener tipos de orden de trabajo',
@@ -86,6 +92,7 @@ export class CatalogosController {
     return this.catalogosService.getTiposOrden();
   }
 
+  @RequirePermissions('atencion_cliente.catalogos:ver')
   @Get('estados-orden')
   @ApiOperation({
     summary: 'Obtener estados de orden de trabajo',

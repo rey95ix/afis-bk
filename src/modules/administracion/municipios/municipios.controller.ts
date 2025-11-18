@@ -9,6 +9,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 
 @ApiTags('Municipios')
@@ -19,6 +20,8 @@ export class MunicipiosController {
   constructor(private readonly municipiosService: MunicipiosService) {}
 
   @Get()
+  @Auth()
+  @RequirePermissions('administracion.municipios:ver')
   @ApiOperation({ summary: 'Obtener todos los municipios activos' })
   @ApiResponse({
     status: 200,
@@ -29,6 +32,8 @@ export class MunicipiosController {
   }
 
   @Get('departamento/:id_departamento')
+  @Auth()
+  @RequirePermissions('administracion.municipios:ver')
   @ApiOperation({ summary: 'Obtener municipios por departamento' })
   @ApiParam({
     name: 'id_departamento',
@@ -46,6 +51,8 @@ export class MunicipiosController {
   }
 
   @Get(':id')
+  @Auth()
+  @RequirePermissions('administracion.municipios:ver')
   @ApiOperation({ summary: 'Obtener un municipio por su ID' })
   @ApiParam({ name: 'id', description: 'ID del municipio', type: Number })
   @ApiResponse({

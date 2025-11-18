@@ -32,6 +32,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { Auth, GetUser } from 'src/modules/auth/decorators';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { PaginationDto } from 'src/common/dto';
 import { estado_importacion } from '@prisma/client';
@@ -43,6 +44,7 @@ import { estado_importacion } from '@prisma/client';
 export class ImportacionesController {
   constructor(private readonly importacionesService: ImportacionesService) {}
 
+  @RequirePermissions('inventario.importaciones:crear')
   @Post()
   @ApiOperation({ summary: 'Crear una nueva orden de importación' })
   @ApiResponse({
@@ -57,6 +59,7 @@ export class ImportacionesController {
     );
   }
 
+  @RequirePermissions('inventario.importaciones:ver')
   @Get()
   @ApiOperation({
     summary: 'Obtener todas las importaciones con paginación y búsqueda',
@@ -69,6 +72,7 @@ export class ImportacionesController {
     return this.importacionesService.findAll(paginationDto);
   }
 
+  @RequirePermissions('inventario.importaciones:ver')
   @Get('counts-by-estado')
   @ApiOperation({ summary: 'Obtener la cantidad de importaciones por cada estado' })
   @ApiResponse({
@@ -79,6 +83,7 @@ export class ImportacionesController {
     return this.importacionesService.getCountsByEstado();
   }
 
+  @RequirePermissions('inventario.importaciones:ver')
   @Get('estado/:estado')
   @ApiOperation({ summary: 'Obtener importaciones por estado' })
   @ApiParam({
@@ -97,6 +102,7 @@ export class ImportacionesController {
     return this.importacionesService.findByEstado(estado, paginationDto);
   }
 
+  @RequirePermissions('inventario.importaciones:ver')
   @Get(':id')
   @ApiOperation({ summary: 'Obtener una importación por su ID' })
   @ApiResponse({ status: 200, description: 'Retorna la importación.' })
@@ -105,6 +111,7 @@ export class ImportacionesController {
     return this.importacionesService.findOne(id);
   }
 
+  @RequirePermissions('inventario.importaciones:editar')
   @Put(':id')
   @ApiOperation({ summary: 'Actualizar una importación' })
   @ApiResponse({
@@ -128,6 +135,7 @@ export class ImportacionesController {
     );
   }
 
+  @RequirePermissions('inventario.importaciones:cambiar_estado')
   @Patch(':id/estado')
   @ApiOperation({ summary: 'Actualizar el estado de una importación' })
   @ApiResponse({
@@ -147,6 +155,7 @@ export class ImportacionesController {
     );
   }
 
+  @RequirePermissions('inventario.importaciones:gestionar_gastos')
   @Post(':id/gastos')
   @ApiOperation({ summary: 'Agregar un gasto a una importación' })
   @ApiResponse({ status: 201, description: 'El gasto ha sido agregado.' })
@@ -159,6 +168,7 @@ export class ImportacionesController {
     return this.importacionesService.addGasto(id, createGastoDto, user.id_usuario);
   }
 
+  @RequirePermissions('inventario.importaciones:ver')
   @Get(':id/gastos')
   @ApiOperation({ summary: 'Obtener todos los gastos de una importación' })
   @ApiResponse({ status: 200, description: 'Retorna los gastos de la importación.' })
@@ -167,6 +177,7 @@ export class ImportacionesController {
     return this.importacionesService.getGastos(id);
   }
 
+  @RequirePermissions('inventario.importaciones:gestionar_gastos')
   @Delete(':id/gastos/:id_gasto')
   @ApiOperation({ summary: 'Eliminar un gasto de una importación' })
   @ApiParam({
@@ -193,6 +204,7 @@ export class ImportacionesController {
     return this.importacionesService.deleteGasto(id, id_gasto, user.id_usuario);
   }
 
+  @RequirePermissions('inventario.importaciones:recepcionar')
   @Post(':id/recepcionar')
   @ApiOperation({ summary: 'Recepcionar una importación en bodega' })
   @ApiResponse({
@@ -216,6 +228,7 @@ export class ImportacionesController {
     );
   }
 
+  @RequirePermissions('inventario.importaciones:calcular_retaceo')
   @Post(':id/calcular-retaceo')
   @ApiOperation({
     summary: 'Calcular y aplicar el retaceo de gastos a los items de la importación',
@@ -242,6 +255,7 @@ export class ImportacionesController {
     );
   }
 
+  @RequirePermissions('inventario.importaciones:gestionar_series')
   @Get('detalle/:id_detalle/series')
   @ApiOperation({
     summary: 'Obtener todas las series de un detalle de importación',
@@ -261,6 +275,7 @@ export class ImportacionesController {
     return this.importacionesService.getSeriesByDetalle(id_detalle);
   }
 
+  @RequirePermissions('inventario.importaciones:gestionar_series')
   @Post('detalle/:id_detalle/series')
   @ApiOperation({ summary: 'Agregar series a un detalle de importación' })
   @ApiParam({
@@ -290,6 +305,7 @@ export class ImportacionesController {
     );
   }
 
+  @RequirePermissions('inventario.importaciones:gestionar_series')
   @Put('series/:id_serie')
   @ApiOperation({ summary: 'Actualizar una serie específica' })
   @ApiParam({
@@ -319,6 +335,7 @@ export class ImportacionesController {
     );
   }
 
+  @RequirePermissions('inventario.importaciones:gestionar_series')
   @Delete('series/:id_serie')
   @ApiOperation({ summary: 'Eliminar una serie específica' })
   @ApiParam({
@@ -343,6 +360,7 @@ export class ImportacionesController {
     return this.importacionesService.deleteSerie(id_serie, user.id_usuario);
   }
 
+  @RequirePermissions('inventario.importaciones:exportar')
   @Get(':id/pdf')
   @ApiOperation({
     summary: 'Generar PDF del reporte de retaceo de la importación',
@@ -381,6 +399,7 @@ export class ImportacionesController {
     res.end(pdfBuffer);
   }
 
+  @RequirePermissions('inventario.importaciones:eliminar')
   @Delete(':id')
   @ApiOperation({
     summary: 'Cancelar una importación (cambia estado a CANCELADA)',

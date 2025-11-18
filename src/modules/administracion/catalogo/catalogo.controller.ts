@@ -5,6 +5,7 @@ import { CreateCatalogoDto } from './dto/create-catalogo.dto';
 import { UpdateCatalogoDto } from './dto/update-catalogo.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { PaginationDto } from 'src/common/dto';
 
@@ -16,6 +17,7 @@ export class CatalogoController {
   constructor(private readonly catalogoService: CatalogoService) {}
 
   @Post()
+  @RequirePermissions('administracion.catalogo:crear')
   @ApiOperation({ summary: 'Crear un nuevo item en el catalogo' })
   @ApiResponse({ status: 201, description: 'El item ha sido creado.' })
   @ApiResponse({ status: 400, description: 'Petición inválida.' })
@@ -24,6 +26,7 @@ export class CatalogoController {
   }
 
   @Get('next-code')
+  @RequirePermissions('administracion.catalogo:ver')
   @ApiOperation({ summary: 'Obtener el siguiente código disponible para el catálogo basado en la categoría' })
   @ApiResponse({ status: 200, description: 'Retorna el siguiente código.' })
   getNextCode(@Query('subCategoriaId', ParseIntPipe) subCategoriaId: number) {
@@ -31,6 +34,7 @@ export class CatalogoController {
   }
 
   @Get()
+  @RequirePermissions('administracion.catalogo:ver')
   @ApiOperation({ summary: 'Obtener todos los items del catálogo activos con paginación y búsqueda' })
   @ApiResponse({
     status: 200,
@@ -59,6 +63,7 @@ export class CatalogoController {
   }
 
   @Get(':id')
+  @RequirePermissions('administracion.catalogo:ver')
   @ApiOperation({ summary: 'Obtener un item del catalogo por su ID' })
   @ApiResponse({ status: 200, description: 'Retorna el item.' })
   @ApiResponse({ status: 404, description: 'Item no encontrado.' })
@@ -67,6 +72,7 @@ export class CatalogoController {
   }
 
   @Put(':id')
+  @RequirePermissions('administracion.catalogo:editar')
   @ApiOperation({ summary: 'Actualizar un item del catalogo' })
   @ApiResponse({ status: 200, description: 'El item ha sido actualizado.' })
   @ApiResponse({ status: 404, description: 'Item no encontrado.' })
@@ -75,6 +81,7 @@ export class CatalogoController {
   }
 
   @Delete(':id')
+  @RequirePermissions('administracion.catalogo:eliminar')
   @ApiOperation({ summary: 'Eliminar un item del catalogo (cambia estado a INACTIVO)' })
   @ApiResponse({ status: 200, description: 'El item ha sido inactivado.' })
   @ApiResponse({ status: 404, description: 'Item no encontrado.' })

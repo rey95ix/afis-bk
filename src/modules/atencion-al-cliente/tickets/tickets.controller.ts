@@ -24,6 +24,7 @@ import {
 } from '@nestjs/swagger'; 
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { Auth } from 'src/modules/auth/decorators';
+import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 
 @ApiTags('Tickets de Soporte') 
 @Controller('api/tickets')
@@ -33,6 +34,7 @@ import { Auth } from 'src/modules/auth/decorators';
 export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
+  @RequirePermissions('atencion_cliente.tickets:crear')
   @Post()
   @ApiOperation({
     summary: 'Crear un nuevo ticket de soporte',
@@ -51,6 +53,7 @@ export class TicketsController {
     return this.ticketsService.create(createTicketDto, req.user.id_usuario);
   }
 
+  @RequirePermissions('atencion_cliente.tickets:ver')
   @Get()
   @ApiOperation({
     summary: 'Listar tickets con filtros',
@@ -65,6 +68,7 @@ export class TicketsController {
     return this.ticketsService.findAll(queryDto);
   }
 
+  @RequirePermissions('atencion_cliente.tickets:ver')
   @Get(':id')
   @ApiOperation({
     summary: 'Obtener un ticket por ID',
@@ -88,6 +92,7 @@ export class TicketsController {
     return this.ticketsService.findOne(id);
   }
 
+  @RequirePermissions('atencion_cliente.tickets:editar')
   @Put(':id')
   @ApiOperation({
     summary: 'Actualizar un ticket',
@@ -115,6 +120,7 @@ export class TicketsController {
     return this.ticketsService.update(id, updateTicketDto, req.user.id_usuario);
   }
 
+  @RequirePermissions('atencion_cliente.tickets:escalar')
   @Post(':id/escalar')
   @ApiOperation({
     summary: 'Escalar ticket a orden de trabajo',

@@ -17,6 +17,7 @@ import { CreatePermissionDto } from '../dto/create-permission.dto';
 import { UpdatePermissionDto } from '../dto/update-permission.dto';
 import { AssignPolicyToPermissionDto } from '../dto/assign-policy-to-permission.dto';
 import { Auth } from '../decorators/auth.decorator';
+import { RequirePermissions } from '../decorators/require-permissions.decorator';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 
 @ApiTags('Permissions')
@@ -30,6 +31,7 @@ export class PermissionsController {
 
   @Post()
   @Auth()
+  @RequirePermissions('auth.permissions:crear')
   @ApiOperation({ summary: 'Crear un nuevo permiso' })
   @ApiResponse({ status: 201, description: 'Permiso creado exitosamente' })
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
@@ -57,6 +59,7 @@ export class PermissionsController {
 
   @Get()
   @Auth()
+  @RequirePermissions('auth.permissions:ver')
   @ApiOperation({ summary: 'Obtener lista de permisos con paginación y filtros' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
@@ -115,6 +118,7 @@ export class PermissionsController {
 
   @Get('grouped-by-module')
   @Auth()
+  @RequirePermissions('auth.permissions:ver')
   @ApiOperation({ summary: 'Obtener permisos agrupados por módulo' })
   @ApiResponse({ status: 200, description: 'Permisos agrupados obtenidos exitosamente' })
   async getGroupedByModule() {
@@ -143,6 +147,7 @@ export class PermissionsController {
 
   @Get(':id')
   @Auth()
+  @RequirePermissions('auth.permissions:ver')
   @ApiOperation({ summary: 'Obtener un permiso por ID' })
   @ApiResponse({ status: 200, description: 'Permiso encontrado' })
   @ApiResponse({ status: 404, description: 'Permiso no encontrado' })
@@ -195,6 +200,7 @@ export class PermissionsController {
 
   @Patch(':id')
   @Auth()
+  @RequirePermissions('auth.permissions:editar')
   @ApiOperation({ summary: 'Actualizar un permiso' })
   @ApiResponse({ status: 200, description: 'Permiso actualizado exitosamente' })
   @ApiResponse({ status: 404, description: 'Permiso no encontrado' })
@@ -231,6 +237,7 @@ export class PermissionsController {
 
   @Delete(':id')
   @Auth()
+  @RequirePermissions('auth.permissions:eliminar')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Eliminar un permiso (soft delete)' })
   @ApiResponse({ status: 200, description: 'Permiso eliminado exitosamente' })
@@ -255,6 +262,7 @@ export class PermissionsController {
 
   @Post(':id/policies')
   @Auth()
+  @RequirePermissions('auth.permissions:asignar_politica')
   @ApiOperation({ summary: 'Asignar una política a un permiso' })
   @ApiResponse({ status: 201, description: 'Política asignada exitosamente' })
   @ApiResponse({ status: 409, description: 'La política ya está asignada al permiso' })
@@ -281,6 +289,7 @@ export class PermissionsController {
 
   @Delete(':id/policies/:id_politica')
   @Auth()
+  @RequirePermissions('auth.permissions:asignar_politica')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Remover una política de un permiso' })
   @ApiResponse({ status: 200, description: 'Política removida exitosamente' })
