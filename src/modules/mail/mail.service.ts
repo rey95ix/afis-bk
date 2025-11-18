@@ -30,14 +30,32 @@ export class MailService {
     let html = fs.readFileSync(templatePath, 'utf-8');
 
     html = html.replace(/{{name}}/g, user.nombres);
-    html = html.replace(/{{url}}/g, url); 
+    html = html.replace(/{{url}}/g, url);
 
     await this.sendMail(
       user.correo_electronico,
       'Recuperación de Contraseña',
       `Para restablecer tu contraseña, por favor haz clic en el siguiente enlace: ${url}`,
       html,
-    ); 
+    );
+  }
+
+  async sendWelcomeEmail(user: { nombres: string; correo_electronico: string }, temporaryPassword: string) {
+    const loginUrl = `${this.configService.get<string>('FRONTEND_URL')}/#/auth/login`;
+    const templatePath = path.join(process.cwd(), 'templates', 'auth', 'welcome.html');
+    let html = fs.readFileSync(templatePath, 'utf-8');
+
+    html = html.replace(/{{name}}/g, user.nombres);
+    html = html.replace(/{{email}}/g, user.correo_electronico);
+    html = html.replace(/{{password}}/g, temporaryPassword);
+    html = html.replace(/{{loginUrl}}/g, loginUrl);
+
+    await this.sendMail(
+      user.correo_electronico,
+      'Bienvenido a AFIS - Credenciales de Acceso',
+      `Tu usuario ha sido creado. Usuario: ${user.correo_electronico}, Contraseña temporal: ${temporaryPassword}. Accede en: ${loginUrl}`,
+      html,
+    );
   }
 
   private async sendMail(to: string, subject: string, text: string, html: string) {

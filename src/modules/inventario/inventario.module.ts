@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PassportModule } from '@nestjs/passport';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { SucursalesController } from './sucursales/sucursales.controller';
@@ -29,7 +30,11 @@ import { AuditoriasInventarioService } from './auditorias-inventario/auditorias-
 import { MinioModule } from '../minio/minio.module';
 
 @Module({
-  imports: [AuthModule, PrismaModule, MinioModule],
+  imports: [ 
+    AuthModule,
+    PrismaModule,
+    MinioModule
+  ],
   controllers: [
     SucursalesController,
     BodegasController,

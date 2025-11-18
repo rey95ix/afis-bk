@@ -64,6 +64,7 @@ model usuarios {
   reset_password_expires         DateTime?
   nombres                        String
   apellidos                      String
+  telefono                       String                          @default("+50300000000")
   id_sucursal                    Int?
   dui                            String?
   foto                           String?                         @db.Text()

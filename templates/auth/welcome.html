@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bienvenido a AFIS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 0;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.07);
+        }
+        .email-header {
+            background-color: #2a3e52;
+            padding: 30px;
+            text-align: center;
+        }
+        .email-header h1 {
+            margin: 0;
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .email-body {
+            padding: 40px 30px;
+            color: #555555;
+            line-height: 1.8;
+            font-size: 16px;
+        }
+        .email-body p {
+            margin: 0 0 25px;
+        }
+        .email-body .greeting {
+            font-weight: 600;
+            font-size: 18px;
+            color: #333333;
+        }
+        .credentials-box {
+            background-color: #f8f9fa;
+            border-left: 4px solid #007bff;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 6px;
+        }
+        .credentials-box p {
+            margin: 10px 0;
+            font-size: 15px;
+        }
+        .credentials-box strong {
+            color: #333333;
+        }
+        .credentials-box .password {
+            font-family: 'Courier New', monospace;
+            background-color: #ffffff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            display: inline-block;
+            color: #007bff;
+            font-weight: 600;
+            border: 1px solid #dee2e6;
+        }
+        .cta-button {
+            text-decoration: none;
+            color: black;
+            display: block;
+            width: fit-content;
+            margin: 30px auto;
+            padding: 15px 30px;
+            background-color: #007bff;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .warning-box {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 25px 0;
+            border-radius: 6px;
+        }
+        .warning-box p {
+            margin: 0;
+            font-size: 14px;
+            color: #856404;
+        }
+        .fine-print {
+            font-size: 14px;
+            color: #888888;
+            text-align: center;
+        }
+        .email-footer {
+            background-color: #f8f9fa;
+            padding: 30px;
+            text-align: center;
+            font-size: 12px;
+            color: #999999;
+            border-top: 1px solid #e9ecef;
+        }
+        .email-footer p {
+            margin: 0 0 5px;
+        }
+        .email-footer a {
+            color: #007bff;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="email-header">
+            <!-- Puedes reemplazar este h1 con una etiqueta <img> para tu logo -->
+            <h1>AFIS</h1>
+        </div>
+        <div class="email-body">
+            <p class="greeting">¡Hola {{name}}!</p>
+            <p>Tu cuenta ha sido creada exitosamente en el sistema AFIS. A continuación encontrarás tus credenciales de acceso:</p>
+
+            <div class="credentials-box">
+                <p><strong>Usuario:</strong> {{email}}</p>
+                <p><strong>Contraseña temporal:</strong> <span class="password">{{password}}</span></p>
+            </div>
+
+            <a href="{{loginUrl}}" class="cta-button">Iniciar Sesión</a>
+
+            <div class="warning-box">
+                <p><strong>⚠️ Importante:</strong> Por seguridad, deberás cambiar esta contraseña temporal después de tu primer inicio de sesión.</p>
+            </div>
+
+            <p class="fine-print">Si no puedes ver el botón, copia y pega el siguiente enlace en tu navegador: {{loginUrl}}</p>
+
+            <p class="fine-print">Si tienes problemas para acceder o no reconoces esta cuenta, por favor contacta a nuestro equipo de soporte de inmediato.</p>
+        </div>
+        <div class="email-footer">
+            <p>&copy; 2025 AFIS. Todos los derechos reservados.</p>
+            <p>Si tienes preguntas, contacta a nuestro <a href="mailto:soporte@ixcnet.com">equipo de soporte</a>.</p>
+        </div>
+    </div>
+</body>
+</html>

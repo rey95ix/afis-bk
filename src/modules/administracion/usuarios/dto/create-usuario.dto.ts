@@ -1,7 +1,7 @@
 // src/modules/administracion/usuarios/dto/create-usuario.dto.ts
 
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsInt, MinLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsInt, MinLength, Matches } from 'class-validator';
 
 export class CreateUsuarioDto {
   @ApiProperty({ description: 'Nombre de usuario', example: 'jdoe' })
@@ -20,6 +20,14 @@ export class CreateUsuarioDto {
   @IsNotEmpty()
   @MinLength(3)
   apellidos: string;
+
+  @ApiProperty({ description: 'Teléfono del usuario', example: '+50312345678' })
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^\+503\d{8}$/, {
+    message: 'El teléfono debe tener el formato +503XXXXXXXX (código de El Salvador + 8 dígitos)'
+  })
+  telefono: string;
 
   @ApiProperty({ description: 'ID del rol', example: 1 })
   @IsInt()

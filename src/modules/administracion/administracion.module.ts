@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { PassportModule } from '@nestjs/passport';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { MailModule } from '../mail/mail.module';
 import { CategoriasController } from './categorias/categorias.controller';
 import { CategoriasService } from './categorias/categorias.service';
 import { CatalogoController } from './catalogo/catalogo.controller';
@@ -21,7 +23,11 @@ import { DiagnosticosCatalogoService } from './diagnosticos-catalogo/diagnostico
 import { DiagnosticosCatalogoController } from './diagnosticos-catalogo/diagnosticos-catalogo.controller';
 
 @Module({
-  imports: [AuthModule, PrismaModule],
+  imports: [
+    AuthModule,
+    PrismaModule,
+    MailModule
+  ],
   controllers: [
     CategoriasController,
     CatalogoController,

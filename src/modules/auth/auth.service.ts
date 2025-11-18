@@ -25,7 +25,7 @@ export class AuthService {
   async login(createUserDto: CreateAuthDto): Promise<any> {
 
     //agregar un delay de 2 segundos para evitar ataques de fuerza bruta
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // await new Promise(resolve => setTimeout(resolve, 2000));
 
     const { usuario, password } = createUserDto;
     const usuarioDB = await this.prisma.usuarios.findFirst({
@@ -37,9 +37,9 @@ export class AuthService {
         roles: true
       }
     });
-
     if (!usuarioDB) {
       this.prisma.logAction('LOGIN_FAILED', undefined, `Intento fallido de inicio de sesión para el usuario: ${usuario}`);
+      console.log('Usuario no encontrado o inactivo');
       throw new NotFoundException('El usuario o clave son incorrectos');
     }
 

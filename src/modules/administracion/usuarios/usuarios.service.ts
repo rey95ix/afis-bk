@@ -1,7 +1,8 @@
 // src/modules/administracion/usuarios/usuarios.service.ts
 
-import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, UnauthorizedException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MailService } from '../../mail/mail.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -12,7 +13,12 @@ import * as crypto from 'crypto';
 
 @Injectable()
 export class UsuariosService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(UsuariosService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   /**
    * Obtener todos los usuarios con paginación y búsqueda
@@ -103,6 +109,21 @@ export class UsuariosService {
       id_usuario,
       `Usuario creado: ${usuario.usuario} - ${usuario.nombres} ${usuario.apellidos}`,
     );
+
+    // Intentar enviar email de bienvenida con credenciales
+    try {
+      await this.mailService.sendWelcomeEmail(
+        {
+          nombres: usuario.nombres,
+          correo_electronico: usuario.usuario,
+        },
+        temporaryPassword,
+      );
+      this.logger.log(`Email de bienvenida enviado a ${usuario.usuario}`);
+    } catch (error) {
+      // No fallar la creación del usuario si el email falla
+      this.logger.error(`Error al enviar email de bienvenida a ${usuario.usuario}:`, error);
+    }
 
     const { password, ...usuarioWithoutPassword } = usuario;
 
