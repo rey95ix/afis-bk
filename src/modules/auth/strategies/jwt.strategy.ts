@@ -19,9 +19,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
     async validate(payload: JwtPayload): Promise<any> {
         const { id_usuario } = payload;
-        const user = await this.prisma.usuarios.findFirst({ where: { id_usuario } });
+        const user = await this.prisma.usuarios.findFirst({
+            where: { id_usuario },
+            include: {
+                roles: true, // Incluir información del rol
+            }
+        });
+
         if (!user) throw new UnauthorizedException('Token no valido')
-        if (user.estado == 'INACTIVO') throw new UnauthorizedException('Token no valido')
+        if (user.estado == 'INACTIVO') throw new UnauthorizedException('Usuario inactivo')
 
         return user;
     }

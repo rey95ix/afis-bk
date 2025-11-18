@@ -104,6 +104,7 @@ model usuarios {
   ajustes_autoriza               ajustes_inventario[]            @relation("usuario_autoriza_ajuste")
   snapshots_creados              snapshots_inventario[]
   metricas_calculadas            metricas_inventario[]
+  usuario_permisos               usuario_permisos[]
 }
 
 model cliente {
@@ -372,12 +373,14 @@ enum estado {
 }
 
 model roles {
-  id_rol                     Int        @id @default(autoincrement())
+  id_rol                     Int             @id @default(autoincrement())
   nombre                     String
-  estado                     estado     @default(ACTIVO)
+  descripcion                String?         @db.Text
+  estado                     estado          @default(ACTIVO)
   usuarios                   usuarios[]
-  fecha_creacion             DateTime   @default(now())
-  fecha_ultima_actualizacion DateTime   @default(now()) @updatedAt
+  rol_permisos               rol_permisos[]
+  fecha_creacion             DateTime        @default(now())
+  fecha_ultima_actualizacion DateTime        @default(now()) @updatedAt
 }
 
 model facturasBloques {
@@ -2022,4 +2025,149 @@ model metricas_inventario {
   @@index([periodo])
   @@index([id_bodega])
   @@index([id_categoria])
+}
+
+// ============= MÓDULO DE PERMISOS Y POLÍTICAS DE AUTORIZACIÓN =============
+
+// Enums para sistema de permisos
+enum tipo_permiso {
+  RECURSO     // Permiso a nivel de recurso:acción (ej: inventario.compras:crear)
+  FUNCIONAL   // Permiso funcional simple (ej: ver_dashboard)
+}
+
+enum tipo_accion {
+  VER
+  CREAR
+  EDITAR
+  ELIMINAR
+  APROBAR
+  RECHAZAR
+  EXPORTAR
+  IMPRIMIR
+  CUSTOM      // Para acciones personalizadas
+}
+
+enum tipo_politica {
+  SUCURSAL          // Validar que pertenezca a la misma sucursal
+  PROPIETARIO       // Validar que sea el propietario del recurso
+  ESTADO_RECURSO    // Validar estado del recurso (ej: ticket no cerrado)
+  CUSTOM            // Política personalizada con lógica compleja
+}
+
+// Tabla principal de permisos del sistema
+model permisos {
+  id_permiso                 Int               @id @default(autoincrement())
+  codigo                     String            @unique // Ej: "inventario.compras:crear"
+  nombre                     String            // Nombre descriptivo: "Crear órdenes de compra"
+  descripcion                String?           @db.Text
+
+  // Estructura del permiso
+  modulo                     String            // Módulo al que pertenece: "inventario", "ventas", etc.
+  recurso                    String            // Recurso específico: "compras", "clientes", "usuarios"
+  accion                     tipo_accion       // Acción permitida: VER, CREAR, EDITAR, etc.
+
+  tipo                       tipo_permiso      @default(RECURSO)
+  estado                     estado            @default(ACTIVO)
+
+  // Metadata
+  es_critico                 Boolean           @default(false) // Si es permiso crítico (ej: eliminar usuarios)
+  requiere_auditoria         Boolean           @default(false) // Si acciones con este permiso se auditan
+
+  fecha_creacion             DateTime          @default(now())
+  fecha_ultima_actualizacion DateTime          @default(now()) @updatedAt
+
+  // Relaciones
+  rol_permisos               rol_permisos[]
+  usuario_permisos           usuario_permisos[]
+  permiso_politicas          permiso_politicas[]
+
+  @@index([modulo])
+  @@index([recurso])
+  @@index([accion])
+  @@index([estado])
+}
+
+// Relación muchos-a-muchos: Roles ↔ Permisos
+model rol_permisos {
+  id_rol_permiso             Int       @id @default(autoincrement())
+  id_rol                     Int
+  id_permiso                 Int
+
+  roles                      roles     @relation(fields: [id_rol], references: [id_rol], onDelete: Cascade)
+  permisos                   permisos  @relation(fields: [id_permiso], references: [id_permiso], onDelete: Cascade)
+
+  fecha_creacion             DateTime  @default(now())
+
+  @@unique([id_rol, id_permiso])
+  @@index([id_rol])
+  @@index([id_permiso])
+}
+
+// Permisos adicionales asignados individualmente a usuarios
+model usuario_permisos {
+  id_usuario_permiso         Int       @id @default(autoincrement())
+  id_usuario                 Int
+  id_permiso                 Int
+
+  usuarios                   usuarios  @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+  permisos                   permisos  @relation(fields: [id_permiso], references: [id_permiso], onDelete: Cascade)
+
+  // Metadata
+  asignado_por               Int?      // Usuario que asignó este permiso
+  motivo                     String?   @db.Text // Justificación de por qué se asignó
+  fecha_expiracion           DateTime? // Si el permiso tiene fecha de expiración
+
+  fecha_creacion             DateTime  @default(now())
+  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+
+  @@unique([id_usuario, id_permiso])
+  @@index([id_usuario])
+  @@index([id_permiso])
+  @@index([fecha_expiracion])
+}
+
+// Políticas de autorización (reglas condicionales)
+model politicas {
+  id_politica                Int                 @id @default(autoincrement())
+  codigo                     String              @unique // Ej: "same_sucursal", "is_owner"
+  nombre                     String              // Nombre descriptivo
+  descripcion                String?             @db.Text
+
+  tipo                       tipo_politica
+
+  // Configuración de la política (JSON flexible)
+  configuracion              Json?               // Configuración específica de cada política
+
+  // Handler de la política (nombre de la función/clase que la valida)
+  handler                    String              // Ej: "SameSucursalPolicy", "IsOwnerPolicy"
+
+  estado                     estado              @default(ACTIVO)
+
+  fecha_creacion             DateTime            @default(now())
+  fecha_ultima_actualizacion DateTime            @default(now()) @updatedAt
+
+  // Relaciones
+  permiso_politicas          permiso_politicas[]
+
+  @@index([tipo])
+  @@index([estado])
+}
+
+// Relación muchos-a-muchos: Permisos ↔ Políticas
+model permiso_politicas {
+  id_permiso_politica        Int       @id @default(autoincrement())
+  id_permiso                 Int
+  id_politica                Int
+
+  permisos                   permisos  @relation(fields: [id_permiso], references: [id_permiso], onDelete: Cascade)
+  politicas                  politicas @relation(fields: [id_politica], references: [id_politica], onDelete: Cascade)
+
+  // Si la política es obligatoria para este permiso
+  es_obligatoria             Boolean   @default(true)
+
+  fecha_creacion             DateTime  @default(now())
+
+  @@unique([id_permiso, id_politica])
+  @@index([id_permiso])
+  @@index([id_politica])
 }

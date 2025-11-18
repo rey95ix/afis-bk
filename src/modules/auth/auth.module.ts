@@ -7,10 +7,27 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 
 import { MailModule } from '../mail/mail.module';
+import { PermissionsService } from './services/permissions.service';
+import { PoliciesService } from './services/policies.service';
+import { PermissionsGuard } from './guards/permissions.guard';
+import { PermissionsController } from './controllers/permissions.controller';
+import { PoliciesController } from './controllers/policies.controller';
+import { UserPermissionsController } from './controllers/user-permissions.controller';
 
 @Module({
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  controllers: [
+    AuthController,
+    PermissionsController,
+    PoliciesController,
+    UserPermissionsController,
+  ],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    PermissionsService,
+    PoliciesService,
+    PermissionsGuard,
+  ],
   imports: [
     ConfigModule,
     MailModule,
@@ -28,6 +45,14 @@ import { MailModule } from '../mail/mail.module';
       },
     }),
   ],
-  exports: [JwtStrategy, PassportModule, JwtModule, AuthService],
+  exports: [
+    JwtStrategy,
+    PassportModule,
+    JwtModule,
+    AuthService,
+    PermissionsService,
+    PoliciesService,
+    PermissionsGuard,
+  ],
 })
 export class AuthModule { }
