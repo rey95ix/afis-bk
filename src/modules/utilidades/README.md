@@ -1,287 +1,430 @@
-# Módulo de Utilidades
+# Utilidades Module
 
-Este módulo proporciona herramientas para conectarse a bases de datos MySQL externas e importar datos a la base de datos PostgreSQL (Prisma) del sistema.
+## Propósito
+Módulo de utilidades y herramientas auxiliares. Incluye servicios para importación de datos desde sistemas legacy (MySQL) y otras funciones de utilidad general.
 
-## Características
-
-- ✅ Conexión a bases de datos MySQL externas
-- ✅ Inspección de esquema de base de datos (tablas, columnas, tipos de datos)
-- ✅ Vista previa de datos antes de importar
-- ✅ Importación de datos con mapeo de campos configurable
-- ✅ Registro de auditoría de importaciones
-- ✅ Manejo de errores por registro
-- ✅ Protección con JWT en todos los endpoints
-
-## Endpoints Disponibles
-
-Todos los endpoints requieren autenticación JWT. Base URL: `/utilidades`
-
-### 1. Conectar a MySQL
-
-**POST** `/utilidades/mysql/connect`
-
-Establece una conexión con una base de datos MySQL.
-
-**Body:**
-```json
-{
-  "host": "localhost",
-  "port": 3306,
-  "user": "root",
-  "password": "password",
-  "database": "mi_base_datos"
-}
-```
-
-**Respuesta:**
-```json
-{
-  "data": {
-    "success": true,
-    "message": "Conexión exitosa a MySQL"
-  },
-  "statusCode": 200,
-  "message": "Conexión establecida"
-}
-```
-
-### 2. Verificar Estado de Conexión
-
-**GET** `/utilidades/mysql/status`
-
-Verifica si existe una conexión activa a MySQL.
-
-**Respuesta:**
-```json
-{
-  "data": {
-    "connected": true,
-    "message": "Conexión MySQL activa"
-  },
-  "statusCode": 200,
-  "message": "Estado obtenido"
-}
-```
-
-### 3. Obtener Información de Base de Datos
-
-**GET** `/utilidades/mysql/database-info`
-
-Obtiene información completa sobre tablas, columnas y conteo de registros.
-
-**Respuesta:**
-```json
-{
-  "data": {
-    "tables": [
-      {
-        "name": "productos",
-        "columns": [
-          {
-            "columnName": "id",
-            "dataType": "int",
-            "isNullable": "NO",
-            "columnKey": "PRI"
-          },
-          {
-            "columnName": "nombre",
-            "dataType": "varchar",
-            "isNullable": "NO",
-            "columnKey": ""
-          }
-        ],
-        "recordCount": 150
-      }
-    ]
-  },
-  "statusCode": 200,
-  "message": "Información obtenida"
-}
-```
-
-### 4. Previsualizar Datos de Tabla
-
-**GET** `/utilidades/mysql/preview-table?tableName=productos&limit=10`
-
-Obtiene una muestra de registros de una tabla específica.
-
-**Query Parameters:**
-- `tableName` (requerido): Nombre de la tabla
-- `limit` (opcional): Número de registros (1-100, default: 10)
-
-**Respuesta:**
-```json
-{
-  "data": [
-    { "id": 1, "nombre": "Producto 1", "precio": 100.00 },
-    { "id": 2, "nombre": "Producto 2", "precio": 200.00 }
-  ],
-  "statusCode": 200,
-  "message": "Vista previa obtenida"
-}
-```
-
-### 5. Importar Tabla
-
-**POST** `/utilidades/mysql/import-table`
-
-Importa todos los registros de una tabla MySQL a un modelo de Prisma.
-
-**Body:**
-```json
-{
-  "tableName": "productos",
-  "targetModel": "producto",
-  "mapping": {
-    "id_producto": "id",
-    "nombre_producto": "nombre",
-    "precio_venta": "precio"
-  }
-}
-```
-
-**Respuesta:**
-```json
-{
-  "data": {
-    "tableName": "productos",
-    "totalRecords": 150,
-    "importedRecords": 148,
-    "failedRecords": 2,
-    "errors": [
-      { "record": 5, "error": "Dato duplicado" },
-      { "record": 23, "error": "Campo requerido faltante" }
-    ]
-  },
-  "statusCode": 200,
-  "message": "Importación completada"
-}
-```
-
-## Flujo de Trabajo Recomendado
-
-1. **Conectar** a la base de datos MySQL usando `/mysql/connect`
-2. **Verificar conexión** con `/mysql/status`
-3. **Explorar esquema** usando `/mysql/database-info`
-4. **Previsualizar datos** de la tabla a importar con `/mysql/preview-table`
-5. **Configurar mapeo** de campos (si los nombres difieren entre MySQL y Prisma)
-6. **Importar tabla** usando `/mysql/import-table`
-
-## Personalización
-
-### Personalizar Importación por Modelo
-
-La función `importRecord()` en `import-data.service.ts:160` debe ser personalizada según tus modelos de Prisma:
-
-```typescript
-private async importRecord(
-  targetModel: string,
-  record: any,
-  userId: number,
-): Promise<any> {
-  // Ejemplo para diferentes modelos
-  switch (targetModel) {
-    case 'producto':
-      return await this.prismaService.producto.create({
-        data: {
-          ...record,
-          id_usuario_creacion: userId
-        }
-      });
-
-    case 'categoria':
-      return await this.prismaService.categoria.create({ data: record });
-
-    // Agregar más casos según tus modelos
-    default:
-      throw new Error(`Modelo ${targetModel} no configurado para importación`);
-  }
-}
-```
-
-## Estructura del Módulo
+## Estructura
 
 ```
 utilidades/
-├── dto/
-│   ├── mysql-connection.dto.ts    # DTO para conexión MySQL
-│   ├── import-table.dto.ts         # DTO para importar tabla
-│   └── preview-table.dto.ts        # DTO para previsualizar
-├── mysql-connection.service.ts     # Servicio de conexión MySQL
-├── import-data.service.ts          # Servicio de importación
-├── utilidades.controller.ts        # Controlador REST
-├── utilidades.module.ts            # Módulo NestJS
-└── README.md                       # Esta documentación
+├── utilidades.module.ts
+├── utilidades.controller.ts
+├── import-data.service.ts
+├── mysql-connection.service.ts
+└── README.md
 ```
+
+## Componentes
+
+### 1. ImportDataService
+
+Servicio para importar datos desde sistemas legacy.
+
+**Propósito:**
+- Migración de datos desde base de datos antigua
+- Transformación de datos legacy a formato nuevo
+- Carga masiva de registros
+
+**Uso típico:**
+```typescript
+await this.importDataService.importCustomers();
+await this.importDataService.importProducts();
+```
+
+**Nota:** Este servicio es temporal, usado durante migración inicial del sistema legacy.
+
+### 2. MySQLConnectionService
+
+Servicio para conectarse a bases de datos MySQL legacy.
+
+**Propósito:**
+- Conectar con sistema antiguo durante migración
+- Extraer datos de base de datos MySQL
+- Facilitar transición desde sistema anterior
+
+**Configuración (.env):**
+```env
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=password
+MYSQL_DATABASE=legacy_db
+```
+
+**Uso:**
+```typescript
+const connection = await this.mysqlService.getConnection();
+const [rows] = await connection.execute('SELECT * FROM old_customers');
+await connection.end();
+```
+
+### 3. UtilidadesController
+
+Controlador con endpoints de utilidad.
+
+**Endpoints típicos:**
+- Operaciones de mantenimiento
+- Utilidades de desarrollo
+- Scripts administrativos
+
+## Casos de Uso
+
+### Migración de Datos Legacy
+
+**Escenario:**
+Empresa está migrando desde sistema antiguo en MySQL a AFIS (PostgreSQL con Prisma).
+
+**Proceso:**
+
+1. **Configurar conexión MySQL:**
+   ```env
+   MYSQL_HOST=old-system.local
+   MYSQL_DATABASE=old_afis_db
+   ```
+
+2. **Crear script de importación:**
+   ```typescript
+   async importCustomers() {
+     const oldData = await this.mysqlService.query('SELECT * FROM clientes');
+
+     for (const oldCustomer of oldData) {
+       await this.prisma.cliente.create({
+         data: {
+           titular: oldCustomer.nombre,
+           dui: oldCustomer.dui,
+           telefono1: oldCustomer.telefono,
+           // Mapeo de campos legacy a nuevos
+         }
+       });
+     }
+   }
+   ```
+
+3. **Ejecutar importación:**
+   ```bash
+   curl -X POST http://localhost:4000/utilidades/import-customers
+   ```
+
+### Utilidades de Desarrollo
+
+**Ejemplos de utilidades comunes:**
+
+#### Generar datos de prueba
+```typescript
+async generateTestData() {
+  // Crear clientes de prueba
+  // Crear productos de prueba
+  // Crear órdenes de prueba
+}
+```
+
+#### Limpiar datos de desarrollo
+```typescript
+async cleanTestData() {
+  await this.prisma.ticket_soporte.deleteMany({
+    where: { descripcion_problema: { contains: '[TEST]' } }
+  });
+}
+```
+
+#### Validar integridad de datos
+```typescript
+async validateDataIntegrity() {
+  // Verificar referencias rotas
+  // Verificar estados inválidos
+  // Generar reporte
+}
+```
+
+## README del Módulo
+
+El módulo incluye un archivo README.md con:
+- Instrucciones de uso
+- Ejemplos de scripts
+- Documentación de migración
+- Troubleshooting
 
 ## Seguridad
 
-- ✅ Todos los endpoints requieren autenticación JWT
-- ✅ Las credenciales de MySQL no se almacenan (solo en memoria durante la sesión)
-- ✅ Validación de entrada con class-validator
-- ✅ Pool de conexiones limitado (10 conexiones máximo)
-- ✅ Registro de auditoría de todas las importaciones
+### ⚠️ Consideraciones Importantes
+
+1. **Endpoints de Utilidades**
+   - Deben estar protegidos con autenticación
+   - Solo accesibles para administradores
+   - Deshabilitar en producción si no son necesarios
+
+2. **Conexión MySQL**
+   - Credenciales en variables de entorno
+   - Solo usar durante migración
+   - Desconectar cuando termine migración
+
+3. **Operaciones Masivas**
+   - Usar transacciones
+   - Implementar rollback en caso de error
+   - Logging detallado de operaciones
+
+### Protección Recomendada
+
+```typescript
+@Controller('utilidades')
+@Auth(ValidRoles.admin)  // Solo admin
+export class UtilidadesController {
+
+  @Post('import-data')
+  async importData() {
+    if (process.env.NODE_ENV === 'production') {
+      throw new ForbiddenException('Not allowed in production');
+    }
+    // ...
+  }
+}
+```
+
+## Patrones Comunes
+
+### 1. Importación con Validación
+
+```typescript
+async importWithValidation(data: any[]) {
+  const results = {
+    success: 0,
+    failed: 0,
+    errors: []
+  };
+
+  for (const item of data) {
+    try {
+      // Validar datos
+      if (!this.validateItem(item)) {
+        results.failed++;
+        results.errors.push({ item, reason: 'Invalid data' });
+        continue;
+      }
+
+      // Importar
+      await this.prisma.something.create({ data: item });
+      results.success++;
+    } catch (error) {
+      results.failed++;
+      results.errors.push({ item, error: error.message });
+    }
+  }
+
+  return results;
+}
+```
+
+### 2. Importación por Lotes
+
+```typescript
+async importInBatches(data: any[], batchSize = 100) {
+  for (let i = 0; i < data.length; i += batchSize) {
+    const batch = data.slice(i, i + batchSize);
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const item of batch) {
+        await tx.something.create({ data: item });
+      }
+    });
+
+    console.log(`Processed ${i + batch.length}/${data.length}`);
+  }
+}
+```
+
+### 3. Mapeo de Datos Legacy
+
+```typescript
+function mapLegacyToNew(legacy: LegacyCustomer): CreateClienteDto {
+  return {
+    titular: legacy.nombre_completo,
+    dui: legacy.documento_identidad,
+    telefono1: legacy.tel_principal,
+    telefono2: legacy.tel_secundario,
+    correo_electronico: legacy.email,
+    estado: legacy.activo ? 'ACTIVO' : 'INACTIVO',
+    // ... más mapeos
+  };
+}
+```
+
+## Funciones de Utilidad Común
+
+### Formateo de Datos
+
+```typescript
+export class DataFormatters {
+  static formatDUI(dui: string): string {
+    // 12345678-9
+    return dui.replace(/(\d{8})(\d)/, '$1-$2');
+  }
+
+  static formatPhone(phone: string): string {
+    // 7890-1234
+    return phone.replace(/(\d{4})(\d{4})/, '$1-$2');
+  }
+
+  static formatCurrency(amount: number): string {
+    return new Intl.NumberFormat('es-SV', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
+  }
+}
+```
+
+### Validadores
+
+```typescript
+export class Validators {
+  static isValidDUI(dui: string): boolean {
+    return /^\d{8}-\d$/.test(dui);
+  }
+
+  static isValidNIT(nit: string): boolean {
+    return /^\d{4}-\d{6}-\d{3}-\d$/.test(nit);
+  }
+
+  static isValidEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+}
+```
+
+### Helpers de Fecha
+
+```typescript
+export class DateHelpers {
+  static formatDate(date: Date): string {
+    return new Intl.DateTimeFormat('es-SV').format(date);
+  }
+
+  static addDays(date: Date, days: number): Date {
+    const result = new Date(date);
+    result.setDate(result.getDate() + days);
+    return result;
+  }
+
+  static diffInDays(date1: Date, date2: Date): number {
+    const diff = Math.abs(date1.getTime() - date2.getTime());
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  }
+}
+```
 
 ## Dependencias
 
-- `mysql2` - Cliente MySQL para Node.js con soporte de promesas
-- `@prisma/client` - ORM para PostgreSQL
-- `class-validator` - Validación de DTOs
-- `@nestjs/swagger` - Documentación API
+### NPM Packages
+- `mysql2` - Cliente MySQL (si se usa MySQLConnectionService)
 
-## Notas Importantes
+### Módulos Internos
+- `PrismaModule` - Para operaciones en PostgreSQL destino
+- Otros módulos según necesidad
 
-1. **Mapeo de Campos**: Si los nombres de columnas en MySQL difieren de los campos en Prisma, usa el parámetro `mapping` en la importación.
+## Cuándo Usar Este Módulo
 
-2. **Tipos de Datos**: Puede que necesites transformar tipos de datos entre MySQL y PostgreSQL (ej: DATETIME vs TIMESTAMP).
+### ✅ Usar para:
+- Migración de datos legacy
+- Scripts administrativos
+- Utilidades de desarrollo
+- Operaciones de mantenimiento
+- Helpers compartidos
 
-3. **Relaciones**: Este módulo maneja importación de tablas individuales. Para relaciones complejas, importa en el orden correcto (tablas padre antes que tablas hijo).
+### ❌ No usar para:
+- Lógica de negocio principal
+- Endpoints de producción regulares
+- Servicios core del sistema
 
-4. **Performance**: Para tablas muy grandes (>10,000 registros), considera implementar importación por lotes.
+## Ciclo de Vida
 
-5. **Personalización Requerida**: La función `importRecord()` debe ser implementada según tus modelos específicos de Prisma.
+### Durante Migración
+1. Configurar conexiones legacy
+2. Implementar scripts de importación
+3. Ejecutar importación con validación
+4. Verificar integridad de datos
 
-## Ejemplo de Uso Completo
+### Post-Migración
+1. Deshabilitar conexión MySQL
+2. Eliminar código de importación legacy
+3. Mantener solo utilidades generales
+4. Documentar utilidades que permanecen
 
-```bash
-# 1. Conectar a MySQL
-curl -X POST http://localhost:4000/utilidades/mysql/connect \
-  -H "Authorization: Bearer <tu-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "host": "192.168.1.100",
-    "port": 3306,
-    "user": "admin",
-    "password": "secret",
-    "database": "sistema_antiguo"
-  }'
+## Limpieza Post-Migración
 
-# 2. Ver información de tablas
-curl -X GET http://localhost:4000/utilidades/mysql/database-info \
-  -H "Authorization: Bearer <tu-token>"
+Después de completar migración:
 
-# 3. Previsualizar datos
-curl -X GET "http://localhost:4000/utilidades/mysql/preview-table?tableName=productos&limit=5" \
-  -H "Authorization: Bearer <tu-token>"
+```typescript
+// Eliminar o comentar:
+// - MySQLConnectionService
+// - ImportDataService
+// - Endpoints de importación
 
-# 4. Importar tabla
-curl -X POST http://localhost:4000/utilidades/mysql/import-table \
-  -H "Authorization: Bearer <tu-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "tableName": "productos",
-    "targetModel": "producto",
-    "mapping": {
-      "id": "id_producto",
-      "nombre": "nombre_producto"
-    }
-  }'
+// Mantener:
+// - Helpers generales
+// - Utilidades de desarrollo
+// - Scripts administrativos
 ```
 
-## Swagger Documentation
+## Mejores Prácticas
 
-Una vez que el servidor esté corriendo, puedes acceder a la documentación interactiva de Swagger en:
+1. **Logging Detallado**
+   ```typescript
+   console.log(`Importing ${data.length} records...`);
+   console.log(`Success: ${results.success}, Failed: ${results.failed}`);
+   ```
 
-**http://localhost:4000/api#/Utilidades**
+2. **Manejo de Errores**
+   ```typescript
+   try {
+     await importData();
+   } catch (error) {
+     console.error('Import failed:', error);
+     // Rollback if needed
+   }
+   ```
 
-Aquí podrás probar todos los endpoints directamente desde el navegador.
+3. **Progress Reporting**
+   ```typescript
+   for (let i = 0; i < items.length; i++) {
+     if (i % 100 === 0) {
+       console.log(`Progress: ${i}/${items.length}`);
+     }
+   }
+   ```
+
+4. **Dry Run Mode**
+   ```typescript
+   async import(data: any[], dryRun = false) {
+     if (dryRun) {
+       console.log('DRY RUN - No data will be saved');
+       // Validate only
+     } else {
+       // Actually import
+     }
+   }
+   ```
+
+## Troubleshooting
+
+### MySQL Connection Issues
+- Verificar credenciales en .env
+- Verificar host y puerto accesibles
+- Verificar permisos de usuario MySQL
+
+### Importación Lenta
+- Usar transacciones por lotes
+- Deshabilitar índices temporalmente
+- Importar en paralelo (con cuidado)
+
+### Datos Inconsistentes
+- Implementar validación pre-importación
+- Usar dry-run para probar
+- Mantener logs detallados
+
+## Notas de Implementación
+
+1. **Temporal**: Este módulo es principalmente para migración, considerar eliminarlo después
+2. **Protección**: Proteger todos los endpoints con autenticación admin
+3. **Documentación**: Mantener README.md actualizado con instrucciones
+4. **Testing**: Probar importaciones en ambiente de desarrollo primero
+5. **Rollback**: Tener plan de rollback para importaciones masivas
