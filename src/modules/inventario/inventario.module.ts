@@ -27,6 +27,8 @@ import { MovimientosInventarioController } from './movimientos-inventario/movimi
 import { MovimientosInventarioService } from './movimientos-inventario/movimientos-inventario.service';
 import { AuditoriasInventarioController } from './auditorias-inventario/auditorias-inventario.controller';
 import { AuditoriasInventarioService } from './auditorias-inventario/auditorias-inventario.service';
+import { SalidasTemporalesOtController } from './salidas-temporales-ot/salidas-temporales-ot.controller';
+import { SalidasTemporalesOtService } from './salidas-temporales-ot/salidas-temporales-ot.service';
 import { MinioModule } from '../minio/minio.module';
 
 @Module({
@@ -48,7 +50,8 @@ import { MinioModule } from '../minio/minio.module';
     OrdenesSalidaController,
     ComprasController,
     MovimientosInventarioController,
-    AuditoriasInventarioController
+    AuditoriasInventarioController,
+    SalidasTemporalesOtController,
   ],
   providers: [
     SucursalesService,
@@ -62,7 +65,8 @@ import { MinioModule } from '../minio/minio.module';
     OrdenesSalidaService,
     ComprasService,
     MovimientosInventarioService,
-    AuditoriasInventarioService
+    AuditoriasInventarioService,
+    SalidasTemporalesOtService,
   ],
 })
 export class InventarioModule { }

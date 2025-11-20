@@ -106,6 +106,7 @@ model usuarios {
   snapshots_creados              snapshots_inventario[]
   metricas_calculadas            metricas_inventario[]
   usuario_permisos               usuario_permisos[]
+  salidas_temporales_ot          salidas_temporales_ot[]         @relation("salida_temporal_usuario")
 }
 
 model cliente {
@@ -297,6 +298,7 @@ model bodegas {
   ajustes_inventario         ajustes_inventario[]
   snapshots_inventario       snapshots_inventario[]
   metricas_inventario        metricas_inventario[]
+  salidas_temporales_ot      salidas_temporales_ot[]      @relation("salida_temporal_bodega")
 }
 
 model estantes {
@@ -355,6 +357,7 @@ model catalogo {
   ordenes_salida_detalle     ordenes_salida_detalle[]
   auditorias_detalle         auditorias_detalle[]
   ajustes_inventario         ajustes_inventario[]
+  salidas_temporales_detalle salidas_temporales_ot_detalle[]
 }
 
 model log {
@@ -1266,6 +1269,7 @@ model inventario_series {
   ot_materiales                ot_materiales[]
   importaciones_series         importaciones_series[]
   requisiciones_detalle_series requisiciones_detalle_series[]
+  salidas_temporales_detalle   salidas_temporales_ot_detalle[] @relation("salida_temporal_serie")
 
   @@index([numero_serie])
   @@index([estado])
@@ -2171,4 +2175,78 @@ model permiso_politicas {
   @@unique([id_permiso, id_politica])
   @@index([id_permiso])
   @@index([id_politica])
+}
+
+// ============= MÓDULO DE SALIDAS TEMPORALES DE OT (TEMPORAL) =============
+
+// Estados de salida temporal
+enum estado_salida_temporal {
+  PROCESADA
+  CANCELADA
+}
+
+// Salidas temporales de inventario para OT
+model salidas_temporales_ot {
+  id_salida_temporal         Int                            @id @default(autoincrement())
+  codigo                     String                         @unique // Código de OT alfanumérico ingresado por el usuario (ej: OT-202501-00001 o cualquier formato)
+
+  // Origen (bodega del usuario responsable, auto-asignada)
+  id_bodega_origen           Int
+  bodega_origen              bodegas                        @relation("salida_temporal_bodega", fields: [id_bodega_origen], references: [id_bodega])
+
+  // Usuario que crea la salida
+  id_usuario_crea            Int
+  usuario_crea               usuarios                       @relation("salida_temporal_usuario", fields: [id_usuario_crea], references: [id_usuario])
+
+  // Evidencia obligatoria
+  url_foto_formulario        String                         // URL en MinIO del formulario físico
+
+  // Estado
+  estado                     estado_salida_temporal         @default(PROCESADA)
+
+  // Observaciones
+  observaciones              String?                        @db.Text
+
+  // Fechas
+  fecha_salida               DateTime                       @default(now())
+  fecha_creacion             DateTime                       @default(now())
+  fecha_ultima_actualizacion DateTime                       @default(now()) @updatedAt
+
+  // Relaciones
+  detalle                    salidas_temporales_ot_detalle[]
+
+  @@index([codigo])
+  @@index([id_bodega_origen])
+  @@index([id_usuario_crea])
+  @@index([estado])
+  @@index([fecha_salida])
+}
+
+// Detalle de items en salida temporal
+model salidas_temporales_ot_detalle {
+  id_detalle                 Int                     @id @default(autoincrement())
+  id_salida_temporal         Int
+  salida_temporal            salidas_temporales_ot   @relation(fields: [id_salida_temporal], references: [id_salida_temporal], onDelete: Cascade)
+
+  // Producto
+  id_catalogo                Int
+  catalogo                   catalogo                @relation(fields: [id_catalogo], references: [id_catalogo])
+
+  // Cantidad (para productos no serializados)
+  cantidad                   Int                     @default(1)
+
+  // Serie (para productos serializados, opcional)
+  id_serie                   Int?
+  serie                      inventario_series?      @relation("salida_temporal_serie", fields: [id_serie], references: [id_serie])
+
+  // Costo unitario al momento de la salida
+  costo_unitario             Decimal?                @db.Decimal(10, 2)
+
+  observaciones              String?
+
+  fecha_creacion             DateTime                @default(now())
+
+  @@index([id_salida_temporal])
+  @@index([id_catalogo])
+  @@index([id_serie])
 }

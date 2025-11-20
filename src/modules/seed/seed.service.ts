@@ -227,255 +227,255 @@ export class SeedService {
     // ============= POLÍTICAS =============
     this.logger.log('📋 Creando políticas...');
 
-    const politicas = await this.prisma.politicas.createMany({
-      data: [
-        {
-          codigo: 'same_sucursal',
-          nombre: 'Misma Sucursal',
-          descripcion: 'Valida que el usuario y el recurso pertenezcan a la misma sucursal',
-          tipo: 'SUCURSAL',
-          handler: 'SameSucursalPolicy',
-          configuracion: {
-            campo_usuario: 'id_sucursal',
-            campo_recurso: 'id_sucursal'
-          }
-        },
-        {
-          codigo: 'is_owner',
-          nombre: 'Es Propietario',
-          descripcion: 'Valida que el usuario sea el propietario/creador del recurso',
-          tipo: 'PROPIETARIO',
-          handler: 'IsOwnerPolicy',
-          configuracion: {
-            campo_usuario: 'id_usuario',
-            campo_recurso: 'id_usuario'
-          }
-        },
-        {
-          codigo: 'ticket_not_closed',
-          nombre: 'Ticket No Cerrado',
-          descripcion: 'Valida que el ticket no esté cerrado o cancelado',
-          tipo: 'ESTADO_RECURSO',
-          handler: 'TicketNotClosedPolicy',
-          configuracion: {
-            estados_permitidos: ['ABIERTO', 'EN_DIAGNOSTICO', 'ESCALADO']
-          }
-        },
-        {
-          codigo: 'orden_not_completed',
-          nombre: 'Orden No Completada',
-          descripcion: 'Valida que la orden de trabajo no esté completada o cancelada',
-          tipo: 'ESTADO_RECURSO',
-          handler: 'OrdenNotCompletedPolicy',
-          configuracion: {
-            estados_bloqueados: ['COMPLETADA', 'CANCELADA']
-          }
-        },
-        {
-          codigo: 'requisicion_pendiente',
-          nombre: 'Requisición Pendiente',
-          descripcion: 'Valida que la requisición esté en estado PENDIENTE para poder autorizar',
-          tipo: 'ESTADO_RECURSO',
-          handler: 'RequisicionPendientePolicy',
-          configuracion: {
-            estados_permitidos: ['PENDIENTE']
-          }
-        },
-        {
-          codigo: 'ajuste_pendiente_autorizacion',
-          nombre: 'Ajuste Pendiente de Autorización',
-          descripcion: 'Valida que el ajuste esté pendiente de autorización',
-          tipo: 'ESTADO_RECURSO',
-          handler: 'AjustePendientePolicy',
-          configuracion: {
-            estados_permitidos: ['PENDIENTE_AUTORIZACION']
-          }
-        }
-      ]
-    });
+    // const politicas = await this.prisma.politicas.createMany({
+    //   data: [
+    //     {
+    //       codigo: 'same_sucursal',
+    //       nombre: 'Misma Sucursal',
+    //       descripcion: 'Valida que el usuario y el recurso pertenezcan a la misma sucursal',
+    //       tipo: 'SUCURSAL',
+    //       handler: 'SameSucursalPolicy',
+    //       configuracion: {
+    //         campo_usuario: 'id_sucursal',
+    //         campo_recurso: 'id_sucursal'
+    //       }
+    //     },
+    //     {
+    //       codigo: 'is_owner',
+    //       nombre: 'Es Propietario',
+    //       descripcion: 'Valida que el usuario sea el propietario/creador del recurso',
+    //       tipo: 'PROPIETARIO',
+    //       handler: 'IsOwnerPolicy',
+    //       configuracion: {
+    //         campo_usuario: 'id_usuario',
+    //         campo_recurso: 'id_usuario'
+    //       }
+    //     },
+    //     {
+    //       codigo: 'ticket_not_closed',
+    //       nombre: 'Ticket No Cerrado',
+    //       descripcion: 'Valida que el ticket no esté cerrado o cancelado',
+    //       tipo: 'ESTADO_RECURSO',
+    //       handler: 'TicketNotClosedPolicy',
+    //       configuracion: {
+    //         estados_permitidos: ['ABIERTO', 'EN_DIAGNOSTICO', 'ESCALADO']
+    //       }
+    //     },
+    //     {
+    //       codigo: 'orden_not_completed',
+    //       nombre: 'Orden No Completada',
+    //       descripcion: 'Valida que la orden de trabajo no esté completada o cancelada',
+    //       tipo: 'ESTADO_RECURSO',
+    //       handler: 'OrdenNotCompletedPolicy',
+    //       configuracion: {
+    //         estados_bloqueados: ['COMPLETADA', 'CANCELADA']
+    //       }
+    //     },
+    //     {
+    //       codigo: 'requisicion_pendiente',
+    //       nombre: 'Requisición Pendiente',
+    //       descripcion: 'Valida que la requisición esté en estado PENDIENTE para poder autorizar',
+    //       tipo: 'ESTADO_RECURSO',
+    //       handler: 'RequisicionPendientePolicy',
+    //       configuracion: {
+    //         estados_permitidos: ['PENDIENTE']
+    //       }
+    //     },
+    //     {
+    //       codigo: 'ajuste_pendiente_autorizacion',
+    //       nombre: 'Ajuste Pendiente de Autorización',
+    //       descripcion: 'Valida que el ajuste esté pendiente de autorización',
+    //       tipo: 'ESTADO_RECURSO',
+    //       handler: 'AjustePendientePolicy',
+    //       configuracion: {
+    //         estados_permitidos: ['PENDIENTE_AUTORIZACION']
+    //       }
+    //     }
+    //   ]
+    // });
 
-    this.logger.log(`✅ ${politicas.count} políticas creadas`);
+    // this.logger.log(`✅ ${politicas.count} políticas creadas`);
 
     // ============= PERMISOS =============
     this.logger.log('🔑 Creando permisos...');
 
-    const permisosData = [
-      // ============= MÓDULO: DASHBOARD =============
-      { modulo: 'dashboard', recurso: 'ventas', accion: 'VER', nombre: 'Ver Dashboard de Ventas', descripcion: 'Acceso al dashboard principal de ventas' },
-      { modulo: 'dashboard', recurso: 'inventario', accion: 'VER', nombre: 'Ver Dashboard de Inventario', descripcion: 'Acceso al dashboard de inventario' },
-      { modulo: 'dashboard', recurso: 'atencion_cliente', accion: 'VER', nombre: 'Ver Dashboard de Atención', descripcion: 'Acceso al dashboard de atención al cliente' },
-      { modulo: 'dashboard', recurso: 'metricas', accion: 'VER', nombre: 'Ver Métricas Globales', descripcion: 'Ver estadísticas y métricas del sistema' },
+    // const permisosData = [
+    //   // ============= MÓDULO: DASHBOARD =============
+    //   { modulo: 'dashboard', recurso: 'ventas', accion: 'VER', nombre: 'Ver Dashboard de Ventas', descripcion: 'Acceso al dashboard principal de ventas' },
+    //   { modulo: 'dashboard', recurso: 'inventario', accion: 'VER', nombre: 'Ver Dashboard de Inventario', descripcion: 'Acceso al dashboard de inventario' },
+    //   { modulo: 'dashboard', recurso: 'atencion_cliente', accion: 'VER', nombre: 'Ver Dashboard de Atención', descripcion: 'Acceso al dashboard de atención al cliente' },
+    //   { modulo: 'dashboard', recurso: 'metricas', accion: 'VER', nombre: 'Ver Métricas Globales', descripcion: 'Ver estadísticas y métricas del sistema' },
 
-      // ============= MÓDULO: ADMINISTRACIÓN - USUARIOS =============
-      { modulo: 'administracion', recurso: 'usuarios', accion: 'VER', nombre: 'Ver Usuarios', descripcion: 'Listar y ver detalles de usuarios' },
-      { modulo: 'administracion', recurso: 'usuarios', accion: 'CREAR', nombre: 'Crear Usuarios', descripcion: 'Crear nuevos usuarios en el sistema' },
-      { modulo: 'administracion', recurso: 'usuarios', accion: 'EDITAR', nombre: 'Editar Usuarios', descripcion: 'Modificar información de usuarios existentes' },
-      { modulo: 'administracion', recurso: 'usuarios', accion: 'ELIMINAR', nombre: 'Eliminar Usuarios', descripcion: 'Eliminar usuarios del sistema', es_critico: true },
-      { modulo: 'administracion', recurso: 'usuarios', accion: 'CUSTOM', nombre: 'Resetear Contraseña Usuario', descripcion: 'Resetear contraseña de otros usuarios', es_critico: true },
-      { modulo: 'administracion', recurso: 'usuarios', accion: 'CUSTOM', nombre: 'Asignar Permisos a Usuario', descripcion: 'Asignar permisos individuales a usuarios' },
+    //   // ============= MÓDULO: ADMINISTRACIÓN - USUARIOS =============
+    //   { modulo: 'administracion', recurso: 'usuarios', accion: 'VER', nombre: 'Ver Usuarios', descripcion: 'Listar y ver detalles de usuarios' },
+    //   { modulo: 'administracion', recurso: 'usuarios', accion: 'CREAR', nombre: 'Crear Usuarios', descripcion: 'Crear nuevos usuarios en el sistema' },
+    //   { modulo: 'administracion', recurso: 'usuarios', accion: 'EDITAR', nombre: 'Editar Usuarios', descripcion: 'Modificar información de usuarios existentes' },
+    //   { modulo: 'administracion', recurso: 'usuarios', accion: 'ELIMINAR', nombre: 'Eliminar Usuarios', descripcion: 'Eliminar usuarios del sistema', es_critico: true },
+    //   { modulo: 'administracion', recurso: 'usuarios', accion: 'CUSTOM', nombre: 'Resetear Contraseña Usuario', descripcion: 'Resetear contraseña de otros usuarios', es_critico: true },
+    //   { modulo: 'administracion', recurso: 'usuarios', accion: 'CUSTOM', nombre: 'Asignar Permisos a Usuario', descripcion: 'Asignar permisos individuales a usuarios' },
 
-      // ============= MÓDULO: ADMINISTRACIÓN - ROLES =============
-      { modulo: 'administracion', recurso: 'roles', accion: 'VER', nombre: 'Ver Roles', descripcion: 'Listar y ver detalles de roles' },
-      { modulo: 'administracion', recurso: 'roles', accion: 'CREAR', nombre: 'Crear Roles', descripcion: 'Crear nuevos roles en el sistema' },
-      { modulo: 'administracion', recurso: 'roles', accion: 'EDITAR', nombre: 'Editar Roles', descripcion: 'Modificar roles existentes' },
-      { modulo: 'administracion', recurso: 'roles', accion: 'ELIMINAR', nombre: 'Eliminar Roles', descripcion: 'Eliminar roles del sistema', es_critico: true },
-      { modulo: 'administracion', recurso: 'roles', accion: 'CUSTOM', nombre: 'Asignar Permisos a Rol', descripcion: 'Gestionar permisos de un rol' },
+    //   // ============= MÓDULO: ADMINISTRACIÓN - ROLES =============
+    //   { modulo: 'administracion', recurso: 'roles', accion: 'VER', nombre: 'Ver Roles', descripcion: 'Listar y ver detalles de roles' },
+    //   { modulo: 'administracion', recurso: 'roles', accion: 'CREAR', nombre: 'Crear Roles', descripcion: 'Crear nuevos roles en el sistema' },
+    //   { modulo: 'administracion', recurso: 'roles', accion: 'EDITAR', nombre: 'Editar Roles', descripcion: 'Modificar roles existentes' },
+    //   { modulo: 'administracion', recurso: 'roles', accion: 'ELIMINAR', nombre: 'Eliminar Roles', descripcion: 'Eliminar roles del sistema', es_critico: true },
+    //   { modulo: 'administracion', recurso: 'roles', accion: 'CUSTOM', nombre: 'Asignar Permisos a Rol', descripcion: 'Gestionar permisos de un rol' },
 
-      // ============= MÓDULO: ADMINISTRACIÓN - PERMISOS =============
-      { modulo: 'administracion', recurso: 'permisos', accion: 'VER', nombre: 'Ver Permisos', descripcion: 'Listar y ver detalles de permisos' },
-      { modulo: 'administracion', recurso: 'permisos', accion: 'CREAR', nombre: 'Crear Permisos', descripcion: 'Crear nuevos permisos en el sistema', es_critico: true },
-      { modulo: 'administracion', recurso: 'permisos', accion: 'EDITAR', nombre: 'Editar Permisos', descripcion: 'Modificar permisos existentes', es_critico: true },
-      { modulo: 'administracion', recurso: 'permisos', accion: 'ELIMINAR', nombre: 'Eliminar Permisos', descripcion: 'Eliminar permisos del sistema', es_critico: true },
+    //   // ============= MÓDULO: ADMINISTRACIÓN - PERMISOS =============
+    //   { modulo: 'administracion', recurso: 'permisos', accion: 'VER', nombre: 'Ver Permisos', descripcion: 'Listar y ver detalles de permisos' },
+    //   { modulo: 'administracion', recurso: 'permisos', accion: 'CREAR', nombre: 'Crear Permisos', descripcion: 'Crear nuevos permisos en el sistema', es_critico: true },
+    //   { modulo: 'administracion', recurso: 'permisos', accion: 'EDITAR', nombre: 'Editar Permisos', descripcion: 'Modificar permisos existentes', es_critico: true },
+    //   { modulo: 'administracion', recurso: 'permisos', accion: 'ELIMINAR', nombre: 'Eliminar Permisos', descripcion: 'Eliminar permisos del sistema', es_critico: true },
 
-      // ============= MÓDULO: ADMINISTRACIÓN - POLÍTICAS =============
-      { modulo: 'administracion', recurso: 'politicas', accion: 'VER', nombre: 'Ver Políticas', descripcion: 'Listar y ver detalles de políticas' },
-      { modulo: 'administracion', recurso: 'politicas', accion: 'CREAR', nombre: 'Crear Políticas', descripcion: 'Crear nuevas políticas de autorización', es_critico: true },
-      { modulo: 'administracion', recurso: 'politicas', accion: 'EDITAR', nombre: 'Editar Políticas', descripcion: 'Modificar políticas existentes', es_critico: true },
-      { modulo: 'administracion', recurso: 'politicas', accion: 'ELIMINAR', nombre: 'Eliminar Políticas', descripcion: 'Eliminar políticas del sistema', es_critico: true },
+    //   // ============= MÓDULO: ADMINISTRACIÓN - POLÍTICAS =============
+    //   { modulo: 'administracion', recurso: 'politicas', accion: 'VER', nombre: 'Ver Políticas', descripcion: 'Listar y ver detalles de políticas' },
+    //   { modulo: 'administracion', recurso: 'politicas', accion: 'CREAR', nombre: 'Crear Políticas', descripcion: 'Crear nuevas políticas de autorización', es_critico: true },
+    //   { modulo: 'administracion', recurso: 'politicas', accion: 'EDITAR', nombre: 'Editar Políticas', descripcion: 'Modificar políticas existentes', es_critico: true },
+    //   { modulo: 'administracion', recurso: 'politicas', accion: 'ELIMINAR', nombre: 'Eliminar Políticas', descripcion: 'Eliminar políticas del sistema', es_critico: true },
 
-      // ============= MÓDULO: ADMINISTRACIÓN - CATÁLOGO =============
-      { modulo: 'administracion', recurso: 'catalogo', accion: 'VER', nombre: 'Ver Catálogo', descripcion: 'Ver productos del catálogo' },
-      { modulo: 'administracion', recurso: 'catalogo', accion: 'CREAR', nombre: 'Crear Productos', descripcion: 'Agregar productos al catálogo' },
-      { modulo: 'administracion', recurso: 'catalogo', accion: 'EDITAR', nombre: 'Editar Productos', descripcion: 'Modificar productos del catálogo' },
-      { modulo: 'administracion', recurso: 'catalogo', accion: 'ELIMINAR', nombre: 'Eliminar Productos', descripcion: 'Eliminar productos del catálogo' },
-      { modulo: 'administracion', recurso: 'catalogo', accion: 'EXPORTAR', nombre: 'Exportar Catálogo', descripcion: 'Exportar catálogo a Excel/CSV' },
+    //   // ============= MÓDULO: ADMINISTRACIÓN - CATÁLOGO =============
+    //   { modulo: 'administracion', recurso: 'catalogo', accion: 'VER', nombre: 'Ver Catálogo', descripcion: 'Ver productos del catálogo' },
+    //   { modulo: 'administracion', recurso: 'catalogo', accion: 'CREAR', nombre: 'Crear Productos', descripcion: 'Agregar productos al catálogo' },
+    //   { modulo: 'administracion', recurso: 'catalogo', accion: 'EDITAR', nombre: 'Editar Productos', descripcion: 'Modificar productos del catálogo' },
+    //   { modulo: 'administracion', recurso: 'catalogo', accion: 'ELIMINAR', nombre: 'Eliminar Productos', descripcion: 'Eliminar productos del catálogo' },
+    //   { modulo: 'administracion', recurso: 'catalogo', accion: 'EXPORTAR', nombre: 'Exportar Catálogo', descripcion: 'Exportar catálogo a Excel/CSV' },
 
-      // ============= MÓDULO: ADMINISTRACIÓN - CATEGORÍAS =============
-      { modulo: 'administracion', recurso: 'categorias', accion: 'VER', nombre: 'Ver Categorías', descripcion: 'Ver categorías de productos' },
-      { modulo: 'administracion', recurso: 'categorias', accion: 'CREAR', nombre: 'Crear Categorías', descripcion: 'Crear nuevas categorías' },
-      { modulo: 'administracion', recurso: 'categorias', accion: 'EDITAR', nombre: 'Editar Categorías', descripcion: 'Modificar categorías existentes' },
-      { modulo: 'administracion', recurso: 'categorias', accion: 'ELIMINAR', nombre: 'Eliminar Categorías', descripcion: 'Eliminar categorías' },
+    //   // ============= MÓDULO: ADMINISTRACIÓN - CATEGORÍAS =============
+    //   { modulo: 'administracion', recurso: 'categorias', accion: 'VER', nombre: 'Ver Categorías', descripcion: 'Ver categorías de productos' },
+    //   { modulo: 'administracion', recurso: 'categorias', accion: 'CREAR', nombre: 'Crear Categorías', descripcion: 'Crear nuevas categorías' },
+    //   { modulo: 'administracion', recurso: 'categorias', accion: 'EDITAR', nombre: 'Editar Categorías', descripcion: 'Modificar categorías existentes' },
+    //   { modulo: 'administracion', recurso: 'categorias', accion: 'ELIMINAR', nombre: 'Eliminar Categorías', descripcion: 'Eliminar categorías' },
 
-      // ============= MÓDULO: ADMINISTRACIÓN - SUCURSALES =============
-      { modulo: 'administracion', recurso: 'sucursales', accion: 'VER', nombre: 'Ver Sucursales', descripcion: 'Ver todas las sucursales' },
-      { modulo: 'administracion', recurso: 'sucursales', accion: 'CREAR', nombre: 'Crear Sucursales', descripcion: 'Crear nuevas sucursales' },
-      { modulo: 'administracion', recurso: 'sucursales', accion: 'EDITAR', nombre: 'Editar Sucursales', descripcion: 'Modificar sucursales' },
-      { modulo: 'administracion', recurso: 'sucursales', accion: 'ELIMINAR', nombre: 'Eliminar Sucursales', descripcion: 'Eliminar sucursales' },
+    //   // ============= MÓDULO: ADMINISTRACIÓN - SUCURSALES =============
+    //   { modulo: 'administracion', recurso: 'sucursales', accion: 'VER', nombre: 'Ver Sucursales', descripcion: 'Ver todas las sucursales' },
+    //   { modulo: 'administracion', recurso: 'sucursales', accion: 'CREAR', nombre: 'Crear Sucursales', descripcion: 'Crear nuevas sucursales' },
+    //   { modulo: 'administracion', recurso: 'sucursales', accion: 'EDITAR', nombre: 'Editar Sucursales', descripcion: 'Modificar sucursales' },
+    //   { modulo: 'administracion', recurso: 'sucursales', accion: 'ELIMINAR', nombre: 'Eliminar Sucursales', descripcion: 'Eliminar sucursales' },
 
-      // ============= MÓDULO: ATENCIÓN AL CLIENTE - CLIENTES =============
-      { modulo: 'atencion_cliente', recurso: 'clientes', accion: 'VER', nombre: 'Ver Clientes', descripcion: 'Listar y ver detalles de clientes' },
-      { modulo: 'atencion_cliente', recurso: 'clientes', accion: 'CREAR', nombre: 'Crear Clientes', descripcion: 'Registrar nuevos clientes' },
-      { modulo: 'atencion_cliente', recurso: 'clientes', accion: 'EDITAR', nombre: 'Editar Clientes', descripcion: 'Modificar información de clientes' },
-      { modulo: 'atencion_cliente', recurso: 'clientes', accion: 'ELIMINAR', nombre: 'Eliminar Clientes', descripcion: 'Eliminar clientes del sistema' },
-      { modulo: 'atencion_cliente', recurso: 'clientes', accion: 'EXPORTAR', nombre: 'Exportar Clientes', descripcion: 'Exportar lista de clientes' },
+    //   // ============= MÓDULO: ATENCIÓN AL CLIENTE - CLIENTES =============
+    //   { modulo: 'atencion_cliente', recurso: 'clientes', accion: 'VER', nombre: 'Ver Clientes', descripcion: 'Listar y ver detalles de clientes' },
+    //   { modulo: 'atencion_cliente', recurso: 'clientes', accion: 'CREAR', nombre: 'Crear Clientes', descripcion: 'Registrar nuevos clientes' },
+    //   { modulo: 'atencion_cliente', recurso: 'clientes', accion: 'EDITAR', nombre: 'Editar Clientes', descripcion: 'Modificar información de clientes' },
+    //   { modulo: 'atencion_cliente', recurso: 'clientes', accion: 'ELIMINAR', nombre: 'Eliminar Clientes', descripcion: 'Eliminar clientes del sistema' },
+    //   { modulo: 'atencion_cliente', recurso: 'clientes', accion: 'EXPORTAR', nombre: 'Exportar Clientes', descripcion: 'Exportar lista de clientes' },
 
-      // ============= MÓDULO: ATENCIÓN AL CLIENTE - TICKETS =============
-      { modulo: 'atencion_cliente', recurso: 'tickets', accion: 'VER', nombre: 'Ver Tickets', descripcion: 'Ver tickets de soporte' },
-      { modulo: 'atencion_cliente', recurso: 'tickets', accion: 'CREAR', nombre: 'Crear Tickets', descripcion: 'Abrir nuevos tickets de soporte' },
-      { modulo: 'atencion_cliente', recurso: 'tickets', accion: 'EDITAR', nombre: 'Editar Tickets', descripcion: 'Actualizar tickets de soporte' },
-      { modulo: 'atencion_cliente', recurso: 'tickets', accion: 'CUSTOM', nombre: 'Cerrar Tickets', descripcion: 'Cerrar tickets resueltos' },
-      { modulo: 'atencion_cliente', recurso: 'tickets', accion: 'CUSTOM', nombre: 'Escalar Tickets', descripcion: 'Escalar tickets a nivel superior' },
-      { modulo: 'atencion_cliente', recurso: 'tickets', accion: 'CUSTOM', nombre: 'Reasignar Tickets', descripcion: 'Reasignar tickets a otros agentes' },
+    //   // ============= MÓDULO: ATENCIÓN AL CLIENTE - TICKETS =============
+    //   { modulo: 'atencion_cliente', recurso: 'tickets', accion: 'VER', nombre: 'Ver Tickets', descripcion: 'Ver tickets de soporte' },
+    //   { modulo: 'atencion_cliente', recurso: 'tickets', accion: 'CREAR', nombre: 'Crear Tickets', descripcion: 'Abrir nuevos tickets de soporte' },
+    //   { modulo: 'atencion_cliente', recurso: 'tickets', accion: 'EDITAR', nombre: 'Editar Tickets', descripcion: 'Actualizar tickets de soporte' },
+    //   { modulo: 'atencion_cliente', recurso: 'tickets', accion: 'CUSTOM', nombre: 'Cerrar Tickets', descripcion: 'Cerrar tickets resueltos' },
+    //   { modulo: 'atencion_cliente', recurso: 'tickets', accion: 'CUSTOM', nombre: 'Escalar Tickets', descripcion: 'Escalar tickets a nivel superior' },
+    //   { modulo: 'atencion_cliente', recurso: 'tickets', accion: 'CUSTOM', nombre: 'Reasignar Tickets', descripcion: 'Reasignar tickets a otros agentes' },
 
-      // ============= MÓDULO: ATENCIÓN AL CLIENTE - ÓRDENES DE TRABAJO =============
-      { modulo: 'atencion_cliente', recurso: 'ordenes_trabajo', accion: 'VER', nombre: 'Ver Órdenes de Trabajo', descripcion: 'Ver órdenes de trabajo' },
-      { modulo: 'atencion_cliente', recurso: 'ordenes_trabajo', accion: 'CREAR', nombre: 'Crear Órdenes de Trabajo', descripcion: 'Generar nuevas órdenes de trabajo' },
-      { modulo: 'atencion_cliente', recurso: 'ordenes_trabajo', accion: 'EDITAR', nombre: 'Editar Órdenes de Trabajo', descripcion: 'Modificar órdenes de trabajo' },
-      { modulo: 'atencion_cliente', recurso: 'ordenes_trabajo', accion: 'CUSTOM', nombre: 'Asignar Técnico', descripcion: 'Asignar técnicos a órdenes de trabajo' },
-      { modulo: 'atencion_cliente', recurso: 'ordenes_trabajo', accion: 'CUSTOM', nombre: 'Completar Orden', descripcion: 'Marcar orden como completada' },
-      { modulo: 'atencion_cliente', recurso: 'ordenes_trabajo', accion: 'CUSTOM', nombre: 'Cancelar Orden', descripcion: 'Cancelar órdenes de trabajo' },
-      { modulo: 'atencion_cliente', recurso: 'ordenes_trabajo', accion: 'CUSTOM', nombre: 'Cargar Evidencias', descripcion: 'Subir fotos y evidencias de trabajos' },
-      { modulo: 'atencion_cliente', recurso: 'ordenes_trabajo', accion: 'IMPRIMIR', nombre: 'Imprimir Orden de Trabajo', descripcion: 'Generar PDF de orden de trabajo' },
+    //   // ============= MÓDULO: ATENCIÓN AL CLIENTE - ÓRDENES DE TRABAJO =============
+    //   { modulo: 'atencion_cliente', recurso: 'ordenes_trabajo', accion: 'VER', nombre: 'Ver Órdenes de Trabajo', descripcion: 'Ver órdenes de trabajo' },
+    //   { modulo: 'atencion_cliente', recurso: 'ordenes_trabajo', accion: 'CREAR', nombre: 'Crear Órdenes de Trabajo', descripcion: 'Generar nuevas órdenes de trabajo' },
+    //   { modulo: 'atencion_cliente', recurso: 'ordenes_trabajo', accion: 'EDITAR', nombre: 'Editar Órdenes de Trabajo', descripcion: 'Modificar órdenes de trabajo' },
+    //   { modulo: 'atencion_cliente', recurso: 'ordenes_trabajo', accion: 'CUSTOM', nombre: 'Asignar Técnico', descripcion: 'Asignar técnicos a órdenes de trabajo' },
+    //   { modulo: 'atencion_cliente', recurso: 'ordenes_trabajo', accion: 'CUSTOM', nombre: 'Completar Orden', descripcion: 'Marcar orden como completada' },
+    //   { modulo: 'atencion_cliente', recurso: 'ordenes_trabajo', accion: 'CUSTOM', nombre: 'Cancelar Orden', descripcion: 'Cancelar órdenes de trabajo' },
+    //   { modulo: 'atencion_cliente', recurso: 'ordenes_trabajo', accion: 'CUSTOM', nombre: 'Cargar Evidencias', descripcion: 'Subir fotos y evidencias de trabajos' },
+    //   { modulo: 'atencion_cliente', recurso: 'ordenes_trabajo', accion: 'IMPRIMIR', nombre: 'Imprimir Orden de Trabajo', descripcion: 'Generar PDF de orden de trabajo' },
 
-      // ============= MÓDULO: INVENTARIO - BODEGAS =============
-      { modulo: 'inventario', recurso: 'bodegas', accion: 'VER', nombre: 'Ver Bodegas', descripcion: 'Ver bodegas y cuadrillas' },
-      { modulo: 'inventario', recurso: 'bodegas', accion: 'CREAR', nombre: 'Crear Bodegas', descripcion: 'Crear nuevas bodegas' },
-      { modulo: 'inventario', recurso: 'bodegas', accion: 'EDITAR', nombre: 'Editar Bodegas', descripcion: 'Modificar bodegas existentes' },
-      { modulo: 'inventario', recurso: 'bodegas', accion: 'ELIMINAR', nombre: 'Eliminar Bodegas', descripcion: 'Eliminar bodegas' },
+    //   // ============= MÓDULO: INVENTARIO - BODEGAS =============
+    //   { modulo: 'inventario', recurso: 'bodegas', accion: 'VER', nombre: 'Ver Bodegas', descripcion: 'Ver bodegas y cuadrillas' },
+    //   { modulo: 'inventario', recurso: 'bodegas', accion: 'CREAR', nombre: 'Crear Bodegas', descripcion: 'Crear nuevas bodegas' },
+    //   { modulo: 'inventario', recurso: 'bodegas', accion: 'EDITAR', nombre: 'Editar Bodegas', descripcion: 'Modificar bodegas existentes' },
+    //   { modulo: 'inventario', recurso: 'bodegas', accion: 'ELIMINAR', nombre: 'Eliminar Bodegas', descripcion: 'Eliminar bodegas' },
 
-      // ============= MÓDULO: INVENTARIO - COMPRAS =============
-      { modulo: 'inventario', recurso: 'compras', accion: 'VER', nombre: 'Ver Compras', descripcion: 'Ver órdenes de compra' },
-      { modulo: 'inventario', recurso: 'compras', accion: 'CREAR', nombre: 'Crear Compras', descripcion: 'Crear órdenes de compra' },
-      { modulo: 'inventario', recurso: 'compras', accion: 'EDITAR', nombre: 'Editar Compras', descripcion: 'Modificar órdenes de compra' },
-      { modulo: 'inventario', recurso: 'compras', accion: 'ELIMINAR', nombre: 'Eliminar Compras', descripcion: 'Eliminar órdenes de compra' },
-      { modulo: 'inventario', recurso: 'compras', accion: 'CUSTOM', nombre: 'Recepcionar Compra', descripcion: 'Marcar compra como recepcionada e ingresar a inventario' },
-      { modulo: 'inventario', recurso: 'compras', accion: 'IMPRIMIR', nombre: 'Imprimir Compra', descripcion: 'Generar PDF de orden de compra' },
-      { modulo: 'inventario', recurso: 'compras', accion: 'EXPORTAR', nombre: 'Exportar Compras', descripcion: 'Exportar reporte de compras' },
+    //   // ============= MÓDULO: INVENTARIO - COMPRAS =============
+    //   { modulo: 'inventario', recurso: 'compras', accion: 'VER', nombre: 'Ver Compras', descripcion: 'Ver órdenes de compra' },
+    //   { modulo: 'inventario', recurso: 'compras', accion: 'CREAR', nombre: 'Crear Compras', descripcion: 'Crear órdenes de compra' },
+    //   { modulo: 'inventario', recurso: 'compras', accion: 'EDITAR', nombre: 'Editar Compras', descripcion: 'Modificar órdenes de compra' },
+    //   { modulo: 'inventario', recurso: 'compras', accion: 'ELIMINAR', nombre: 'Eliminar Compras', descripcion: 'Eliminar órdenes de compra' },
+    //   { modulo: 'inventario', recurso: 'compras', accion: 'CUSTOM', nombre: 'Recepcionar Compra', descripcion: 'Marcar compra como recepcionada e ingresar a inventario' },
+    //   { modulo: 'inventario', recurso: 'compras', accion: 'IMPRIMIR', nombre: 'Imprimir Compra', descripcion: 'Generar PDF de orden de compra' },
+    //   { modulo: 'inventario', recurso: 'compras', accion: 'EXPORTAR', nombre: 'Exportar Compras', descripcion: 'Exportar reporte de compras' },
 
-      // ============= MÓDULO: INVENTARIO - IMPORTACIONES =============
-      { modulo: 'inventario', recurso: 'importaciones', accion: 'VER', nombre: 'Ver Importaciones', descripcion: 'Ver importaciones internacionales' },
-      { modulo: 'inventario', recurso: 'importaciones', accion: 'CREAR', nombre: 'Crear Importaciones', descripcion: 'Crear órdenes de importación' },
-      { modulo: 'inventario', recurso: 'importaciones', accion: 'EDITAR', nombre: 'Editar Importaciones', descripcion: 'Modificar importaciones' },
-      { modulo: 'inventario', recurso: 'importaciones', accion: 'ELIMINAR', nombre: 'Eliminar Importaciones', descripcion: 'Eliminar importaciones' },
-      { modulo: 'inventario', recurso: 'importaciones', accion: 'CUSTOM', nombre: 'Gestionar Gastos de Importación', descripcion: 'Registrar gastos adicionales de importación' },
-      { modulo: 'inventario', recurso: 'importaciones', accion: 'CUSTOM', nombre: 'Calcular Retaceo', descripcion: 'Ejecutar cálculo de retaceo de costos' },
-      { modulo: 'inventario', recurso: 'importaciones', accion: 'CUSTOM', nombre: 'Recepcionar Importación', descripcion: 'Marcar importación como recibida' },
+    //   // ============= MÓDULO: INVENTARIO - IMPORTACIONES =============
+    //   { modulo: 'inventario', recurso: 'importaciones', accion: 'VER', nombre: 'Ver Importaciones', descripcion: 'Ver importaciones internacionales' },
+    //   { modulo: 'inventario', recurso: 'importaciones', accion: 'CREAR', nombre: 'Crear Importaciones', descripcion: 'Crear órdenes de importación' },
+    //   { modulo: 'inventario', recurso: 'importaciones', accion: 'EDITAR', nombre: 'Editar Importaciones', descripcion: 'Modificar importaciones' },
+    //   { modulo: 'inventario', recurso: 'importaciones', accion: 'ELIMINAR', nombre: 'Eliminar Importaciones', descripcion: 'Eliminar importaciones' },
+    //   { modulo: 'inventario', recurso: 'importaciones', accion: 'CUSTOM', nombre: 'Gestionar Gastos de Importación', descripcion: 'Registrar gastos adicionales de importación' },
+    //   { modulo: 'inventario', recurso: 'importaciones', accion: 'CUSTOM', nombre: 'Calcular Retaceo', descripcion: 'Ejecutar cálculo de retaceo de costos' },
+    //   { modulo: 'inventario', recurso: 'importaciones', accion: 'CUSTOM', nombre: 'Recepcionar Importación', descripcion: 'Marcar importación como recibida' },
 
-      // ============= MÓDULO: INVENTARIO - REQUISICIONES =============
-      { modulo: 'inventario', recurso: 'requisiciones', accion: 'VER', nombre: 'Ver Requisiciones', descripcion: 'Ver requisiciones de inventario' },
-      { modulo: 'inventario', recurso: 'requisiciones', accion: 'CREAR', nombre: 'Crear Requisiciones', descripcion: 'Crear solicitudes de transferencia' },
-      { modulo: 'inventario', recurso: 'requisiciones', accion: 'EDITAR', nombre: 'Editar Requisiciones', descripcion: 'Modificar requisiciones pendientes' },
-      { modulo: 'inventario', recurso: 'requisiciones', accion: 'ELIMINAR', nombre: 'Eliminar Requisiciones', descripcion: 'Eliminar requisiciones' },
-      { modulo: 'inventario', recurso: 'requisiciones', accion: 'APROBAR', nombre: 'Aprobar Requisiciones', descripcion: 'Autorizar requisiciones de inventario', es_critico: true },
-      { modulo: 'inventario', recurso: 'requisiciones', accion: 'RECHAZAR', nombre: 'Rechazar Requisiciones', descripcion: 'Rechazar requisiciones de inventario' },
-      { modulo: 'inventario', recurso: 'requisiciones', accion: 'CUSTOM', nombre: 'Procesar Requisiciones', descripcion: 'Ejecutar transferencia de inventario' },
+    //   // ============= MÓDULO: INVENTARIO - REQUISICIONES =============
+    //   { modulo: 'inventario', recurso: 'requisiciones', accion: 'VER', nombre: 'Ver Requisiciones', descripcion: 'Ver requisiciones de inventario' },
+    //   { modulo: 'inventario', recurso: 'requisiciones', accion: 'CREAR', nombre: 'Crear Requisiciones', descripcion: 'Crear solicitudes de transferencia' },
+    //   { modulo: 'inventario', recurso: 'requisiciones', accion: 'EDITAR', nombre: 'Editar Requisiciones', descripcion: 'Modificar requisiciones pendientes' },
+    //   { modulo: 'inventario', recurso: 'requisiciones', accion: 'ELIMINAR', nombre: 'Eliminar Requisiciones', descripcion: 'Eliminar requisiciones' },
+    //   { modulo: 'inventario', recurso: 'requisiciones', accion: 'APROBAR', nombre: 'Aprobar Requisiciones', descripcion: 'Autorizar requisiciones de inventario', es_critico: true },
+    //   { modulo: 'inventario', recurso: 'requisiciones', accion: 'RECHAZAR', nombre: 'Rechazar Requisiciones', descripcion: 'Rechazar requisiciones de inventario' },
+    //   { modulo: 'inventario', recurso: 'requisiciones', accion: 'CUSTOM', nombre: 'Procesar Requisiciones', descripcion: 'Ejecutar transferencia de inventario' },
 
-      // ============= MÓDULO: INVENTARIO - ÓRDENES DE SALIDA =============
-      { modulo: 'inventario', recurso: 'ordenes_salida', accion: 'VER', nombre: 'Ver Órdenes de Salida', descripcion: 'Ver salidas formales de inventario' },
-      { modulo: 'inventario', recurso: 'ordenes_salida', accion: 'CREAR', nombre: 'Crear Órdenes de Salida', descripcion: 'Crear órdenes de salida' },
-      { modulo: 'inventario', recurso: 'ordenes_salida', accion: 'EDITAR', nombre: 'Editar Órdenes de Salida', descripcion: 'Modificar órdenes de salida' },
-      { modulo: 'inventario', recurso: 'ordenes_salida', accion: 'ELIMINAR', nombre: 'Eliminar Órdenes de Salida', descripcion: 'Eliminar órdenes de salida' },
-      { modulo: 'inventario', recurso: 'ordenes_salida', accion: 'APROBAR', nombre: 'Aprobar Órdenes de Salida', descripcion: 'Autorizar salidas de inventario', es_critico: true },
-      { modulo: 'inventario', recurso: 'ordenes_salida', accion: 'RECHAZAR', nombre: 'Rechazar Órdenes de Salida', descripcion: 'Rechazar salidas de inventario' },
-      { modulo: 'inventario', recurso: 'ordenes_salida', accion: 'CUSTOM', nombre: 'Procesar Órdenes de Salida', descripcion: 'Ejecutar salida física de inventario' },
+    //   // ============= MÓDULO: INVENTARIO - ÓRDENES DE SALIDA =============
+    //   { modulo: 'inventario', recurso: 'ordenes_salida', accion: 'VER', nombre: 'Ver Órdenes de Salida', descripcion: 'Ver salidas formales de inventario' },
+    //   { modulo: 'inventario', recurso: 'ordenes_salida', accion: 'CREAR', nombre: 'Crear Órdenes de Salida', descripcion: 'Crear órdenes de salida' },
+    //   { modulo: 'inventario', recurso: 'ordenes_salida', accion: 'EDITAR', nombre: 'Editar Órdenes de Salida', descripcion: 'Modificar órdenes de salida' },
+    //   { modulo: 'inventario', recurso: 'ordenes_salida', accion: 'ELIMINAR', nombre: 'Eliminar Órdenes de Salida', descripcion: 'Eliminar órdenes de salida' },
+    //   { modulo: 'inventario', recurso: 'ordenes_salida', accion: 'APROBAR', nombre: 'Aprobar Órdenes de Salida', descripcion: 'Autorizar salidas de inventario', es_critico: true },
+    //   { modulo: 'inventario', recurso: 'ordenes_salida', accion: 'RECHAZAR', nombre: 'Rechazar Órdenes de Salida', descripcion: 'Rechazar salidas de inventario' },
+    //   { modulo: 'inventario', recurso: 'ordenes_salida', accion: 'CUSTOM', nombre: 'Procesar Órdenes de Salida', descripcion: 'Ejecutar salida física de inventario' },
 
-      // ============= MÓDULO: INVENTARIO - AUDITORÍAS =============
-      { modulo: 'inventario', recurso: 'auditorias', accion: 'VER', nombre: 'Ver Auditorías', descripcion: 'Ver auditorías de inventario' },
-      { modulo: 'inventario', recurso: 'auditorias', accion: 'CREAR', nombre: 'Crear Auditorías', descripcion: 'Planificar nuevas auditorías' },
-      { modulo: 'inventario', recurso: 'auditorias', accion: 'EDITAR', nombre: 'Editar Auditorías', descripcion: 'Modificar auditorías planificadas' },
-      { modulo: 'inventario', recurso: 'auditorias', accion: 'CUSTOM', nombre: 'Ejecutar Auditorías', descripcion: 'Realizar conteos físicos de inventario' },
-      { modulo: 'inventario', recurso: 'auditorias', accion: 'CUSTOM', nombre: 'Finalizar Auditorías', descripcion: 'Completar y cerrar auditorías' },
-      { modulo: 'inventario', recurso: 'auditorias', accion: 'EXPORTAR', nombre: 'Exportar Auditorías', descripcion: 'Exportar reportes de auditorías' },
+    //   // ============= MÓDULO: INVENTARIO - AUDITORÍAS =============
+    //   { modulo: 'inventario', recurso: 'auditorias', accion: 'VER', nombre: 'Ver Auditorías', descripcion: 'Ver auditorías de inventario' },
+    //   { modulo: 'inventario', recurso: 'auditorias', accion: 'CREAR', nombre: 'Crear Auditorías', descripcion: 'Planificar nuevas auditorías' },
+    //   { modulo: 'inventario', recurso: 'auditorias', accion: 'EDITAR', nombre: 'Editar Auditorías', descripcion: 'Modificar auditorías planificadas' },
+    //   { modulo: 'inventario', recurso: 'auditorias', accion: 'CUSTOM', nombre: 'Ejecutar Auditorías', descripcion: 'Realizar conteos físicos de inventario' },
+    //   { modulo: 'inventario', recurso: 'auditorias', accion: 'CUSTOM', nombre: 'Finalizar Auditorías', descripcion: 'Completar y cerrar auditorías' },
+    //   { modulo: 'inventario', recurso: 'auditorias', accion: 'EXPORTAR', nombre: 'Exportar Auditorías', descripcion: 'Exportar reportes de auditorías' },
 
-      // ============= MÓDULO: INVENTARIO - AJUSTES =============
-      { modulo: 'inventario', recurso: 'ajustes', accion: 'VER', nombre: 'Ver Ajustes', descripcion: 'Ver ajustes de inventario' },
-      { modulo: 'inventario', recurso: 'ajustes', accion: 'CREAR', nombre: 'Crear Ajustes', descripcion: 'Solicitar ajustes de inventario' },
-      { modulo: 'inventario', recurso: 'ajustes', accion: 'EDITAR', nombre: 'Editar Ajustes', descripcion: 'Modificar ajustes pendientes' },
-      { modulo: 'inventario', recurso: 'ajustes', accion: 'ELIMINAR', nombre: 'Eliminar Ajustes', descripcion: 'Eliminar ajustes no autorizados' },
-      { modulo: 'inventario', recurso: 'ajustes', accion: 'APROBAR', nombre: 'Aprobar Ajustes', descripcion: 'Autorizar ajustes de inventario', es_critico: true, requiere_auditoria: true },
-      { modulo: 'inventario', recurso: 'ajustes', accion: 'RECHAZAR', nombre: 'Rechazar Ajustes', descripcion: 'Rechazar ajustes de inventario', requiere_auditoria: true },
+    //   // ============= MÓDULO: INVENTARIO - AJUSTES =============
+    //   { modulo: 'inventario', recurso: 'ajustes', accion: 'VER', nombre: 'Ver Ajustes', descripcion: 'Ver ajustes de inventario' },
+    //   { modulo: 'inventario', recurso: 'ajustes', accion: 'CREAR', nombre: 'Crear Ajustes', descripcion: 'Solicitar ajustes de inventario' },
+    //   { modulo: 'inventario', recurso: 'ajustes', accion: 'EDITAR', nombre: 'Editar Ajustes', descripcion: 'Modificar ajustes pendientes' },
+    //   { modulo: 'inventario', recurso: 'ajustes', accion: 'ELIMINAR', nombre: 'Eliminar Ajustes', descripcion: 'Eliminar ajustes no autorizados' },
+    //   { modulo: 'inventario', recurso: 'ajustes', accion: 'APROBAR', nombre: 'Aprobar Ajustes', descripcion: 'Autorizar ajustes de inventario', es_critico: true, requiere_auditoria: true },
+    //   { modulo: 'inventario', recurso: 'ajustes', accion: 'RECHAZAR', nombre: 'Rechazar Ajustes', descripcion: 'Rechazar ajustes de inventario', requiere_auditoria: true },
 
-      // ============= MÓDULO: INVENTARIO - MOVIMIENTOS =============
-      { modulo: 'inventario', recurso: 'movimientos', accion: 'VER', nombre: 'Ver Movimientos', descripcion: 'Ver historial de movimientos de inventario' },
-      { modulo: 'inventario', recurso: 'movimientos', accion: 'EXPORTAR', nombre: 'Exportar Movimientos', descripcion: 'Exportar reporte de movimientos' },
+    //   // ============= MÓDULO: INVENTARIO - MOVIMIENTOS =============
+    //   { modulo: 'inventario', recurso: 'movimientos', accion: 'VER', nombre: 'Ver Movimientos', descripcion: 'Ver historial de movimientos de inventario' },
+    //   { modulo: 'inventario', recurso: 'movimientos', accion: 'EXPORTAR', nombre: 'Exportar Movimientos', descripcion: 'Exportar reporte de movimientos' },
 
-      // ============= MÓDULO: INVENTARIO - SERIES =============
-      { modulo: 'inventario', recurso: 'series', accion: 'VER', nombre: 'Ver Series', descripcion: 'Ver equipos con número de serie' },
-      { modulo: 'inventario', recurso: 'series', accion: 'CUSTOM', nombre: 'Rastrear Serie', descripcion: 'Ver historial completo de una serie' },
+    //   // ============= MÓDULO: INVENTARIO - SERIES =============
+    //   { modulo: 'inventario', recurso: 'series', accion: 'VER', nombre: 'Ver Series', descripcion: 'Ver equipos con número de serie' },
+    //   { modulo: 'inventario', recurso: 'series', accion: 'CUSTOM', nombre: 'Rastrear Serie', descripcion: 'Ver historial completo de una serie' },
 
-      // ============= MÓDULO: PROVEEDORES =============
-      { modulo: 'administracion', recurso: 'proveedores', accion: 'VER', nombre: 'Ver Proveedores', descripcion: 'Ver proveedores' },
-      { modulo: 'administracion', recurso: 'proveedores', accion: 'CREAR', nombre: 'Crear Proveedores', descripcion: 'Registrar nuevos proveedores' },
-      { modulo: 'administracion', recurso: 'proveedores', accion: 'EDITAR', nombre: 'Editar Proveedores', descripcion: 'Modificar proveedores' },
-      { modulo: 'administracion', recurso: 'proveedores', accion: 'ELIMINAR', nombre: 'Eliminar Proveedores', descripcion: 'Eliminar proveedores' },
+    //   // ============= MÓDULO: PROVEEDORES =============
+    //   { modulo: 'administracion', recurso: 'proveedores', accion: 'VER', nombre: 'Ver Proveedores', descripcion: 'Ver proveedores' },
+    //   { modulo: 'administracion', recurso: 'proveedores', accion: 'CREAR', nombre: 'Crear Proveedores', descripcion: 'Registrar nuevos proveedores' },
+    //   { modulo: 'administracion', recurso: 'proveedores', accion: 'EDITAR', nombre: 'Editar Proveedores', descripcion: 'Modificar proveedores' },
+    //   { modulo: 'administracion', recurso: 'proveedores', accion: 'ELIMINAR', nombre: 'Eliminar Proveedores', descripcion: 'Eliminar proveedores' },
 
-      // ============= MÓDULO: REPORTES =============
-      { modulo: 'reportes', recurso: 'inventario', accion: 'VER', nombre: 'Ver Reportes de Inventario', descripcion: 'Acceso a reportes de inventario' },
-      { modulo: 'reportes', recurso: 'ventas', accion: 'VER', nombre: 'Ver Reportes de Ventas', descripcion: 'Acceso a reportes de ventas' },
-      { modulo: 'reportes', recurso: 'clientes', accion: 'VER', nombre: 'Ver Reportes de Clientes', descripcion: 'Acceso a reportes de clientes' },
-      { modulo: 'reportes', recurso: 'financieros', accion: 'VER', nombre: 'Ver Reportes Financieros', descripcion: 'Acceso a reportes financieros', es_critico: true },
-    ];
+    //   // ============= MÓDULO: REPORTES =============
+    //   { modulo: 'reportes', recurso: 'inventario', accion: 'VER', nombre: 'Ver Reportes de Inventario', descripcion: 'Acceso a reportes de inventario' },
+    //   { modulo: 'reportes', recurso: 'ventas', accion: 'VER', nombre: 'Ver Reportes de Ventas', descripcion: 'Acceso a reportes de ventas' },
+    //   { modulo: 'reportes', recurso: 'clientes', accion: 'VER', nombre: 'Ver Reportes de Clientes', descripcion: 'Acceso a reportes de clientes' },
+    //   { modulo: 'reportes', recurso: 'financieros', accion: 'VER', nombre: 'Ver Reportes Financieros', descripcion: 'Acceso a reportes financieros', es_critico: true },
+    // ];
 
-    // Crear permisos con código generado
-    for (const permiso of permisosData) {
-      const codigo = `${permiso.modulo}.${permiso.recurso}:${permiso.accion.toLowerCase()}`;
+    // // Crear permisos con código generado
+    // for (const permiso of permisosData) {
+    //   const codigo = `${permiso.modulo}.${permiso.recurso}:${permiso.accion.toLowerCase()}`;
 
-      await this.prisma.permisos.create({
-        data: {
-          codigo,
-          nombre: permiso.nombre,
-          descripcion: permiso.descripcion,
-          modulo: permiso.modulo,
-          recurso: permiso.recurso,
-          accion: permiso.accion as any, // Type cast para enum
-          tipo: 'RECURSO',
-          es_critico: permiso.es_critico || false,
-          requiere_auditoria: permiso.requiere_auditoria || false,
-        }
-      });
-    }
+    //   await this.prisma.permisos.create({
+    //     data: {
+    //       codigo,
+    //       nombre: permiso.nombre,
+    //       descripcion: permiso.descripcion,
+    //       modulo: permiso.modulo,
+    //       recurso: permiso.recurso,
+    //       accion: permiso.accion as any, // Type cast para enum
+    //       tipo: 'RECURSO',
+    //       es_critico: permiso.es_critico || false,
+    //       requiere_auditoria: permiso.requiere_auditoria || false,
+    //     }
+    //   });
+    // }
 
-    this.logger.log(`✅ ${permisosData.length} permisos creados`);
+    // this.logger.log(`✅ ${permisosData.length} permisos creados`);
 
     // ============= ASIGNAR PERMISOS AL ROL ADMIN =============
     this.logger.log('🔗 Asignando todos los permisos al rol Admin...');
