@@ -36,6 +36,15 @@ export class UpdateAuditoriaDto {
   })
   @IsOptional()
   @IsInt()
+  id_bodega?: number;
+
+  @ApiPropertyOptional({
+    description: 'ID del estante específico',
+    example: 3,
+    nullable: true,
+  })
+  @IsOptional()
+  @IsInt()
   id_estante?: number;
 
   @ApiPropertyOptional({

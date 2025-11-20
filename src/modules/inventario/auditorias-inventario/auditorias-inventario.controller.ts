@@ -33,6 +33,7 @@ import {
   RegistrarConteoDto,
   EscanearSerieDto,
   FinalizarAuditoriaDto,
+  FinalizarYAplicarDirectoDto,
   CreateAjusteDto,
   AutorizarAjusteDto,
   FilterAjusteDto,
@@ -402,6 +403,71 @@ export class AuditoriasInventarioController {
       id,
       finalizarAuditoriaDto,
       id_usuario,
+    );
+  }
+
+  @RequirePermissions('inventario.auditorias:finalizar_directo')
+  @Post(':id/finalizar-y-aplicar')
+  @ApiOperation({
+    summary: 'Finalizar auditoría y aplicar ajustes automáticamente (MODO DIRECTO)',
+    description:
+      'Este endpoint combina todo el workflow en un solo paso: finaliza la auditoría, genera ajustes automáticos, los auto-autoriza y los aplica al inventario. Las cantidades físicas levantadas reemplazarán directamente las cantidades del sistema. ⚠️ NO requiere autorización adicional. Usar solo cuando el usuario tenga autoridad para ajustar inventario sin supervisión.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la auditoría',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Auditoría finalizada y ajustes aplicados exitosamente',
+    schema: {
+      type: 'object',
+      properties: {
+        auditoria: {
+          type: 'object',
+          description: 'Auditoría completada',
+        },
+        ajustes_aplicados: {
+          type: 'array',
+          description: 'Lista de ajustes generados y aplicados',
+        },
+        movimientos_generados: {
+          type: 'array',
+          description: 'Movimientos de inventario creados',
+        },
+        resumen: {
+          type: 'object',
+          properties: {
+            total_items_auditados: { type: 'number' },
+            items_conformes: { type: 'number' },
+            items_con_discrepancia: { type: 'number' },
+            total_ajustes_aplicados: { type: 'number' },
+            valor_total_discrepancias: { type: 'number' },
+            porcentaje_accuracy: { type: 'number' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Auditoría no está EN_PROGRESO, no hay conteos registrados, o el ajuste resultaría en cantidad negativa',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Auditoría no encontrada',
+  })
+  finalizarYAplicarDirecto(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: FinalizarYAplicarDirectoDto,
+    @GetUser('id_usuario') id_usuario: number,
+  ) {
+    return this.auditoriasInventarioService.finalizarYAplicarDirecto(
+      id,
+      id_usuario,
+      dto.observaciones,
     );
   }
 

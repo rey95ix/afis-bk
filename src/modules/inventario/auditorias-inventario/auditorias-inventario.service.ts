@@ -36,7 +36,7 @@ export class AuditoriasInventarioService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly minioService: MinioService,
-  ) {}
+  ) { }
 
   /**
    * Generar código único para auditoría: AUD-YYYYMM-####
@@ -62,11 +62,11 @@ export class AuditoriasInventarioService {
   /**
    * Generar código único para ajuste: AJU-YYYYMM-####
    */
-  private async generarCodigoAjuste(): Promise<string> {
+  private async generarCodigoAjuste(prisma: any): Promise<string> {
     const now = new Date();
     const prefix = `AJU-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    const ultimoAjuste = await this.prisma.ajustes_inventario.findFirst({
+    const ultimoAjuste = await prisma.ajustes_inventario.findFirst({
       where: { codigo: { startsWith: prefix } },
       orderBy: { codigo: 'desc' },
     });
@@ -413,6 +413,7 @@ export class AuditoriasInventarioService {
           tipo: updateDto.tipo,
           estado: updateDto.estado,
           id_estante: updateDto.id_estante,
+          id_bodega: updateDto.id_bodega,
           incluir_todas_categorias: updateDto.incluir_todas_categorias,
           categorias_a_auditar: categoriasJson,
           fecha_planificada: updateDto.fecha_planificada
@@ -1024,7 +1025,7 @@ export class AuditoriasInventarioService {
           );
         }
 
-        const codigo = await this.generarCodigoAjuste();
+        const codigo = await this.generarCodigoAjuste(tx);
 
         const ajuste = await tx.ajustes_inventario.create({
           data: {
@@ -1495,7 +1496,7 @@ export class AuditoriasInventarioService {
       (sum, inv) =>
         sum +
         (inv.cantidad_disponible + inv.cantidad_reservada) *
-          Number(inv.costo_promedio || 0),
+        Number(inv.costo_promedio || 0),
       0,
     );
 
@@ -1595,5 +1596,229 @@ export class AuditoriasInventarioService {
         `Error al generar PDF: ${error.message}`,
       );
     }
+  }
+
+  /**
+   * Finalizar auditoría y aplicar ajustes automáticamente (MODO DIRECTO)
+   *
+   * Este método combina todo el workflow en un solo paso:
+   * 1. Finaliza la auditoría
+   * 2. Genera ajustes automáticos para todas las discrepancias
+   * 3. Auto-autoriza los ajustes
+   * 4. Aplica los ajustes al inventario
+   * 5. Marca la auditoría como COMPLETADA
+   *
+   * ⚠️ ADVERTENCIA: Este método NO requiere autorización adicional.
+   * Las cantidades físicas levantadas reemplazarán directamente las cantidades del sistema.
+   * Usar solo cuando el usuario tenga autoridad para ajustar inventario sin supervisión.
+   *
+   * @param id - ID de la auditoría
+   * @param id_usuario - Usuario que ejecuta (será registrado como solicitante y autorizador)
+   * @returns Resultado con auditoría completada, ajustes aplicados y movimientos generados
+   */
+  async finalizarYAplicarDirecto(
+    id: number,
+    id_usuario: number,
+    observaciones?: string,
+  ): Promise<any> {
+    // Obtener auditoría
+    const auditoria = await this.prisma.auditorias_inventario.findUnique({
+      where: { id_auditoria: id },
+      include: {
+        detalle: {
+          include: {
+            catalogo: true,
+          },
+        },
+        bodega: true,
+        estante: true,
+      },
+    });
+
+    if (!auditoria) {
+      throw new NotFoundException(`Auditoría con ID ${id} no encontrada`);
+    }
+
+    if (auditoria.estado !== estado_auditoria.EN_PROGRESO) {
+      throw new BadRequestException(
+        'Solo se puede finalizar y aplicar una auditoría EN_PROGRESO',
+      );
+    }
+
+    // Validar que hay conteos registrados
+    const itemsContados = auditoria.detalle.filter((d) => d.fue_contado).length;
+    if (itemsContados === 0) {
+      throw new BadRequestException(
+        'No se han registrado conteos. Debe contar al menos un producto.',
+      );
+    }
+
+    // Procesar en transacción
+    const resultado = await this.prisma.$transaction(async (tx) => {
+      // 1. Calcular resumen de auditoría
+      const totalItems = auditoria.detalle.length;
+      const itemsConformes = auditoria.detalle.filter(
+        (d) => d.tipo_discrepancia === tipo_discrepancia.CONFORME,
+      ).length;
+      const itemsConDiscrepancia = auditoria.detalle.filter(
+        (d) =>
+          d.tipo_discrepancia === tipo_discrepancia.FALTANTE ||
+          d.tipo_discrepancia === tipo_discrepancia.SOBRANTE,
+      ).length;
+      const valorTotalDiscrepancias = auditoria.detalle.reduce(
+        (sum, d) => sum + Number(d.discrepancia_valor || 0),
+        0,
+      );
+      const porcentajeAccuracy =
+        itemsContados > 0 ? (itemsConformes / itemsContados) * 100 : 0;
+
+      // 2. Generar y aplicar ajustes para items con discrepancia
+      const ajustesAplicados: any[] = [];
+      const movimientosGenerados: any[] = [];
+
+      for (const detalle of auditoria.detalle) {
+        // Solo ajustar items contados con discrepancia
+        if (
+          !detalle.fue_contado ||
+          detalle.tipo_discrepancia === tipo_discrepancia.CONFORME ||
+          detalle.discrepancia === 0
+        ) {
+          continue;
+        }
+
+        // Obtener inventario actual
+        const inventario = await tx.inventario.findFirst({
+          where: {
+            id_catalogo: detalle.id_catalogo,
+            id_bodega: auditoria.id_bodega,
+            id_estante: auditoria.id_estante,
+          },
+        });
+
+        if (!inventario) {
+          throw new NotFoundException(
+            `Inventario para producto ${detalle.catalogo.nombre} no encontrado`,
+          );
+        }
+
+        // Validar que no quede negativo
+        const nuevaCantidad =
+          inventario.cantidad_disponible + (detalle.discrepancia || 0);
+        if (nuevaCantidad < 0) {
+          throw new BadRequestException(
+            `El ajuste del producto "${detalle.catalogo.nombre}" resultaría en cantidad negativa (${nuevaCantidad})`,
+          );
+        }
+
+        // Generar código de ajuste
+        const codigoAjuste = await this.generarCodigoAjuste(tx); 
+        // Crear ajuste
+        const ajuste = await tx.ajustes_inventario.create({
+          data: {
+            codigo: codigoAjuste,
+            id_auditoria: auditoria.id_auditoria,
+            id_auditoria_detalle: detalle.id_auditoria_detalle,
+            id_catalogo: detalle.id_catalogo,
+            id_bodega: auditoria.id_bodega,
+            id_estante: auditoria.id_estante,
+            cantidad_anterior: detalle.cantidad_sistema,
+            cantidad_ajuste: detalle.discrepancia || 0,
+            cantidad_nueva: detalle.cantidad_fisica || 0,
+            costo_unitario: inventario.costo_promedio,
+            motivo: tipo_movimiento.AJUSTE_INVENTARIO,
+            motivo_detallado: `Ajuste automático por levantamiento de inventario ${auditoria.codigo}${observaciones ? ` - ${observaciones}` : ''}`,
+            tipo_discrepancia: detalle.tipo_discrepancia,
+            causa_discrepancia: detalle.causa_probable,
+            estado: estado_ajuste.APLICADO, // Directamente aplicado
+            id_usuario_solicita: id_usuario,
+            id_usuario_autoriza: id_usuario, // Mismo usuario auto-autoriza
+            observaciones_autorizacion: 'Auto-autorizado en levantamiento directo',
+            fecha_solicitud: new Date(),
+            fecha_autorizacion: new Date(),
+            fecha_aplicacion: new Date(),
+          },
+        });
+
+        // Actualizar inventario
+        const inventarioActualizado = await tx.inventario.update({
+          where: { id_inventario: inventario.id_inventario },
+          data: {
+            cantidad_disponible: nuevaCantidad,
+          },
+        });
+
+        // Crear movimiento de inventario
+        const movimiento = await tx.movimientos_inventario.create({
+          data: {
+            tipo: tipo_movimiento.AJUSTE_INVENTARIO,
+            id_catalogo: detalle.id_catalogo,
+            id_bodega_destino:
+              (detalle.discrepancia || 0) > 0 ? auditoria.id_bodega : null,
+            id_bodega_origen:
+              (detalle.discrepancia || 0) < 0 ? auditoria.id_bodega : null,
+            cantidad: Math.abs(detalle.discrepancia || 0),
+            costo_unitario: inventario.costo_promedio,
+            id_usuario: id_usuario,
+            observaciones: `Ajuste ${codigoAjuste} - Levantamiento ${auditoria.codigo} - ${detalle.catalogo.nombre}`,
+          },
+        });
+
+        // Actualizar ajuste con el ID del movimiento
+        await tx.ajustes_inventario.update({
+          where: { id_ajuste: ajuste.id_ajuste },
+          data: {
+            id_movimiento_generado: movimiento.id_movimiento,
+          },
+        });
+
+        ajustesAplicados.push({
+          ...ajuste,
+          producto: detalle.catalogo.nombre,
+          inventario_actualizado: inventarioActualizado,
+        });
+        movimientosGenerados.push(movimiento);
+      }
+
+      // 3. Actualizar auditoría a COMPLETADA
+      const auditoriaFinalizada = await tx.auditorias_inventario.update({
+        where: { id_auditoria: id },
+        data: {
+          estado: estado_auditoria.COMPLETADA, // Directamente a COMPLETADA
+          fecha_fin: new Date(),
+          total_items_auditados: itemsContados,
+          total_items_conformes: itemsConformes,
+          total_items_con_discrepancia: itemsConDiscrepancia,
+          valor_total_discrepancias: valorTotalDiscrepancias,
+          porcentaje_accuracy: porcentajeAccuracy,
+          observaciones: observaciones
+            ? `${auditoria.observaciones || ''}\n[Finalización directa]: ${observaciones}`
+            : auditoria.observaciones,
+        },
+      });
+
+      return {
+        auditoria: auditoriaFinalizada,
+        ajustes_aplicados: ajustesAplicados,
+        movimientos_generados: movimientosGenerados,
+        resumen: {
+          total_items_auditados: itemsContados,
+          items_conformes: itemsConformes,
+          items_con_discrepancia: itemsConDiscrepancia,
+          total_ajustes_aplicados: ajustesAplicados.length,
+          valor_total_discrepancias: valorTotalDiscrepancias,
+          porcentaje_accuracy: porcentajeAccuracy,
+        },
+      };
+    });
+
+    // 4. Crear snapshot (fuera de la transacción)
+    try {
+      await this.createSnapshot(id);
+    } catch (error) {
+      // No fallar si el snapshot falla
+      console.error('Error al crear snapshot:', error);
+    }
+
+    return resultado;
   }
 }
