@@ -21,7 +21,7 @@ export class DetalleItemDto {
 
   @ApiPropertyOptional({
     description:
-      'Cantidad a sacar (requerido si el producto NO es serializado, debe ser >= 1)',
+      'Cantidad a sacar (requerido SOLO si el producto NO es serializado, debe ser >= 1). Si el producto ES serializado (tiene id_serie), este campo debe ser 1 u omitirse.',
     example: 5,
     minimum: 1,
   })
@@ -34,7 +34,7 @@ export class DetalleItemDto {
 
   @ApiPropertyOptional({
     description:
-      'ID de la serie del inventario (requerido si el producto ES serializado)',
+      'ID de la serie del inventario (requerido SOLO si el producto ES serializado). Para productos serializados, cada línea del detalle debe tener exactamente 1 serie. Si necesita enviar múltiples unidades, agregue múltiples líneas al detalle.',
     example: 789,
   })
   @IsOptional()

@@ -105,6 +105,13 @@ export class SalidasTemporalesOtService {
       const esSerializado = !!item.id_serie;
 
       if (esSerializado) {
+        // Validar que para productos serializados, cantidad debe ser 1 o no proporcionarse
+        if (item.cantidad && item.cantidad !== 1) {
+          throw new BadRequestException(
+            `Producto serializado "${catalogo.nombre}": cada línea del detalle debe tener cantidad=1 o no especificar cantidad. Si necesita múltiples unidades, agregue múltiples líneas al detalle (una por cada serie).`,
+          );
+        }
+
         // Validar serie
         const serie = await this.prisma.inventario_series.findUnique({
           where: { id_serie: item.id_serie },
