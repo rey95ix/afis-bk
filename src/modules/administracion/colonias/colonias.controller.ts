@@ -33,7 +33,6 @@ export class ColoniasController {
   constructor(private readonly coloniasService: ColoniasService) {}
 
   @Post()
-  @Auth()
   @RequirePermissions('administracion.colonias:crear')
   @ApiOperation({ summary: 'Crear una nueva colonia' })
   @ApiResponse({ status: 201, description: 'La colonia ha sido creada.' })
@@ -43,7 +42,6 @@ export class ColoniasController {
   }
 
   @Get()
-  @Auth()
   @RequirePermissions('administracion.colonias:ver')
   @ApiOperation({ summary: 'Obtener todas las colonias activas con paginación y búsqueda' })
   @ApiResponse({
@@ -73,7 +71,6 @@ export class ColoniasController {
   }
 
   @Get('municipio/:id_municipio')
-  @Auth()
   @RequirePermissions('administracion.colonias:ver')
   @ApiOperation({ summary: 'Obtener colonias por municipio' })
   @ApiParam({
@@ -90,7 +87,6 @@ export class ColoniasController {
   }
 
   @Get(':id')
-  @Auth()
   @RequirePermissions('administracion.colonias:ver')
   @ApiOperation({ summary: 'Obtener una colonia por su ID' })
   @ApiResponse({ status: 200, description: 'Retorna la colonia.' })
@@ -100,7 +96,6 @@ export class ColoniasController {
   }
 
   @Put(':id')
-  @Auth()
   @RequirePermissions('administracion.colonias:editar')
   @ApiOperation({ summary: 'Actualizar una colonia' })
   @ApiResponse({ status: 200, description: 'La colonia ha sido actualizada.' })
@@ -113,7 +108,6 @@ export class ColoniasController {
   }
 
   @Delete(':id')
-  @Auth()
   @RequirePermissions('administracion.colonias:eliminar')
   @ApiOperation({ summary: 'Eliminar una colonia (cambia estado a INACTIVO)' })
   @ApiResponse({ status: 200, description: 'La colonia ha sido inactivada.' })
