@@ -97,6 +97,7 @@ COPY --from=deps /app/prisma ./prisma
 
 # Copiar archivos estáticos necesarios
 COPY templates ./templates
+COPY firebase-service-account.json /app/firebase-service-account.json
 # COPY assets ./assets
 
 # Cambiar permisos y usuario

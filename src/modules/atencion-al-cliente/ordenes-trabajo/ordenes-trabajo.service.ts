@@ -924,6 +924,29 @@ export class OrdenesTrabajoService {
         },
       });
 
+      // Si es una OT de INSTALACIÓN con resultado RESUELTO, actualizar contratos vinculados
+      if (orden.tipo === 'INSTALACION' && cerrarDto.resultado === 'RESUELTO') {
+        // Buscar contratos vinculados a esta orden de instalación
+        const contratosVinculados = await prisma.atcContrato.findMany({
+          where: {
+            id_orden_trabajo: id,
+            estado: 'PENDIENTE_INSTALACION'
+          }
+        });
+
+        // Actualizar cada contrato a INSTALADO_ACTIVO
+        for (const contrato of contratosVinculados) {
+          await prisma.atcContrato.update({
+            where: { id_contrato: contrato.id_contrato },
+            data: {
+              estado: 'INSTALADO_ACTIVO',
+              fecha_instalacion: new Date(),
+              fecha_inicio_contrato: new Date()
+            }
+          });
+        }
+      }
+
       // Cerrar automáticamente el ticket asociado si existe
       if (orden.id_ticket) {
         const observacionesCierre = `Ticket cerrado automáticamente - Orden de trabajo ${orden.codigo} completada.\nResultado: ${cerrarDto.resultado}\n${cerrarDto.notas_cierre ? 'Notas: ' + cerrarDto.notas_cierre : ''}`;
