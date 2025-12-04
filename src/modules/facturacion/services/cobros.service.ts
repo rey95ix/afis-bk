@@ -8,7 +8,13 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { v4 as uuidv4 } from 'uuid';
-import { CrearCobroDto, ItemCobroDto } from '../dto';
+import {
+  CrearCobroDto,
+  ItemCobroDto,
+  ContratosPendientesDto,
+  ContratosPendientesResponse,
+  ContratoPendiente,
+} from '../dto';
 import {
   FcBuilderService,
   CcfBuilderService,
@@ -664,5 +670,126 @@ export class CobrosService {
       limit,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  /**
+   * Obtiene contratos pendientes de cobro con información de mora
+   *
+   * @param dto Filtros y paginación
+   * @returns Lista paginada de contratos con info de pago
+   */
+  async getContratosPendientes(dto: ContratosPendientesDto): Promise<ContratosPendientesResponse> {
+    const { page = 1, limit = 10, search, estado } = dto;
+    const skip = (page - 1) * limit;
+
+    // Estados que pueden facturarse
+    const estadosFacturables = estado
+      ? [estado]
+      : ['INSTALADO_ACTIVO', 'EN_MORA', 'VELOCIDAD_REDUCIDA'];
+
+    // Construir where clause
+    const whereClause: any = {
+      estado: { in: estadosFacturables },
+    };
+
+    // Búsqueda por nombre de cliente o número de contrato
+    if (search) {
+      whereClause.OR = [
+        { codigo: { contains: search, mode: 'insensitive' } },
+        { cliente: { titular: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    // Obtener contratos con relaciones
+    const [contratos, total] = await Promise.all([
+      this.prisma.atcContrato.findMany({
+        where: whereClause,
+        include: {
+          cliente: {
+            select: {
+              id_cliente: true,
+              titular: true,
+              dui: true,
+              nit: true,
+            },
+          },
+          plan: {
+            select: {
+              id_plan: true,
+              nombre: true,
+              precio: true,
+            },
+          },
+        },
+        orderBy: { fecha_creacion: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.atcContrato.count({ where: whereClause }),
+    ]);
+
+    // Calcular mora para cada contrato y construir respuesta
+    const data: ContratoPendiente[] = await Promise.all(
+      contratos.map(async (contrato) => {
+        // Calcular mora
+        const calculoMora = await this.moraService.calcularMora(contrato.id_contrato);
+
+        // Obtener precio del plan
+        const precioBase = Number(contrato.plan?.precio || 0);
+
+        // Calcular total
+        const totalPagar = precioBase + (calculoMora.aplicaMora ? calculoMora.montoMora : 0);
+
+        // Determinar período actual
+        const periodoActual = this.obtenerPeriodoActual();
+
+        return {
+          idContrato: contrato.id_contrato,
+          numeroContrato: contrato.codigo,
+          cliente: {
+            id: contrato.cliente.id_cliente,
+            nombre: contrato.cliente.titular,
+            dui: contrato.cliente.dui,
+            nit: contrato.cliente.nit,
+          },
+          plan: {
+            id: contrato.plan?.id_plan || 0,
+            nombre: contrato.plan?.nombre || 'Sin plan',
+            precio: precioBase,
+          },
+          estado: contrato.estado,
+          periodoActual,
+          montoBase: precioBase,
+          mora: {
+            aplica: calculoMora.aplicaMora,
+            monto: calculoMora.montoMora,
+            diasAtraso: calculoMora.diasAtraso,
+          },
+          totalPagar: Math.round(totalPagar * 100) / 100,
+        };
+      }),
+    );
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * Obtiene el período actual en formato "Mes Año"
+   */
+  private obtenerPeriodoActual(): string {
+    const meses = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+    ];
+    const fecha = new Date();
+    return `${meses[fecha.getMonth()]} ${fecha.getFullYear()}`;
   }
 }

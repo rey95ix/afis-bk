@@ -18,7 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { CobrosService } from '../services';
-import { CrearCobroDto } from '../dto';
+import { CrearCobroDto, ContratosPendientesDto } from '../dto';
 import { estado_dte } from '@prisma/client';
 
 @ApiTags('Facturación - Cobros')
@@ -27,6 +27,54 @@ import { estado_dte } from '@prisma/client';
 @Controller('facturacion/cobros')
 export class CobrosController {
   constructor(private readonly cobrosService: CobrosService) {}
+
+  @Get('contratos-pendientes')
+  @ApiOperation({
+    summary: 'Listar contratos pendientes de cobro',
+    description: `
+      Lista todos los contratos con estados facturables (INSTALADO_ACTIVO, EN_MORA, VELOCIDAD_REDUCIDA)
+      junto con información del monto a pagar y mora si aplica.
+
+      Este endpoint es útil para:
+      - Ver contratos que necesitan facturación
+      - Mostrar el monto base del plan + mora calculada
+      - Buscar por cliente o número de contrato
+    `,
+  })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Página (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items por página (default: 10)' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Buscar por cliente o contrato' })
+  @ApiQuery({
+    name: 'estado',
+    required: false,
+    enum: ['INSTALADO_ACTIVO', 'EN_MORA', 'VELOCIDAD_REDUCIDA'],
+    description: 'Filtrar por estado',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de contratos pendientes',
+    schema: {
+      example: {
+        data: [
+          {
+            idContrato: 1,
+            numeroContrato: 'C-2024-001',
+            cliente: { id: 1, nombre: 'Juan Pérez', dui: '12345678-9', nit: null },
+            plan: { id: 1, nombre: 'Plan 10 Mbps', precio: 25.0 },
+            estado: 'INSTALADO_ACTIVO',
+            periodoActual: 'Diciembre 2024',
+            montoBase: 25.0,
+            mora: { aplica: false, monto: 0, diasAtraso: 0 },
+            totalPagar: 25.0,
+          },
+        ],
+        meta: { total: 1, page: 1, limit: 10, totalPages: 1 },
+      },
+    },
+  })
+  async getContratosPendientes(@Query() dto: ContratosPendientesDto) {
+    return this.cobrosService.getContratosPendientes(dto);
+  }
 
   @Post()
   @ApiOperation({
