@@ -22,6 +22,10 @@ import { ReportesController } from './reportes/reportes.controller';
 import { ReportesService } from './reportes/reportes.service';
 import { TicketsController } from './tickets/tickets.controller';
 import { TicketsService } from './tickets/tickets.service';
+import { ContratosController } from './contratos/contratos.controller';
+import { ContratosService } from './contratos/contratos.service';
+import { ContratoInstalacionController } from './contratos/contrato-instalacion.controller';
+import { ContratoInstalacionService } from './contratos/contrato-instalacion.service';
 
 @Module({
   imports: [ 
@@ -39,7 +43,9 @@ import { TicketsService } from './tickets/tickets.service';
     CatalogosController,
     OrdenesTrabajoController,
     ReportesController,
-    TicketsController
+    TicketsController,
+    ContratosController,
+    ContratoInstalacionController,
   ],
   providers: [
     ClientesService,
@@ -50,7 +56,9 @@ import { TicketsService } from './tickets/tickets.service';
     CatalogosService,
     OrdenesTrabajoService,
     ReportesService,
-    TicketsService
+    TicketsService,
+    ContratosService,
+    ContratoInstalacionService,
   ],
 })
 export class AtencionAlClienteModule { }

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SmsService } from '../../sms/sms.service';
+import { FcmService } from '../../fcm/fcm.service';
 import { CreateOrdenDto } from './dto/create-orden.dto';
 import { UpdateOrdenDto } from './dto/update-orden.dto';
 import { QueryOrdenDto } from './dto/query-orden.dto';
@@ -18,12 +19,14 @@ import { CreateActividadDto } from './dto/create-actividad.dto';
 import { UpdateActividadDto } from './dto/update-actividad.dto';
 import { CreateMaterialDto } from './dto/create-material.dto';
 import { CreateEvidenciaDto } from './dto/create-evidencia.dto';
+import { orden_trabajo } from '@prisma/client';
 
 @Injectable()
 export class OrdenesTrabajoService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly smsService: SmsService,
+    private readonly fcmService: FcmService,
   ) { }
 
   private async generarCodigoOrden(): Promise<string> {
@@ -287,6 +290,7 @@ export class OrdenesTrabajoService {
             dui: true,
           },
         },
+        contratos: true,
         direccion_servicio: {
           include: {
             colonias: true,
@@ -402,6 +406,12 @@ export class OrdenesTrabajoService {
 
     const tecnico = await this.prisma.usuarios.findUnique({
       where: { id_usuario: asignarDto.id_tecnico },
+      select: {
+        id_usuario: true,
+        nombres: true,
+        apellidos: true,
+        fcm_token: true,
+      },
     });
 
     if (!tecnico) {
@@ -446,6 +456,20 @@ export class OrdenesTrabajoService {
       userId,
       `Orden ${orden.codigo} asignada a técnico ${tecnico.nombres} ${tecnico.apellidos}`,
     );
+
+    // Enviar notificación push al técnico si tiene token FCM
+    if (tecnico.fcm_token) {
+      try {
+        await this.fcmService.notificarOrdenAsignada(
+          tecnico.fcm_token,
+          orden.codigo,
+          orden.id_orden,
+        );
+      } catch (error) {
+        // Log error pero no fallar la operación principal
+        console.error('Error al enviar notificación push de orden asignada:', error);
+      }
+    }
 
     return result;
   }
@@ -561,7 +585,7 @@ export class OrdenesTrabajoService {
         // Determinar si es AM o PM
         const hora = inicio.getHours();
         const horario = hora < 12 ? 'AM' : 'PM';
- 
+
         await this.smsService.enviarNotificacionOrdenAgendada(
           ordenCompleta.cliente.telefono1,
           ordenCompleta.cliente.titular,
@@ -577,6 +601,26 @@ export class OrdenesTrabajoService {
     } catch (error) {
       // Log error pero no fallar la operación principal
       console.error('Error al enviar SMS de orden agendada:', error);
+    }
+
+    // Enviar notificación push al técnico si tiene token FCM
+    try {
+      const tecnico = await this.prisma.usuarios.findUnique({
+        where: { id_usuario: idTecnico },
+        select: { fcm_token: true },
+      });
+
+      if (tecnico?.fcm_token) {
+        await this.fcmService.notificarVisitaAgendada(
+          tecnico.fcm_token,
+          orden.codigo,
+          orden.id_orden,
+          inicio,
+        );
+      }
+    } catch (error) {
+      // Log error pero no fallar la operación principal
+      console.error('Error al enviar notificación push de visita agendada:', error);
     }
 
     return result;
@@ -942,6 +986,55 @@ export class OrdenesTrabajoService {
       'CERRAR_ORDENES_TRABAJO',
       userId,
       logMessage,
+    );
+
+    return result;
+  }
+
+  // === Cancelar Orden (para integración con Contratos) ===
+
+  /**
+   * Cancela una orden de trabajo
+   * Usado principalmente cuando se cancela un contrato asociado
+   */
+  async cancelarOrden(idOrden: number, userId: number) {
+    const orden = await this.prisma.orden_trabajo.findUnique({
+      where: { id_orden: idOrden },
+    });
+
+    if (!orden) {
+      throw new NotFoundException(`Orden de trabajo con ID ${idOrden} no encontrada`);
+    }
+
+    // Si ya está en estado final, no hacer nada
+    if (orden.estado === 'COMPLETADA' || orden.estado === 'CANCELADA') {
+      return orden;
+    }
+
+    const result = await this.prisma.$transaction(async (prisma) => {
+      // Actualizar estado a CANCELADA
+      const ordenActualizada = await prisma.orden_trabajo.update({
+        where: { id_orden: idOrden },
+        data: { estado: 'CANCELADA' },
+      });
+
+      // Registrar en historial
+      await prisma.ot_historial_estado.create({
+        data: {
+          id_orden: idOrden,
+          estado: 'CANCELADA',
+          comentario: 'Cancelada automáticamente por cancelación de contrato asociado',
+          cambiado_por: userId,
+        },
+      });
+
+      return ordenActualizada;
+    });
+
+    await this.prisma.logAction(
+      'CANCELAR_ORDENES_TRABAJO',
+      userId,
+      `Orden ${orden.codigo} cancelada por cancelación de contrato`,
     );
 
     return result;

@@ -21,6 +21,8 @@ import { DteCatalogosController } from './dte-catalogos/dte-catalogos.controller
 import { DteCatalogosService } from './dte-catalogos/dte-catalogos.service';
 import { DiagnosticosCatalogoService } from './diagnosticos-catalogo/diagnosticos-catalogo.service';
 import { DiagnosticosCatalogoController } from './diagnosticos-catalogo/diagnosticos-catalogo.controller';
+import { AtcPlanController } from './atc-plan/atc-plan.controller';
+import { AtcPlanService } from './atc-plan/atc-plan.service';
 
 @Module({
   imports: [
@@ -37,7 +39,8 @@ import { DiagnosticosCatalogoController } from './diagnosticos-catalogo/diagnost
     MunicipiosController,
     ColoniasController,
     DteCatalogosController,
-    DiagnosticosCatalogoController
+    DiagnosticosCatalogoController,
+    AtcPlanController
   ],
   providers: [
     CategoriasService,
@@ -48,7 +51,8 @@ import { DiagnosticosCatalogoController } from './diagnosticos-catalogo/diagnost
     MunicipiosService,
     ColoniasService,
     DteCatalogosService,
-    DiagnosticosCatalogoService
+    DiagnosticosCatalogoService,
+    AtcPlanService
   ],
 })
 export class AdministracionModule { }

@@ -1,6 +1,6 @@
 // src/modules/atencion-al-cliente/clientes/dto/create-cliente-direccion.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsInt } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsBoolean } from 'class-validator';
 
 export class CreateClienteDireccionDto {
   @ApiProperty({
@@ -48,4 +48,22 @@ export class CreateClienteDireccionDto {
   @IsOptional()
   @IsString()
   codigo_postal?: string;
+
+  @ApiProperty({
+    description: 'Usar esta dirección para instalación',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  usar_para_instalacion?: boolean;
+
+  @ApiProperty({
+    description: 'Usar esta dirección para facturación',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  usar_para_facturacion?: boolean;
 }

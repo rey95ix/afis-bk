@@ -125,10 +125,38 @@ export class MinioService implements OnModuleInit {
   }
 
   /**
-   * Eliminar un archivo
+   * Extraer el nombre del objeto de una URL firmada de MinIO
+   * Si ya es un nombre de objeto (no URL), lo retorna tal cual
    */
-  async deleteFile(objectName: string): Promise<void> {
+  private extractObjectNameFromUrl(urlOrObjectName: string): string {
+    // Si no empieza con http, asumir que ya es un nombre de objeto
+    if (!urlOrObjectName.startsWith('http')) {
+      return urlOrObjectName;
+    }
+
     try {
+      const url = new URL(urlOrObjectName);
+      // La ruta tiene formato: /bucket-name/object-name
+      // Removemos el primer / y el nombre del bucket
+      const pathParts = url.pathname.split('/');
+      // pathParts[0] es vacío, pathParts[1] es el bucket, el resto es el object name
+      if (pathParts.length >= 3) {
+        return pathParts.slice(2).join('/');
+      }
+      return urlOrObjectName;
+    } catch {
+      // Si falla el parseo, retornar como está
+      return urlOrObjectName;
+    }
+  }
+
+  /**
+   * Eliminar un archivo
+   * Acepta tanto el nombre del objeto como una URL completa de MinIO
+   */
+  async deleteFile(objectNameOrUrl: string): Promise<void> {
+    try {
+      const objectName = this.extractObjectNameFromUrl(objectNameOrUrl);
       await this.minioClient.removeObject(this.bucketName, objectName);
       this.logger.log(`Archivo eliminado: ${objectName}`);
     } catch (error) {

@@ -8,6 +8,8 @@ import { AdministracionModule } from './modules/administracion/administracion.mo
 import { AtencionAlClienteModule } from './modules/atencion-al-cliente/atencion-al-cliente.module';
 import { MailModule } from './modules/mail/mail.module';
 import { SmsModule } from './modules/sms/sms.module';
+import { FcmModule } from './modules/fcm/fcm.module';
+import { FacturacionModule } from './modules/facturacion/facturacion.module';
 // import { UtilidadesModule } from './modules/utilidades/utilidades.module';
 
 @Module({
@@ -25,6 +27,8 @@ import { SmsModule } from './modules/sms/sms.module';
     AtencionAlClienteModule,
     MailModule,
     SmsModule,
+    FcmModule,
+    FacturacionModule,
     // UtilidadesModule, //TODO Habilitar módulo de utilidades
   ],
   controllers: [],

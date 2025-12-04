@@ -1,5 +1,5 @@
 // src/modules/atencion-al-cliente/clientes/cliente-documentos.service.ts
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { MinioService } from 'src/modules/minio/minio.service';
 import { clienteDocumentos } from '@prisma/client';
@@ -8,6 +8,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class ClienteDocumentosService {
+  private readonly logger = new Logger(ClienteDocumentosService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly minioService: MinioService,
@@ -58,7 +60,7 @@ export class ClienteDocumentosService {
           await this.minioService.deleteFile(doc.ruta_archivo);
         } catch (error) {
           // Continuar aunque el archivo no exista en MinIO
-          this.prisma['logger'].warn(
+          this.logger.warn(
             `No se pudo eliminar archivo de MinIO: ${doc.ruta_archivo}`,
           );
         }
@@ -174,7 +176,7 @@ export class ClienteDocumentosService {
       await this.minioService.deleteFile(documento.ruta_archivo);
     } catch (error) {
       // Continuar aunque el archivo no exista en MinIO
-      this.prisma['logger'].warn(
+      this.logger.warn(
         `No se pudo eliminar archivo de MinIO: ${documento.ruta_archivo}`,
       );
     }

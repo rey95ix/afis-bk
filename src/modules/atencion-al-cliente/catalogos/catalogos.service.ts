@@ -73,4 +73,59 @@ export class CatalogosService {
       { value: 'CANCELADA', label: 'Cancelada' },
     ];
   }
+
+  // ============= CATÁLOGOS DE CONTRATOS =============
+
+  async getTiposServicio() {
+    return this.prisma.atcTipoServicio.findMany({
+      where: { estado: 'ACTIVO' },
+      orderBy: { nombre: 'asc' },
+    });
+  }
+
+  async getTiposPlan() {
+    return this.prisma.atcTipoPlan.findMany({
+      where: { estado: 'ACTIVO' },
+      include: {
+        tipoServicio: true,
+      },
+      orderBy: { nombre: 'asc' },
+    });
+  }
+
+  async getPlanes() {
+    return this.prisma.atcPlan.findMany({
+      where: { estado: 'ACTIVO' },
+      include: {
+        tipoPlan: {
+          include: {
+            tipoServicio: true,
+          },
+        },
+      },
+      orderBy: { nombre: 'asc' },
+    });
+  }
+
+  async getCiclosFacturacion() {
+    return this.prisma.atcCicloFacturacion.findMany({
+      where: { estado: 'ACTIVO' },
+      orderBy: { nombre: 'asc' },
+    });
+  }
+
+  async getEstadosContrato() {
+    // Retorna los estados de contrato como enums
+    return [
+      { value: 'PENDIENTE_INSTALACION', label: 'Pendiente de Instalación' },
+      { value: 'INSTALADO_ACTIVO', label: 'Instalado - Activo' },
+      { value: 'SUSPENDIDO', label: 'Suspendido' },
+      { value: 'SUSPENDIDO_TEMPORAL', label: 'Suspendido Temporal' },
+      { value: 'VELOCIDAD_REDUCIDA', label: 'Velocidad Reducida' },
+      { value: 'EN_MORA', label: 'En Mora' },
+      { value: 'BAJA_DEFINITIVA', label: 'Baja Definitiva' },
+      { value: 'BAJA_CAMBIO_TITULAR', label: 'Baja por Cambio de Titular' },
+      { value: 'CANCELADO', label: 'Cancelado' },
+    ];
+  }
 }

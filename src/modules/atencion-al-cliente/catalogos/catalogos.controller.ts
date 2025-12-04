@@ -106,4 +106,81 @@ export class CatalogosController {
   getEstadosOrden() {
     return this.catalogosService.getEstadosOrden();
   }
+
+  // ============= CATÁLOGOS DE CONTRATOS =============
+
+  @RequirePermissions('atencion_cliente.catalogos:ver')
+  @Get('tipos-servicio')
+  @ApiOperation({
+    summary: 'Obtener tipos de servicio',
+    description:
+      'Obtiene la lista de tipos de servicio disponibles (Residencial, Corporativo, Otro).',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de tipos de servicio obtenida exitosamente',
+  })
+  getTiposServicio() {
+    return this.catalogosService.getTiposServicio();
+  }
+
+  @RequirePermissions('atencion_cliente.catalogos:ver')
+  @Get('tipos-plan')
+  @ApiOperation({
+    summary: 'Obtener tipos de plan',
+    description:
+      'Obtiene la lista de tipos de plan disponibles (Internet Residencial, CATV Corporativo, etc.).',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de tipos de plan obtenida exitosamente',
+  })
+  getTiposPlan() {
+    return this.catalogosService.getTiposPlan();
+  }
+
+  @RequirePermissions('atencion_cliente.catalogos:ver')
+  @Get('planes')
+  @ApiOperation({
+    summary: 'Obtener planes de servicio',
+    description:
+      'Obtiene la lista de planes de servicio activos con precios, velocidades y tipo de plan.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de planes obtenida exitosamente',
+  })
+  getPlanes() {
+    return this.catalogosService.getPlanes();
+  }
+
+  @RequirePermissions('atencion_cliente.catalogos:ver')
+  @Get('ciclos-facturacion')
+  @ApiOperation({
+    summary: 'Obtener ciclos de facturación',
+    description:
+      'Obtiene la lista de ciclos de facturación disponibles con días de corte y vencimiento.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de ciclos de facturación obtenida exitosamente',
+  })
+  getCiclosFacturacion() {
+    return this.catalogosService.getCiclosFacturacion();
+  }
+
+  @RequirePermissions('atencion_cliente.catalogos:ver')
+  @Get('estados-contrato')
+  @ApiOperation({
+    summary: 'Obtener estados de contrato',
+    description:
+      'Obtiene la lista de estados posibles de un contrato (PENDIENTE_INSTALACION, INSTALADO_ACTIVO, SUSPENDIDO, etc.).',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de estados de contrato obtenida exitosamente',
+  })
+  getEstadosContrato() {
+    return this.catalogosService.getEstadosContrato();
+  }
 }

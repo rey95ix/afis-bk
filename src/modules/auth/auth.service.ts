@@ -27,7 +27,7 @@ export class AuthService {
     //agregar un delay de 2 segundos para evitar ataques de fuerza bruta
     // await new Promise(resolve => setTimeout(resolve, 2000));
 
-    const { usuario, password } = createUserDto;
+    const { usuario, password, fcm_token } = createUserDto;
     const usuarioDB = await this.prisma.usuarios.findFirst({
       where: {
         usuario,
@@ -47,6 +47,14 @@ export class AuthService {
     if (!validarPass) {
       this.prisma.logAction('LOGIN_FAILED', undefined, `Intento fallido de inicio de sesión para el usuario: ${usuario}`);
       throw new NotFoundException('El email o clave no existe');
+    }
+
+    // Actualizar FCM token solo si viene y no está vacío (para notificaciones push móviles)
+    if (fcm_token && fcm_token.trim() !== '') {
+      await this.prisma.usuarios.update({
+        where: { id_usuario: usuarioDB.id_usuario },
+        data: { fcm_token },
+      });
     }
 
     try {
