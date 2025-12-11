@@ -4,7 +4,9 @@ import {
   IsInt,
   IsOptional,
   IsDateString,
+  IsNumber,
   Min,
+  Max,
 } from 'class-validator';
 
 export class CreateContratoDto {
@@ -64,4 +66,16 @@ export class CreateContratoDto {
   @IsInt()
   @Min(1)
   meses_contrato?: number;
+
+  @ApiProperty({
+    description: 'Costo de instalación del servicio',
+    example: 25,
+    default: 0,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(40)
+  costo_instalacion?: number;
 }

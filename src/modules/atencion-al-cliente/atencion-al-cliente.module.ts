@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { MinioModule } from '../minio/minio.module';
 import { SmsModule } from '../sms/sms.module';
+import { OpenaiModule } from '../openai/openai.module';
 import { ClientesController } from './clientes/clientes.controller';
 import { ClientesService } from './clientes/clientes.service';
 import { ClienteDireccionesController } from './clientes/cliente-direcciones.controller';
@@ -28,11 +29,12 @@ import { ContratoInstalacionController } from './contratos/contrato-instalacion.
 import { ContratoInstalacionService } from './contratos/contrato-instalacion.service';
 
 @Module({
-  imports: [ 
+  imports: [
     AuthModule,
     PrismaModule,
     MinioModule,
     SmsModule,
+    OpenaiModule,
   ],
   controllers: [
     ClientesController,

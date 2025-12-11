@@ -115,6 +115,7 @@ export class ContratosService {
           ? new Date(createContratoDto.fecha_venta)
           : new Date(),
         meses_contrato: createContratoDto.meses_contrato || 12,
+        costo_instalacion: createContratoDto.costo_instalacion ?? 0,
         id_usuario_creador: id_usuario,
       },
     });

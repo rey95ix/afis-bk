@@ -85,6 +85,31 @@ export class ClientesController {
   }
 
   @RequirePermissions('atencion_cliente.clientes:ver')
+  @Get('verificar-dui/:dui')
+  @ApiOperation({ summary: 'Verificar si existe un cliente con el DUI especificado' })
+  @ApiParam({ name: 'dui', description: 'DUI a verificar', type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Retorna si existe o no un cliente con ese DUI.',
+    schema: {
+      type: 'object',
+      properties: {
+        existe: { type: 'boolean' },
+        clienteId: { type: 'number', nullable: true },
+      },
+    },
+  })
+  verificarDuiExiste(
+    @Param('dui') dui: string,
+    @Query('excludeId') excludeId?: string,
+  ) {
+    return this.clientesService.verificarDuiExiste(
+      dui,
+      excludeId ? parseInt(excludeId, 10) : undefined,
+    );
+  }
+
+  @RequirePermissions('atencion_cliente.clientes:ver')
   @Get('buscar/dui/:dui')
   @ApiOperation({ summary: 'Buscar un cliente por su DUI' })
   @ApiParam({ name: 'dui', description: 'DUI del cliente', type: String })

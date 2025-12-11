@@ -160,10 +160,18 @@ model clienteDocumentos {
   mimetype                   String
   size                       Int
   estado                     estado   @default(ACTIVO)
+  // Campos de validación IA para DUI
+  validacion_ia              String?  // VALIDADO, NO_COINCIDE, NO_DETECTADO, ERROR_IA, null (no aplica)
+  dui_extraido_ia            String?  // DUI extraído por IA (para auditoría)
+  // Campos de validación IA para Recibo
+  numero_contrato_extraido   String?  // NC extraído del recibo de servicio
+  direccion_extraida         String?  // Dirección extraída del recibo
+  tipo_servicio_recibo       String?  // ENERGIA, AGUA, DESCONOCIDO
   fecha_creacion             DateTime @default(now())
   fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 
   @@index([id_cliente])
+  @@index([numero_contrato_extraido])
 }
 
 model clienteDatosFacturacion {
@@ -2394,6 +2402,9 @@ model atcContrato {
   fecha_inicio_contrato DateTime?
   fecha_fin_contrato    DateTime?
   meses_contrato        Int       @default(12)
+
+  // Costo de instalación
+  costo_instalacion     Decimal?  @db.Decimal(10, 2)
 
   // Estado del contrato
   estado estadoContrato @default(PENDIENTE_INSTALACION)
