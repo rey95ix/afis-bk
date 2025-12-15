@@ -212,6 +212,28 @@ export class SeedService {
           },
         ],
       });
+
+      // ============= CATÁLOGOS DE CLIENTE =============
+      // CATÁLOGO ESTADO CIVIL
+      await this.prisma.cat_estado_civil.createMany({
+        data: [
+          { codigo: 'SOLTERO', nombre: 'Soltero(a)' },
+          { codigo: 'CASADO', nombre: 'Casado(a)' },
+          { codigo: 'DIVORCIADO', nombre: 'Divorciado(a)' },
+          { codigo: 'VIUDO', nombre: 'Viudo(a)' },
+          { codigo: 'UNION_LIBRE', nombre: 'Unión Libre' },
+        ],
+      });
+
+      // CATÁLOGO ESTADO VIVIENDA
+      await this.prisma.cat_estado_vivienda.createMany({
+        data: [
+          { codigo: 'PROPIA', nombre: 'Propia' },
+          { codigo: 'ALQUILADA', nombre: 'Alquilada' },
+          { codigo: 'FINANCIADA', nombre: 'Financiada' },
+          { codigo: 'FAMILIAR', nombre: 'Familiar' },
+        ],
+      });
     } catch (error) {
       console.log(error);
     }

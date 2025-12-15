@@ -452,4 +452,20 @@ export class ClientesService {
     const union = new Set([...palabras1, ...palabras2]);
     return coincidencias / union.size;
   }
+
+  // ============= CATÁLOGOS DE CLIENTE =============
+
+  async getEstadosCiviles() {
+    return this.prisma.cat_estado_civil.findMany({
+      where: { activo: true },
+      orderBy: { nombre: 'asc' },
+    });
+  }
+
+  async getEstadosVivienda() {
+    return this.prisma.cat_estado_vivienda.findMany({
+      where: { activo: true },
+      orderBy: { nombre: 'asc' },
+    });
+  }
 }

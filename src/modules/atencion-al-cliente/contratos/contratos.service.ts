@@ -13,6 +13,10 @@ import { atcContrato } from '@prisma/client';
 import { PaginationDto, PaginatedResult } from 'src/common/dto';
 import { OrdenesTrabajoService } from '../ordenes-trabajo/ordenes-trabajo.service';
 import { TipoOrden } from '../ordenes-trabajo/dto/create-orden.dto';
+import { MinioService } from 'src/modules/minio/minio.service';
+import axios from 'axios';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class ContratosService {
@@ -20,6 +24,7 @@ export class ContratosService {
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => OrdenesTrabajoService))
     private readonly ordenesTrabajoService: OrdenesTrabajoService,
+    private readonly minioService: MinioService,
   ) {}
 
   /**
@@ -103,7 +108,7 @@ export class ContratosService {
     // Generar código automático
     const codigo = await this.generateCodigoContrato();
 
-    // Crear el contrato inicialmente sin orden de trabajo
+    // Crear el contrato con estado PENDIENTE_FIRMA (sin OT - se creará al firmar)
     const contrato = await this.prisma.atcContrato.create({
       data: {
         codigo,
@@ -116,25 +121,11 @@ export class ContratosService {
           : new Date(),
         meses_contrato: createContratoDto.meses_contrato || 12,
         costo_instalacion: createContratoDto.costo_instalacion ?? 0,
+        facturar_instalacion_separada:
+          createContratoDto.facturar_instalacion_separada ?? true,
         id_usuario_creador: id_usuario,
+        estado: 'PENDIENTE_FIRMA',
       },
-    });
-
-    // Crear automáticamente la Orden de Trabajo de Instalación
-    const ordenInstalacion = await this.ordenesTrabajoService.create(
-      {
-        tipo: TipoOrden.INSTALACION,
-        id_cliente: createContratoDto.id_cliente,
-        id_direccion_servicio: createContratoDto.id_direccion_servicio,
-        observaciones_tecnico: `Instalación para contrato ${codigo}`,
-      },
-      id_usuario,
-    );
-
-    // Actualizar el contrato con el id de la orden de trabajo
-    const contratoActualizado = await this.prisma.atcContrato.update({
-      where: { id_contrato: contrato.id_contrato },
-      data: { id_orden_trabajo: ordenInstalacion.id_orden },
       include: this.getIncludeRelations(),
     });
 
@@ -142,10 +133,10 @@ export class ContratosService {
     await this.prisma.logAction(
       'CREAR_CONTRATO',
       id_usuario,
-      `Contrato creado: ${contratoActualizado.codigo} - Cliente: ${cliente.titular} - OT: ${ordenInstalacion.codigo}`,
+      `Contrato creado: ${contrato.codigo} - Cliente: ${cliente.titular} - Estado: PENDIENTE_FIRMA`,
     );
 
-    return contratoActualizado;
+    return contrato;
   }
 
   async findAll(
@@ -350,6 +341,287 @@ export class ContratosService {
     return updatedContrato;
   }
 
+  // ==================== CONTRATOS PENDIENTES DE FIRMA ====================
+
+  /**
+   * Obtiene contratos en estado PENDIENTE_FIRMA con paginación
+   */
+  async findPendientesFirma(
+    paginationDto: PaginationDto,
+  ): Promise<PaginatedResult<atcContrato>> {
+    const { page = 1, limit = 10, search = '' } = paginationDto;
+    const skip = (page - 1) * limit;
+
+    const where: any = {
+      estado: 'PENDIENTE_FIRMA',
+    };
+
+    if (search) {
+      where.OR = [
+        { codigo: { contains: search, mode: 'insensitive' } },
+        { cliente: { titular: { contains: search, mode: 'insensitive' } } },
+        { cliente: { dui: { contains: search, mode: 'insensitive' } } },
+      ];
+      where.AND = { estado: 'PENDIENTE_FIRMA' };
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.atcContrato.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { fecha_creacion: 'desc' },
+        include: this.getIncludeRelations(),
+      }),
+      this.prisma.atcContrato.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+      },
+    };
+  }
+
+  /**
+   * Genera PDF del contrato para impresión usando jsReport
+   */
+  async generatePdf(id: number): Promise<Buffer> {
+    const contrato: any = await this.findOne(id);
+
+    const templatePath = path.join(
+      process.cwd(),
+      'templates/atencion-cliente/contrato.html',
+    );
+
+    if (!fs.existsSync(templatePath)) {
+      throw new NotFoundException(
+        'Plantilla de contrato no encontrada. Asegúrese de que existe templates/atencion-cliente/contrato.html',
+      );
+    }
+
+    const templateHtml = fs.readFileSync(templatePath, 'utf-8');
+
+    // Cargar logo como base64
+    const logoPath = path.join(
+      process.cwd(),
+      'templates/atencion-cliente/images/LogoNewTel.png',
+    );
+    let logoBase64 = '';
+    if (fs.existsSync(logoPath)) {
+      const logoBuffer = fs.readFileSync(logoPath);
+      logoBase64 = `data:image/png;base64,${logoBuffer.toString('base64')}`;
+    }
+
+    // Obtener datos de facturación del cliente
+    const datosFacturacion = await this.prisma.clienteDatosFacturacion.findFirst(
+      {
+        where: {
+          id_cliente: contrato.id_cliente,
+          estado: 'ACTIVO',
+        },
+        include: {
+          dTEActividadEconomica: true,
+        },
+      },
+    );
+
+    // Determinar tipo de documento fiscal
+    const esConsumidorFinal = !datosFacturacion || datosFacturacion.tipo === 'PERSONA';
+    const esCreditoFiscal = datosFacturacion?.tipo === 'EMPRESA';
+
+    // Fecha actual
+    const fechaActual = new Date();
+    const anioActual = fechaActual.getFullYear();
+    const anioCorto = anioActual.toString().slice(-2);
+
+    // Preparar datos para la plantilla
+    const templateData = {
+      // Logo
+      logoBase64,
+
+      // Contrato
+      codigo: contrato.codigo || 'N/A',
+      meses_contrato: contrato.meses_contrato || 12,
+      costo_instalacion: contrato.costo_instalacion?.toFixed(2) || '0.00',
+
+      // Cliente - Datos personales
+      clienteNombre: contrato.cliente?.titular || 'N/A',
+      clienteDui: contrato.cliente?.dui || 'N/A',
+      clienteNit: contrato.cliente?.nit || 'N/A',
+      clienteTelefono: contrato.cliente?.telefono1 || 'N/A',
+      clienteWhatsapp: contrato.cliente?.telefono2 || '',
+      clienteCorreo: contrato.cliente?.correo_electronico || 'N/A',
+      clienteEmpresaTrabajo: contrato.cliente?.empresa_trabajo || 'N/A',
+      clienteEdad: this.calcularEdad(contrato.cliente?.fecha_nacimiento),
+      clienteFechaNacimiento: this.formatearFechaCorta(
+        contrato.cliente?.fecha_nacimiento,
+      ),
+
+      // Cliente - Referencias
+      referencia1Nombre: contrato.cliente?.referencia1 || '',
+      referencia1Telefono: contrato.cliente?.referencia1_telefono || '',
+      referencia2Nombre: contrato.cliente?.referencia2 || '',
+      referencia2Telefono: contrato.cliente?.referencia2_telefono || '',
+
+      // Plan
+      planNombre: contrato.plan?.nombre || 'N/A',
+      planPrecio: contrato.plan?.precio?.toFixed(2) || '0.00',
+      planVelocidadBajada: contrato.plan?.velocidad_bajada || '-',
+      planVelocidadSubida: contrato.plan?.velocidad_subida || '-',
+      planVelocidad: `${contrato.plan?.velocidad_bajada || '-'}/${contrato.plan?.velocidad_subida || '-'} Mbps`,
+      tipoServicioPlan:
+        contrato.plan?.tipoPlan?.tipoServicio?.nombre || 'Internet',
+      tipoServicioPlanCompleto:
+        contrato.plan?.tipoPlan?.nombre ||
+        contrato.plan?.tipoPlan?.tipoServicio?.nombre ||
+        'Residencial',
+
+      // Dirección de servicio
+      direccion: contrato.direccionServicio?.direccion || '',
+      colonia: contrato.direccionServicio?.colonias?.nombre || '',
+      municipio: contrato.direccionServicio?.municipio?.nombre || '',
+      departamento: contrato.direccionServicio?.departamento?.nombre || '',
+      direccionCompleta: `${contrato.direccionServicio?.direccion || ''}, ${contrato.direccionServicio?.colonias?.nombre || ''}, ${contrato.direccionServicio?.municipio?.nombre || ''}, ${contrato.direccionServicio?.departamento?.nombre || ''}`.replace(
+        /^, |, $/g,
+        '',
+      ),
+
+      // Ciclo
+      cicloNombre: contrato.ciclo?.nombre || 'N/A',
+
+      // Facturación
+      esConsumidorFinal,
+      esCreditoFiscal,
+      consumidorFinalMarca: esConsumidorFinal ? 'X' : '',
+      creditoFiscalMarca: esCreditoFiscal ? 'X' : '',
+      nitFacturacion: esCreditoFiscal ? datosFacturacion?.nit || '' : '',
+      nrcFacturacion: esCreditoFiscal ? datosFacturacion?.nrc || '' : '',
+      actividadEconomica: esCreditoFiscal
+        ? datosFacturacion?.dTEActividadEconomica?.nombre || ''
+        : '',
+
+      // Campos de estado civil y vivienda
+      estadoCivil: contrato.cliente?.estado_civil?.nombre || '',
+      estadoVivienda: contrato.cliente?.estado_vivienda?.nombre || '',
+      nombreConyuge: contrato.cliente?.nombre_conyuge || '',
+      telefonoConyuge: contrato.cliente?.telefono_conyuge || '',
+      telefonoOficinaConyuge: contrato.cliente?.telefono_oficina_conyuge || '',
+
+      // Fechas
+      fechaVenta: this.formatearFechaLarga(contrato.fecha_venta),
+      fechaGeneracion: this.formatearFechaLarga(new Date()),
+      fechaDia: String(fechaActual.getDate()).padStart(2, '0'),
+      fechaMes: this.obtenerNombreMes(fechaActual),
+      fechaMesNumero: String(fechaActual.getMonth() + 1).padStart(2, '0'),
+      fechaAnio: anioActual,
+      fechaAnioCorto: anioCorto,
+
+      // Cable (para marcar si lleva TV)
+      llevaCable: '', // Se puede calcular basado en el tipo de plan
+    };
+
+    const API_REPORT =
+      process.env.API_REPORT || 'https://reports.edal.group/api/report';
+
+    try {
+      const response = await axios.post(
+        API_REPORT,
+        {
+          template: {
+            content: templateHtml,
+            engine: 'jsrender',
+            recipe: 'chrome-pdf',
+          },
+          data: templateData,
+          options: {
+            reportName: `Contrato_${contrato.codigo}`,
+          },
+        },
+        {
+          responseType: 'arraybuffer',
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 30000,
+        },
+      );
+
+      return Buffer.from(response.data);
+    } catch (error) {
+      console.error('Error generating contract PDF:', error);
+      throw new BadRequestException(
+        'Error al generar el PDF del contrato. Verifique la configuración de jsReport.',
+      );
+    }
+  }
+
+  /**
+   * Marca un contrato como firmado: sube la imagen del contrato firmado,
+   * cambia el estado a PENDIENTE_INSTALACION y crea la Orden de Trabajo de instalación
+   */
+  async marcarComoFirmado(
+    id: number,
+    id_usuario: number,
+    archivo: Express.Multer.File,
+    observaciones?: string,
+  ): Promise<atcContrato> {
+    const contrato = await this.findOne(id);
+
+    // Validar estado actual
+    if (contrato.estado !== 'PENDIENTE_FIRMA') {
+      throw new BadRequestException(
+        `El contrato debe estar en estado PENDIENTE_FIRMA para ser firmado. Estado actual: ${contrato.estado}`,
+      );
+    }
+
+    // Validar archivo
+    if (!archivo) {
+      throw new BadRequestException(
+        'Debe adjuntar la imagen del contrato firmado',
+      );
+    }
+
+    // Subir archivo a MinIO
+    const objectName = `contratos-firmados/${contrato.codigo}/${Date.now()}_${archivo.originalname}`;
+    const { url } = await this.minioService.uploadFile(archivo, objectName);
+
+    // Crear la Orden de Trabajo de Instalación
+    const ordenInstalacion = await this.ordenesTrabajoService.create(
+      {
+        tipo: TipoOrden.INSTALACION,
+        id_cliente: contrato.id_cliente,
+        id_direccion_servicio: contrato.id_direccion_servicio,
+        observaciones_tecnico: `Instalación para contrato ${contrato.codigo}${observaciones ? ` - ${observaciones}` : ''}`,
+      },
+      id_usuario,
+    );
+
+    // Actualizar contrato
+    const contratoActualizado = await this.prisma.atcContrato.update({
+      where: { id_contrato: id },
+      data: {
+        estado: 'PENDIENTE_INSTALACION',
+        url_contrato_firmado: url,
+        id_orden_trabajo: ordenInstalacion.id_orden,
+      },
+      include: this.getIncludeRelations(),
+    });
+
+    // Registrar en el log
+    await this.prisma.logAction(
+      'FIRMAR_CONTRATO',
+      id_usuario,
+      `Contrato firmado: ${contrato.codigo} - OT creada: ${ordenInstalacion.codigo}${observaciones ? ` - Obs: ${observaciones}` : ''}`,
+    );
+
+    return contratoActualizado;
+  }
+
   /**
    * Retorna las relaciones a incluir en las consultas
    */
@@ -360,8 +632,22 @@ export class ContratosService {
           id_cliente: true,
           titular: true,
           dui: true,
+          nit: true,
           correo_electronico: true,
           telefono1: true,
+          telefono2: true,
+          fecha_nacimiento: true,
+          empresa_trabajo: true,
+          referencia1: true,
+          referencia1_telefono: true,
+          referencia2: true,
+          referencia2_telefono: true,
+          // Nuevos campos de estado civil y vivienda
+          estado_civil: true,
+          estado_vivienda: true,
+          nombre_conyuge: true,
+          telefono_conyuge: true,
+          telefono_oficina_conyuge: true,
         },
       },
       plan: {
@@ -398,5 +684,59 @@ export class ContratosService {
       },
       instalacion: true,
     };
+  }
+
+  /**
+   * Calcula la edad a partir de la fecha de nacimiento
+   */
+  private calcularEdad(fechaNacimiento: Date | null): number {
+    if (!fechaNacimiento) return 0;
+    const hoy = new Date();
+    const nacimiento = new Date(fechaNacimiento);
+    let edad = hoy.getFullYear() - nacimiento.getFullYear();
+    const mes = hoy.getMonth() - nacimiento.getMonth();
+    if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
+      edad--;
+    }
+    return edad;
+  }
+
+  /**
+   * Obtiene el nombre del mes en español
+   */
+  private obtenerNombreMes(fecha: Date): string {
+    const meses = [
+      'enero',
+      'febrero',
+      'marzo',
+      'abril',
+      'mayo',
+      'junio',
+      'julio',
+      'agosto',
+      'septiembre',
+      'octubre',
+      'noviembre',
+      'diciembre',
+    ];
+    return meses[fecha.getMonth()];
+  }
+
+  /**
+   * Formatea una fecha en formato largo en español (14 de diciembre de 2025)
+   */
+  private formatearFechaLarga(fecha: Date | null): string {
+    if (!fecha) return 'N/A';
+    const d = new Date(fecha);
+    return `${d.getDate()} de ${this.obtenerNombreMes(d)} de ${d.getFullYear()}`;
+  }
+
+  /**
+   * Formatea una fecha en formato corto (14-12-2025)
+   */
+  private formatearFechaCorta(fecha: Date | null): string {
+    if (!fecha) return 'N/A';
+    const d = new Date(fecha);
+    return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
   }
 }

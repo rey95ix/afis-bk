@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsDateString,
   IsNumber,
+  IsBoolean,
   Min,
   Max,
 } from 'class-validator';
@@ -78,4 +79,14 @@ export class CreateContratoDto {
   @Min(0)
   @Max(40)
   costo_instalacion?: number;
+
+  @ApiProperty({
+    description: 'Si es true, se crea factura separada de instalación. Si es false, el costo se incluye en la primera factura del servicio.',
+    example: true,
+    default: true,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  facturar_instalacion_separada?: boolean;
 }

@@ -1,6 +1,6 @@
 // src/modules/atencion-al-cliente/clientes/dto/create-cliente.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsInt, IsEmail, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsEmail, IsDateString, IsNumber } from 'class-validator';
 
 export class CreateClienteDto { 
   @ApiProperty({
@@ -90,4 +90,50 @@ export class CreateClienteDto {
   })
   @IsString()
   referencia2_telefono: string;
+
+  // Nuevos campos de estado civil y vivienda
+  @ApiProperty({
+    description: 'ID del estado civil',
+    example: 1,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  id_estado_civil?: number;
+
+  @ApiProperty({
+    description: 'ID del estado de vivienda',
+    example: 1,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  id_estado_vivienda?: number;
+
+  @ApiProperty({
+    description: 'Nombre del cónyuge',
+    example: 'María Elena López',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  nombre_conyuge?: string;
+
+  @ApiProperty({
+    description: 'Teléfono del cónyuge',
+    example: '7890-1234',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  telefono_conyuge?: string;
+
+  @ApiProperty({
+    description: 'Teléfono de oficina del cónyuge',
+    example: '2234-5678',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  telefono_oficina_conyuge?: string;
 }

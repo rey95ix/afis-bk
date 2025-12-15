@@ -9,16 +9,24 @@ import {
   Delete,
   ParseIntPipe,
   Query,
+  Res,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { ContratosService } from './contratos.service';
 import { CreateContratoDto } from './dto/create-contrato.dto';
 import { UpdateContratoDto } from './dto/update-contrato.dto';
+import { MarcarFirmadoDto } from './dto/marcar-firmado.dto';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { Auth, GetUser } from 'src/modules/auth/decorators';
 import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
@@ -77,6 +85,104 @@ export class ContratosController {
   })
   findAll(@Query() paginationDto: PaginationDto) {
     return this.contratosService.findAll(paginationDto);
+  }
+
+  // ==================== ENDPOINTS PENDIENTES DE FIRMA ====================
+
+  @RequirePermissions('atencion_cliente.contratos:ver')
+  @Get('pendientes-firma')
+  @ApiOperation({
+    summary: 'Obtener contratos pendientes de firma',
+    description: 'Retorna contratos en estado PENDIENTE_FIRMA con paginación',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Contratos pendientes de firma paginados.',
+  })
+  findPendientesFirma(@Query() paginationDto: PaginationDto) {
+    return this.contratosService.findPendientesFirma(paginationDto);
+  }
+
+  @RequirePermissions('atencion_cliente.contratos:ver')
+  @Get(':id/pdf')
+  @ApiOperation({
+    summary: 'Generar PDF del contrato',
+    description: 'Genera un documento PDF con los datos del contrato para firma.',
+  })
+  @ApiParam({ name: 'id', description: 'ID del contrato', type: Number })
+  @ApiResponse({
+    status: 200,
+    description: 'PDF generado exitosamente.',
+    content: {
+      'application/pdf': {
+        schema: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Contrato no encontrado.' })
+  async generatePdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ) {
+    const pdfBuffer = await this.contratosService.generatePdf(id);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="Contrato_${id}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+
+    res.end(pdfBuffer);
+  }
+
+  @RequirePermissions('atencion_cliente.contratos:editar')
+  @Post(':id/marcar-firmado')
+  @UseInterceptors(FileInterceptor('archivo'))
+  @ApiOperation({
+    summary: 'Marcar contrato como firmado',
+    description:
+      'Sube imagen del contrato firmado, cambia estado a PENDIENTE_INSTALACION y crea OT.',
+  })
+  @ApiParam({ name: 'id', description: 'ID del contrato', type: Number })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        archivo: {
+          type: 'string',
+          format: 'binary',
+          description: 'Imagen del contrato firmado',
+        },
+        observaciones: {
+          type: 'string',
+          description: 'Observaciones opcionales',
+        },
+      },
+      required: ['archivo'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Contrato marcado como firmado exitosamente.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Estado inválido o archivo faltante.',
+  })
+  @ApiResponse({ status: 404, description: 'Contrato no encontrado.' })
+  marcarComoFirmado(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() archivo: Express.Multer.File,
+    @Body() marcarFirmadoDto: MarcarFirmadoDto,
+    @GetUser() usuario,
+  ) {
+    return this.contratosService.marcarComoFirmado(
+      id,
+      usuario.id_usuario,
+      archivo,
+      marcarFirmadoDto.observaciones,
+    );
   }
 
   @RequirePermissions('atencion_cliente.contratos:ver')

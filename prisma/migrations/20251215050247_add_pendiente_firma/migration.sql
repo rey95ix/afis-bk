@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "atcContrato" ALTER COLUMN "estado" SET DEFAULT 'PENDIENTE_FIRMA';

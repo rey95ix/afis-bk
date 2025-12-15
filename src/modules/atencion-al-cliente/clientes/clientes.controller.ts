@@ -32,6 +32,27 @@ import { PaginationDto } from 'src/common/dto';
 export class ClientesController {
   constructor(private readonly clientesService: ClientesService) { }
 
+  // ============= CATÁLOGOS =============
+  @Get('catalogos/estados-civiles')
+  @ApiOperation({ summary: 'Obtener catálogo de estados civiles' })
+  @ApiResponse({
+    status: 200,
+    description: 'Retorna el listado de estados civiles activos.',
+  })
+  getEstadosCiviles() {
+    return this.clientesService.getEstadosCiviles();
+  }
+
+  @Get('catalogos/estados-vivienda')
+  @ApiOperation({ summary: 'Obtener catálogo de estados de vivienda' })
+  @ApiResponse({
+    status: 200,
+    description: 'Retorna el listado de estados de vivienda activos.',
+  })
+  getEstadosVivienda() {
+    return this.clientesService.getEstadosVivienda();
+  }
+
   @RequirePermissions('atencion_cliente.clientes:crear')
   @Post()
   @ApiOperation({ summary: 'Crear un nuevo cliente' })

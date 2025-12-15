@@ -135,6 +135,14 @@ model cliente {
   referencia1_telefono       String
   referencia2                String
   referencia2_telefono       String
+  // Nuevos campos de estado civil y vivienda
+  id_estado_civil            Int?
+  estado_civil               cat_estado_civil?    @relation(fields: [id_estado_civil], references: [id_estado_civil], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_estado_civil")
+  id_estado_vivienda         Int?
+  estado_vivienda            cat_estado_vivienda? @relation(fields: [id_estado_vivienda], references: [id_estado_vivienda], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_estado_vivienda")
+  nombre_conyuge             String?
+  telefono_conyuge           String?
+  telefono_oficina_conyuge   String?
   estado                     estado   @default(ACTIVO)
   fecha_creacion             DateTime @default(now())
   fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
@@ -2282,7 +2290,8 @@ model salidas_temporales_ot_detalle {
 
 // Estados de contrato de cliente
 enum estadoContrato {
-  PENDIENTE_INSTALACION
+  PENDIENTE_FIRMA       // Nuevo: Estado inicial - contrato creado, pendiente firma del cliente
+  PENDIENTE_INSTALACION // Contrato firmado, pendiente instalacion del servicio
   INSTALADO_ACTIVO
   SUSPENDIDO
   SUSPENDIDO_TEMPORAL
@@ -2404,10 +2413,15 @@ model atcContrato {
   meses_contrato        Int       @default(12)
 
   // Costo de instalación
-  costo_instalacion     Decimal?  @db.Decimal(10, 2)
+  costo_instalacion             Decimal?  @db.Decimal(10, 2)
+  // true = factura separada de instalación, false = incluir en primera factura del servicio
+  facturar_instalacion_separada Boolean   @default(true)
+
+  // URL del contrato firmado (imagen/PDF almacenado en MinIO)
+  url_contrato_firmado  String?   @db.Text
 
   // Estado del contrato
-  estado estadoContrato @default(PENDIENTE_INSTALACION)
+  estado estadoContrato @default(PENDIENTE_FIRMA)
 
   // === CONFIGURACIÓN DE MORA ESPECÍFICA DEL CONTRATO ===
   // Si es null, se usa la configuración por defecto de GeneralData
@@ -2776,4 +2790,26 @@ model mora_configuracion {
 
   @@index([codigo])
   @@index([activo])
+}
+
+// ============= CATÁLOGOS DE CLIENTE =============
+
+model cat_estado_civil {
+  id_estado_civil            Int       @id @default(autoincrement())
+  codigo                     String    @unique
+  nombre                     String
+  activo                     Boolean   @default(true)
+  fecha_creacion             DateTime  @default(now())
+  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+  clientes                   cliente[]
+}
+
+model cat_estado_vivienda {
+  id_estado_vivienda         Int       @id @default(autoincrement())
+  codigo                     String    @unique
+  nombre                     String
+  activo                     Boolean   @default(true)
+  fecha_creacion             DateTime  @default(now())
+  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+  clientes                   cliente[]
 }
