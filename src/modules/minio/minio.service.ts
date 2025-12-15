@@ -88,6 +88,39 @@ export class MinioService implements OnModuleInit {
   }
 
   /**
+   * Subir un buffer directamente a MinIO
+   */
+  async uploadBuffer(
+    buffer: Buffer,
+    objectName: string,
+    mimeType: string,
+  ): Promise<{ url: string; etag: string }> {
+    try {
+      const metaData = {
+        'Content-Type': mimeType,
+      };
+
+      const result = await this.minioClient.putObject(
+        this.bucketName,
+        objectName,
+        buffer,
+        buffer.length,
+        metaData,
+      );
+
+      const url = await this.getFileUrl(objectName);
+
+      return {
+        url,
+        etag: result.etag,
+      };
+    } catch (error) {
+      this.logger.error(`Error al subir buffer: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Obtener URL del archivo
    */
   async getFileUrl(objectName: string): Promise<string> {

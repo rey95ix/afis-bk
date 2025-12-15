@@ -27,6 +27,7 @@ import { ContratosController } from './contratos/contratos.controller';
 import { ContratosService } from './contratos/contratos.service';
 import { ContratoInstalacionController } from './contratos/contrato-instalacion.controller';
 import { ContratoInstalacionService } from './contratos/contrato-instalacion.service';
+import { WhatsAppChatModule } from './whatsapp-chat/whatsapp-chat.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { ContratoInstalacionService } from './contratos/contrato-instalacion.ser
     MinioModule,
     SmsModule,
     OpenaiModule,
+    WhatsAppChatModule,
   ],
   controllers: [
     ClientesController,

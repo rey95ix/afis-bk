@@ -117,6 +117,11 @@ model usuarios {
   contratos_creados              atcContrato[]
   dte_emitidos_creados           dte_emitidos[]                  @relation("dte_usuario_crea")
   dte_anulaciones_creadas        dte_anulaciones[]               @relation("anulacion_usuario_crea")
+  // WhatsApp Chat
+  whatsapp_chats_asignados       whatsapp_chat[]                 @relation("whatsapp_chat_asignado")
+  whatsapp_mensajes_enviados     whatsapp_message[]              @relation("whatsapp_message_usuario")
+  whatsapp_asignaciones_usuario  whatsapp_chat_assignment[]      @relation("whatsapp_assignment_usuario")
+  whatsapp_asignaciones_por      whatsapp_chat_assignment[]      @relation("whatsapp_assignment_asignado_por")
 }
 
 model cliente {
@@ -156,6 +161,8 @@ model cliente {
   sms_historial     sms_historial[]
   contratos         atcContrato[]
   dte_emitidos      dte_emitidos[]
+  // WhatsApp Chat
+  whatsapp_chats    whatsapp_chat[]
 }
 
 model clienteDocumentos {
@@ -2812,4 +2819,219 @@ model cat_estado_vivienda {
   fecha_creacion             DateTime  @default(now())
   fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
   clientes                   cliente[]
+}
+
+// ============= MÓDULO WHATSAPP CHAT =============
+
+// Estados de conversación WhatsApp
+enum estado_chat {
+  ABIERTO
+  PENDIENTE
+  CERRADO
+  IA_MANEJANDO
+}
+
+// Dirección del mensaje
+enum direccion_mensaje {
+  ENTRANTE
+  SALIENTE
+}
+
+// Tipo de mensaje WhatsApp
+enum tipo_mensaje_whatsapp {
+  TEXTO
+  IMAGEN
+  VIDEO
+  AUDIO
+  DOCUMENTO
+  UBICACION
+  CONTACTO
+  STICKER
+  PLANTILLA
+}
+
+// Estado de envío del mensaje
+enum estado_mensaje_whatsapp {
+  PENDIENTE
+  ENVIADO
+  ENTREGADO
+  LEIDO
+  FALLIDO
+}
+
+// Proveedor de IA
+enum proveedor_ia {
+  OPENAI
+  CLAUDE
+  CUSTOM
+}
+
+// Lógica de condiciones en reglas
+enum logica_condicion {
+  AND
+  OR
+}
+
+// Conversación de WhatsApp
+model whatsapp_chat {
+  id_chat                    Int       @id @default(autoincrement())
+  whatsapp_chat_id           String    @unique // ID externo de WhatsApp
+  id_cliente                 Int?
+  telefono_cliente           String
+  nombre_cliente             String?
+  foto_perfil_cliente        String?   @db.Text
+  estado                     estado_chat @default(PENDIENTE)
+  id_usuario_asignado        Int?
+  ultimo_mensaje_at          DateTime?
+  preview_ultimo_mensaje     String?   @db.Text
+  mensajes_no_leidos         Int       @default(0)
+  ia_habilitada              Boolean   @default(true)
+  ia_mensajes_count          Int       @default(0)
+  tags                       String[]
+  metadata                   Json?
+  fecha_creacion             DateTime  @default(now())
+  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+  fecha_cierre               DateTime?
+
+  // Relaciones
+  cliente                    cliente?  @relation(fields: [id_cliente], references: [id_cliente], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_chat_cliente")
+  usuario_asignado           usuarios? @relation("whatsapp_chat_asignado", fields: [id_usuario_asignado], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_chat_usuario_asignado")
+  mensajes                   whatsapp_message[]
+  asignaciones               whatsapp_chat_assignment[]
+  metricas                   whatsapp_chat_metrics?
+
+  @@index([id_cliente])
+  @@index([id_usuario_asignado])
+  @@index([estado])
+  @@index([telefono_cliente])
+  @@index([ultimo_mensaje_at])
+}
+
+// Mensaje de WhatsApp
+model whatsapp_message {
+  id_message                 Int       @id @default(autoincrement())
+  id_chat                    Int
+  whatsapp_message_id        String    @unique // ID externo de WhatsApp
+  direccion                  direccion_mensaje
+  tipo                       tipo_mensaje_whatsapp @default(TEXTO)
+  contenido                  String    @db.Text
+  url_media                  String?   @db.Text
+  tipo_media                 String?
+  tamano_media               Int?
+  estado                     estado_mensaje_whatsapp @default(ENVIADO)
+  id_usuario_envia           Int?      // Si es saliente, quién lo envió
+  es_de_ia                   Boolean   @default(false)
+  id_regla_ia                Int?
+  confianza_ia               Float?
+  metadata                   Json?
+  fecha_creacion             DateTime  @default(now())
+  fecha_entrega              DateTime?
+  fecha_lectura              DateTime?
+
+  // Relaciones
+  chat                       whatsapp_chat @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_message_chat")
+  usuario_envia              usuarios?     @relation("whatsapp_message_usuario", fields: [id_usuario_envia], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_message_usuario")
+  regla_ia                   whatsapp_ia_rule? @relation(fields: [id_regla_ia], references: [id_regla], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_message_regla_ia")
+
+  @@index([id_chat])
+  @@index([id_usuario_envia])
+  @@index([direccion])
+  @@index([fecha_creacion])
+}
+
+// Configuración de IA para WhatsApp
+model whatsapp_ia_config {
+  id_config                  Int       @id @default(autoincrement())
+  nombre                     String
+  descripcion                String?   @db.Text
+  activo                     Boolean   @default(false)
+  proveedor                  proveedor_ia @default(OPENAI)
+  modelo                     String    @default("gpt-4")
+  api_key                    String?   @db.Text // Encriptado, null si usa key global
+  temperatura                Float     @default(0.7)
+  max_tokens                 Int       @default(500)
+  system_prompt              String    @db.Text
+  ventana_contexto           Int       @default(10) // Número de mensajes previos a incluir
+  fallback_a_humano          Boolean   @default(true)
+  condiciones_fallback       Json?     // Array de FallbackCondition
+  delay_respuesta_seg        Int       @default(2)
+  horario_atencion           Json?     // BusinessHours config
+  metadata                   Json?
+  fecha_creacion             DateTime  @default(now())
+  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+
+  // Relaciones
+  reglas                     whatsapp_ia_rule[]
+
+  @@index([activo])
+}
+
+// Reglas de IA para respuestas automáticas
+model whatsapp_ia_rule {
+  id_regla                   Int       @id @default(autoincrement())
+  id_config                  Int
+  nombre                     String
+  descripcion                String?   @db.Text
+  prioridad                  Int       @default(0) // Mayor = más prioridad
+  activo                     Boolean   @default(true)
+  condiciones                Json      // Array de RuleCondition
+  logica_condiciones         logica_condicion @default(AND)
+  acciones                   Json      // Array de RuleAction
+  metadata                   Json?
+  ejecuciones_count          Int       @default(0)
+  ultima_ejecucion_at        DateTime?
+  fecha_creacion             DateTime  @default(now())
+  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+
+  // Relaciones
+  config                     whatsapp_ia_config @relation(fields: [id_config], references: [id_config], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_ia_rule_config")
+  mensajes                   whatsapp_message[]
+
+  @@index([id_config])
+  @@index([activo])
+  @@index([prioridad])
+}
+
+// Historial de asignaciones de chat
+model whatsapp_chat_assignment {
+  id_asignacion              Int       @id @default(autoincrement())
+  id_chat                    Int
+  id_usuario                 Int
+  id_asignado_por            Int?
+  fecha_asignacion           DateTime  @default(now())
+  fecha_desasignacion        DateTime?
+  razon                      String?   @db.Text
+  activo                     Boolean   @default(true)
+
+  // Relaciones
+  chat                       whatsapp_chat @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_assignment_chat")
+  usuario                    usuarios      @relation("whatsapp_assignment_usuario", fields: [id_usuario], references: [id_usuario], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_assignment_usuario")
+  asignado_por               usuarios?     @relation("whatsapp_assignment_asignado_por", fields: [id_asignado_por], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_assignment_asignado_por")
+
+  @@index([id_chat])
+  @@index([id_usuario])
+  @@index([activo])
+}
+
+// Métricas de chat
+model whatsapp_chat_metrics {
+  id_metrica                 Int       @id @default(autoincrement())
+  id_chat                    Int       @unique
+  tiempo_primera_respuesta   Int?      // Segundos
+  tiempo_respuesta_promedio  Int?
+  total_mensajes             Int       @default(0)
+  mensajes_agente            Int       @default(0)
+  mensajes_ia                Int       @default(0)
+  mensajes_cliente           Int       @default(0)
+  duracion                   Int?      // Segundos desde apertura a cierre
+  puntuacion_satisfaccion    Int?      // 1-5
+  fue_escalado               Boolean   @default(false)
+  razon_escalado             String?   @db.Text
+  fecha_creacion             DateTime  @default(now())
+  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+
+  // Relaciones
+  chat                       whatsapp_chat @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_metrics_chat")
+
+  @@index([id_chat])
 }
