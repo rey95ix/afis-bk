@@ -1,11 +1,13 @@
 // src/modules/atencion-al-cliente/clientes/cliente-documentos.service.ts
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { MinioService } from 'src/modules/minio/minio.service';
 import {
   DuiAnalyzerService,
   DuiValidationResult,
   ReciboExtractionResult,
+  DuiFullExtractionResult,
+  DuiTraseraExtractionResult,
 } from 'src/modules/openai/dui-analyzer.service';
 import { ClientesService } from './clientes.service';
 import { clienteDocumentos } from '@prisma/client';
@@ -22,6 +24,12 @@ export interface ClienteDuplicado {
 export interface ValidacionRecibo {
   numero_contrato: string | null;
   direccion: string | null;
+  colonia: string | null;
+  municipio: string | null;
+  departamento: string | null;
+  id_colonia: number | null;
+  id_municipio: number | null;
+  id_departamento: number | null;
   tipo_servicio: 'ENERGIA' | 'AGUA' | 'DESCONOCIDO';
   confianza: 'alta' | 'media' | 'baja';
   clientes_duplicados: ClienteDuplicado[];
@@ -43,6 +51,33 @@ export interface UploadDocumentosResult {
   validacion_recibo?: ValidacionRecibo;
 }
 
+export interface AnalisisDocumentosResult {
+  dui: {
+    // Datos del DUI FRENTE
+    dui_extraido: string | null;
+    nombre_completo: string | null;
+    fecha_nacimiento: string | null;
+    // Datos del DUI TRASERA
+    nit: string | null;
+    estado_familiar: string | null;
+    confianza: 'alta' | 'media' | 'baja';
+  } | null;
+  recibo: {
+    numero_contrato: string | null;
+    direccion: string | null;
+    colonia: string | null;
+    municipio: string | null;
+    departamento: string | null;
+    id_colonia: number | null;
+    id_municipio: number | null;
+    id_departamento: number | null;
+    tipo_servicio: 'ENERGIA' | 'AGUA' | 'DESCONOCIDO';
+    confianza: 'alta' | 'media' | 'baja';
+    clientes_similares: ClienteDuplicado[];
+  } | null;
+  mensaje: string;
+}
+
 @Injectable()
 export class ClienteDocumentosService {
   private readonly logger = new Logger(ClienteDocumentosService.name);
@@ -53,6 +88,111 @@ export class ClienteDocumentosService {
     private readonly duiAnalyzerService: DuiAnalyzerService,
     private readonly clientesService: ClientesService,
   ) {}
+
+  /**
+   * Resuelve los nombres de colonia, municipio y departamento a sus IDs correspondientes
+   * Realiza búsqueda flexible (case-insensitive, parcial)
+   */
+  private async resolverUbicacionPorNombre(
+    coloniaNombre: string | null,
+    municipioNombre: string | null,
+    departamentoNombre: string | null,
+  ): Promise<{ id_colonia: number | null; id_municipio: number | null; id_departamento: number | null }> {
+    let id_departamento: number | null = null;
+    let id_municipio: number | null = null;
+    let id_colonia: number | null = null;
+
+    // Primero buscar el departamento
+    if (departamentoNombre) {
+      const deptoNormalizado = departamentoNombre.trim().toUpperCase();
+
+      const departamento = await this.prisma.departamentos.findFirst({
+        where: {
+          estado: 'ACTIVO',
+          OR: [
+            { nombre: { equals: deptoNormalizado, mode: 'insensitive' } },
+            { nombre: { contains: deptoNormalizado, mode: 'insensitive' } },
+          ],
+        },
+      });
+
+      if (departamento) {
+        id_departamento = departamento.id_departamento;
+        this.logger.log(`Departamento resuelto: "${departamentoNombre}" → ID ${id_departamento}`);
+      } else {
+        this.logger.warn(`No se encontró departamento para: "${departamentoNombre}"`);
+      }
+    }
+
+    // Buscar el municipio (preferiblemente dentro del departamento encontrado)
+    if (municipioNombre) {
+      const muniNormalizado = municipioNombre.trim().toUpperCase();
+
+      const whereClause: any = {
+        estado: 'ACTIVO',
+        OR: [
+          { nombre: { equals: muniNormalizado, mode: 'insensitive' } },
+          { nombre: { contains: muniNormalizado, mode: 'insensitive' } },
+        ],
+      };
+
+      // Si encontramos departamento, buscar municipio dentro de él
+      if (id_departamento) {
+        whereClause.id_departamento = id_departamento;
+      }
+
+      const municipio = await this.prisma.municipios.findFirst({
+        where: whereClause,
+      });
+
+      if (municipio) {
+        id_municipio = municipio.id_municipio;
+        // Si no teníamos departamento, obtenerlo del municipio encontrado
+        if (!id_departamento) {
+          id_departamento = municipio.id_departamento;
+          this.logger.log(`Departamento inferido del municipio: ID ${id_departamento}`);
+        }
+        this.logger.log(`Municipio resuelto: "${municipioNombre}" → ID ${id_municipio}`);
+      } else {
+        this.logger.warn(`No se encontró municipio para: "${municipioNombre}"`);
+      }
+    }
+
+    // Buscar la colonia (solo si tenemos municipio)
+    if (coloniaNombre && id_municipio) {
+      // Limpiar el nombre de la colonia (quitar prefijos comunes)
+      let colNormalizada = coloniaNombre.trim().toUpperCase();
+      // Remover prefijos comunes: "COL.", "COLONIA", "RES.", "RESIDENCIAL", etc.
+      colNormalizada = colNormalizada
+        .replace(/^(COL\.|COLONIA|RES\.|RESIDENCIAL|URB\.|URBANIZACION|URBANIZACIÓN|BO\.|BARRIO|REPARTO)\s*/i, '')
+        .trim();
+
+      const colonia = await this.prisma.colonias.findFirst({
+        where: {
+          estado: 'ACTIVO',
+          id_municipio: id_municipio,
+          OR: [
+            { nombre: { equals: colNormalizada, mode: 'insensitive' } },
+            { nombre: { contains: colNormalizada, mode: 'insensitive' } },
+            // También buscar con el nombre original por si ya incluye el prefijo en la BD
+            { nombre: { equals: coloniaNombre.trim(), mode: 'insensitive' } },
+            { nombre: { contains: coloniaNombre.trim(), mode: 'insensitive' } },
+          ],
+        },
+      });
+
+      if (colonia) {
+        id_colonia = colonia.id_colonia;
+        this.logger.log(`Colonia resuelta: "${coloniaNombre}" → ID ${id_colonia}`);
+      } else {
+        this.logger.warn(`No se encontró colonia para: "${coloniaNombre}" en municipio ID ${id_municipio}`);
+      }
+    } else if (coloniaNombre && !id_municipio) {
+      this.logger.warn(`Colonia "${coloniaNombre}" detectada pero no hay municipio para buscarla`);
+    }
+
+    return { id_colonia, id_municipio, id_departamento };
+  }
 
   async uploadDocumentos(
     id_cliente: number,
@@ -229,10 +369,23 @@ export class ClienteDocumentosService {
               });
             }
 
+            // Resolver IDs de ubicación a partir de los nombres extraídos
+            const ubicacion = await this.resolverUbicacionPorNombre(
+              datosRecibo.colonia,
+              datosRecibo.municipio,
+              datosRecibo.departamento,
+            );
+
             // Construir resultado de validación de recibo
             validacionRecibo = {
               numero_contrato: datosRecibo.numero_contrato,
               direccion: datosRecibo.direccion,
+              colonia: datosRecibo.colonia,
+              municipio: datosRecibo.municipio,
+              departamento: datosRecibo.departamento,
+              id_colonia: ubicacion.id_colonia,
+              id_municipio: ubicacion.id_municipio,
+              id_departamento: ubicacion.id_departamento,
               tipo_servicio: datosRecibo.tipo_servicio,
               confianza: datosRecibo.confianza,
               clientes_duplicados: clientesDuplicados,
@@ -250,6 +403,12 @@ export class ClienteDocumentosService {
             validacionRecibo = {
               numero_contrato: null,
               direccion: null,
+              colonia: null,
+              municipio: null,
+              departamento: null,
+              id_colonia: null,
+              id_municipio: null,
+              id_departamento: null,
               tipo_servicio: 'DESCONOCIDO',
               confianza: 'baja',
               clientes_duplicados: [],
@@ -382,6 +541,218 @@ export class ClienteDocumentosService {
     }
 
     return `Documentos subidos. ADVERTENCIA: ${alertas.join('. ')}. Requiere revisión.`;
+  }
+
+  /**
+   * Analiza documentos sin guardarlos para extraer información con IA
+   * Este método se usa para pre-llenar el formulario de cliente antes de crearlo
+   */
+  async analizarDocumentosSinGuardar(
+    files: {
+      dui_frente?: Express.Multer.File[];
+      dui_trasera?: Express.Multer.File[];
+      nit_frente?: Express.Multer.File[];
+      nit_trasera?: Express.Multer.File[];
+      recibo?: Express.Multer.File[];
+    },
+  ): Promise<AnalisisDocumentosResult> {
+    this.logger.log('Iniciando análisis de documentos sin guardar...');
+
+    let duiResult: AnalisisDocumentosResult['dui'] = null;
+    let reciboResult: AnalisisDocumentosResult['recibo'] = null;
+    const mensajes: string[] = [];
+
+    // Variables para almacenar datos del DUI frente y trasera
+    let datosDuiFrente: DuiFullExtractionResult | null = null;
+    let datosDuiTrasera: DuiTraseraExtractionResult | null = null;
+
+    // Analizar DUI frente si existe
+    if (files.dui_frente && files.dui_frente.length > 0) {
+      const duiFile = files.dui_frente[0];
+      this.logger.log('Analizando DUI frente con IA...');
+
+      try {
+        datosDuiFrente = await this.duiAnalyzerService.extractFullDuiData(
+          duiFile.buffer,
+          duiFile.mimetype,
+        );
+
+        if (datosDuiFrente.dui_extraido || datosDuiFrente.nombre_completo || datosDuiFrente.fecha_nacimiento) {
+          const datosDetectados: string[] = [];
+          if (datosDuiFrente.nombre_completo) datosDetectados.push('nombre');
+          if (datosDuiFrente.dui_extraido) datosDetectados.push('DUI');
+          if (datosDuiFrente.fecha_nacimiento) datosDetectados.push('fecha de nacimiento');
+          mensajes.push(`DUI frente: ${datosDetectados.join(', ')}`);
+        } else {
+          mensajes.push('No se pudieron extraer datos del DUI frente');
+        }
+
+        this.logger.log(
+          `DUI frente analizado - Nombre: ${datosDuiFrente.nombre_completo || 'N/A'}, ` +
+          `DUI: ${datosDuiFrente.dui_extraido || 'N/A'}, ` +
+          `Fecha Nac: ${datosDuiFrente.fecha_nacimiento || 'N/A'}`,
+        );
+      } catch (error) {
+        this.logger.error(`Error al analizar DUI frente: ${error.message}`);
+        mensajes.push('Error al analizar el DUI frente');
+      }
+    }
+
+    // Analizar DUI trasera si existe (para extraer NIT y Estado Familiar)
+    if (files.dui_trasera && files.dui_trasera.length > 0) {
+      const duiTraseraFile = files.dui_trasera[0];
+      this.logger.log('Analizando DUI trasera con IA...');
+
+      try {
+        datosDuiTrasera = await this.duiAnalyzerService.extractDuiTraseraData(
+          duiTraseraFile.buffer,
+          duiTraseraFile.mimetype,
+        );
+
+        if (datosDuiTrasera.nit || datosDuiTrasera.estado_familiar) {
+          const datosDetectados: string[] = [];
+          if (datosDuiTrasera.nit) datosDetectados.push('NIT');
+          if (datosDuiTrasera.estado_familiar) datosDetectados.push('estado familiar');
+          mensajes.push(`DUI trasera: ${datosDetectados.join(', ')}`);
+        } else {
+          mensajes.push('No se pudieron extraer datos del DUI trasera');
+        }
+
+        this.logger.log(
+          `DUI trasera analizado - NIT: ${datosDuiTrasera.nit || 'N/A'}, ` +
+          `Estado Familiar: ${datosDuiTrasera.estado_familiar || 'N/A'}`,
+        );
+      } catch (error) {
+        this.logger.error(`Error al analizar DUI trasera: ${error.message}`);
+        mensajes.push('Error al analizar el DUI trasera');
+      }
+    }
+
+    // Combinar resultados del DUI frente y trasera
+    if (datosDuiFrente || datosDuiTrasera) {
+      // Determinar el nivel de confianza combinado (el más bajo de ambos)
+      let confianzaCombinada: 'alta' | 'media' | 'baja' = 'alta';
+      if (datosDuiFrente?.confianza === 'baja' || datosDuiTrasera?.confianza === 'baja') {
+        confianzaCombinada = 'baja';
+      } else if (datosDuiFrente?.confianza === 'media' || datosDuiTrasera?.confianza === 'media') {
+        confianzaCombinada = 'media';
+      }
+
+      duiResult = {
+        dui_extraido: datosDuiFrente?.dui_extraido || null,
+        nombre_completo: datosDuiFrente?.nombre_completo || null,
+        fecha_nacimiento: datosDuiFrente?.fecha_nacimiento || null,
+        nit: datosDuiTrasera?.nit || null,
+        estado_familiar: datosDuiTrasera?.estado_familiar || null,
+        confianza: confianzaCombinada,
+      };
+    }
+
+    // Analizar Recibo si existe
+    if (files.recibo && files.recibo.length > 0) {
+      const reciboFile = files.recibo[0];
+      this.logger.log('Analizando recibo con IA...');
+
+      try {
+        const datosRecibo = await this.duiAnalyzerService.extractReciboData(
+          reciboFile.buffer,
+          reciboFile.mimetype,
+        );
+
+        // Buscar clientes duplicados (sin excluir ninguno ya que no hay cliente actual)
+        const clientesDuplicados: ClienteDuplicado[] = [];
+
+        // Buscar por número de contrato
+        if (datosRecibo.numero_contrato) {
+          const duplicadosPorNC = await this.clientesService.buscarClientesPorNumeroContrato(
+            datosRecibo.numero_contrato,
+            0, // No excluir ningún cliente
+          );
+
+          duplicadosPorNC.forEach((dup) => {
+            clientesDuplicados.push({
+              ...dup,
+              coincidencia: 'NUMERO_CONTRATO',
+            });
+          });
+        }
+
+        // Buscar por dirección similar
+        if (datosRecibo.direccion) {
+          const duplicadosPorDir = await this.clientesService.buscarClientesPorDireccionSimilar(
+            datosRecibo.direccion,
+            0, // No excluir ningún cliente
+          );
+
+          duplicadosPorDir.forEach((dup) => {
+            const existente = clientesDuplicados.find((d) => d.id_cliente === dup.id_cliente);
+            if (existente) {
+              existente.coincidencia = 'AMBOS';
+            } else {
+              clientesDuplicados.push({
+                id_cliente: dup.id_cliente,
+                titular: dup.titular,
+                dui: dup.dui,
+                coincidencia: 'DIRECCION',
+              });
+            }
+          });
+        }
+
+        // Resolver IDs de ubicación a partir de los nombres extraídos
+        const ubicacion = await this.resolverUbicacionPorNombre(
+          datosRecibo.colonia,
+          datosRecibo.municipio,
+          datosRecibo.departamento,
+        );
+
+        reciboResult = {
+          numero_contrato: datosRecibo.numero_contrato,
+          direccion: datosRecibo.direccion,
+          colonia: datosRecibo.colonia,
+          municipio: datosRecibo.municipio,
+          departamento: datosRecibo.departamento,
+          id_colonia: ubicacion.id_colonia,
+          id_municipio: ubicacion.id_municipio,
+          id_departamento: ubicacion.id_departamento,
+          tipo_servicio: datosRecibo.tipo_servicio,
+          confianza: datosRecibo.confianza,
+          clientes_similares: clientesDuplicados,
+        };
+
+        if (datosRecibo.numero_contrato || datosRecibo.direccion) {
+          const datosDetectados: string[] = [];
+          if (datosRecibo.numero_contrato) datosDetectados.push('número de contrato');
+          if (datosRecibo.direccion) datosDetectados.push('dirección');
+          mensajes.push(`Datos extraídos del recibo: ${datosDetectados.join(', ')}`);
+        } else {
+          mensajes.push('No se pudieron extraer datos del recibo');
+        }
+
+        if (clientesDuplicados.length > 0) {
+          mensajes.push(`ALERTA: Se encontraron ${clientesDuplicados.length} cliente(s) con datos similares`);
+          this.logger.warn(`Se encontraron ${clientesDuplicados.length} posibles duplicados`);
+        }
+
+        this.logger.log(
+          `Recibo analizado - NC: ${datosRecibo.numero_contrato || 'N/A'}, ` +
+          `Dirección: ${datosRecibo.direccion ? datosRecibo.direccion.substring(0, 50) + '...' : 'N/A'}`,
+        );
+      } catch (error) {
+        this.logger.error(`Error al analizar recibo: ${error.message}`);
+        mensajes.push('Error al analizar el recibo');
+      }
+    }
+
+    const mensajeFinal = mensajes.length > 0
+      ? mensajes.join('. ')
+      : 'No se proporcionaron documentos para analizar';
+
+    return {
+      dui: duiResult,
+      recibo: reciboResult,
+      mensaje: mensajeFinal,
+    };
   }
 
   async getDocumentosByCliente(id_cliente: number): Promise<clienteDocumentos[]> {

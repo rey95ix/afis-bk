@@ -20,7 +20,25 @@ export interface DuiValidationResult {
 export interface ReciboExtractionResult {
   numero_contrato: string | null;
   direccion: string | null;
+  colonia: string | null;        // Nombre de la colonia extraída
+  municipio: string | null;      // Nombre del municipio extraído
+  departamento: string | null;   // Nombre del departamento extraído
   tipo_servicio: 'ENERGIA' | 'AGUA' | 'DESCONOCIDO';
+  confianza: 'alta' | 'media' | 'baja';
+  mensaje: string;
+}
+
+export interface DuiFullExtractionResult {
+  dui_extraido: string | null;
+  nombre_completo: string | null;
+  fecha_nacimiento: string | null; // formato YYYY-MM-DD
+  confianza: 'alta' | 'media' | 'baja';
+  mensaje: string;
+}
+
+export interface DuiTraseraExtractionResult {
+  nit: string | null;           // Formato: 1234-567890-123-4
+  estado_familiar: string | null; // SOLTERO, CASADO, VIUDO, DIVORCIADO, UNION LIBRE, etc.
   confianza: 'alta' | 'media' | 'baja';
   mensaje: string;
 }
@@ -56,16 +74,63 @@ INSTRUCCIONES:
 1. Busca el "Número de Contrato", "NC", "NIC", "No. Contrato", "Contrato No.", "Número de Suministro", "NIS" o similar
 2. Busca la "Dirección" del suministro, instalación o del inmueble
 3. La dirección puede incluir: calle, número, colonia, municipio, departamento
-4. Identifica si es un recibo de energía eléctrica o de agua
+4. IMPORTANTE: Identifica por separado la COLONIA de la dirección
+   - Puede aparecer como "Col.", "Colonia", "Res.", "Residencial", "Urb.", "Urbanización", "Reparto", "Bo.", "Barrio"
+   - Ejemplo: "Col. Escalón", "Residencial San Benito", "Urbanización Jardines"
+5. IMPORTANTE: Identifica por separado el MUNICIPIO y DEPARTAMENTO de la dirección
+   - Municipios de El Salvador: San Salvador, Santa Tecla, Mejicanos, Soyapango, Apopa, Ilopango, etc.
+   - Departamentos de El Salvador: San Salvador, La Libertad, Santa Ana, San Miguel, Sonsonate, etc.
+6. Identifica si es un recibo de energía eléctrica o de agua
 
 IMPORTANTE: Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin markdown, sin backticks:
-{"numero_contrato": "123456789", "direccion": "Calle Principal #123, Col. Centro, San Salvador", "tipo_servicio": "ENERGIA", "confianza": "alta"}
+{"numero_contrato": "123456789", "direccion": "Calle Principal #123", "colonia": "Escalón", "municipio": "San Salvador", "departamento": "San Salvador", "tipo_servicio": "ENERGIA", "confianza": "alta"}
 
 Si no encuentras algún dato, usa null:
-{"numero_contrato": null, "direccion": null, "tipo_servicio": "DESCONOCIDO", "confianza": "baja"}
+{"numero_contrato": null, "direccion": null, "colonia": null, "municipio": null, "departamento": null, "tipo_servicio": "DESCONOCIDO", "confianza": "baja"}
 
 Valores para tipo_servicio: "ENERGIA", "AGUA", "DESCONOCIDO"
 Niveles de confianza: "alta", "media", "baja"`;
+
+  // Prompt para extracción de datos del DUI TRASERA (NIT, Estado Familiar)
+  private readonly DUI_TRASERA_EXTRACTION_PROMPT = `Analiza esta imagen de la parte TRASERA de un DUI (Documento Único de Identidad) de El Salvador.
+
+INSTRUCCIONES:
+1. Busca el NIT (Número de Identificación Tributaria) que tiene formato "####-######-###-#" (4 dígitos, 6 dígitos, 3 dígitos, 1 dígito)
+2. Busca el ESTADO FAMILIAR que puede aparecer como "Est. Familiar", "Estado Familiar", "EST. FAM." o similar
+   Los valores posibles son: SOLTERO, SOLTERA, CASADO, CASADA, VIUDO, VIUDA, DIVORCIADO, DIVORCIADA, UNION LIBRE
+
+IMPORTANTE: Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin markdown, sin backticks:
+{"nit": "1234-567890-123-4", "estado_familiar": "SOLTERO", "confianza": "alta"}
+
+Si no encuentras algún dato, usa null para ese campo:
+{"nit": null, "estado_familiar": "CASADO", "confianza": "media"}
+
+Niveles de confianza:
+- "alta": Los datos son claramente legibles
+- "media": Algunos datos son parcialmente legibles o hay incertidumbre
+- "baja": No se pueden leer los datos o hay mucha incertidumbre`;
+
+  // Prompt para extracción completa de datos del DUI (nombre, fecha nacimiento, número)
+  private readonly DUI_FULL_EXTRACTION_PROMPT = `Analiza esta imagen de un DUI (Documento Único de Identidad) de El Salvador.
+
+INSTRUCCIONES:
+1. Busca el número de DUI que tiene el formato "########-#" (8 dígitos, un guión, y 1 dígito verificador)
+2. Busca el NOMBRE COMPLETO del titular del documento (generalmente aparece como "NOMBRE" o "NOMBRES" y "APELLIDOS")
+3. Busca la FECHA DE NACIMIENTO (puede aparecer como "F. NACIMIENTO", "NACIMIENTO", "FECHA NAC." o similar)
+
+FORMATO DE RESPUESTA - Responde ÚNICAMENTE con un objeto JSON válido, sin texto adicional, sin markdown, sin backticks:
+{"dui_encontrado": "12345678-9", "nombre_completo": "JUAN CARLOS PEREZ GARCIA", "fecha_nacimiento": "1990-05-15", "confianza": "alta"}
+
+NOTAS IMPORTANTES:
+- El nombre debe estar en MAYÚSCULAS tal como aparece en el documento
+- La fecha de nacimiento debe estar en formato YYYY-MM-DD (año-mes-día)
+- Si la fecha está en formato DD/MM/YYYY o similar, conviértela a YYYY-MM-DD
+- Si no encuentras algún dato, usa null para ese campo
+
+Niveles de confianza:
+- "alta": Todos los datos son claramente legibles
+- "media": Algunos datos son parcialmente legibles
+- "baja": No se pueden leer los datos o hay mucha incertidumbre`;
 
   constructor(private readonly openaiService: OpenaiService) {}
 
@@ -218,6 +283,270 @@ Niveles de confianza: "alta", "media", "baja"`;
   }
 
   /**
+   * Extrae datos completos del DUI: número, nombre completo y fecha de nacimiento
+   * @param imageBuffer Buffer de la imagen del DUI
+   * @param mimeType Tipo MIME de la imagen
+   */
+  async extractFullDuiData(
+    imageBuffer: Buffer,
+    mimeType: string = 'image/jpeg',
+  ): Promise<DuiFullExtractionResult> {
+    // Verificar si OpenAI está disponible
+    if (!this.openaiService.isAvailable()) {
+      this.logger.warn('OpenAI no está disponible para extracción completa de DUI');
+      return {
+        dui_extraido: null,
+        nombre_completo: null,
+        fecha_nacimiento: null,
+        confianza: 'baja',
+        mensaje: 'El servicio de validación por IA no está disponible',
+      };
+    }
+
+    try {
+      this.logger.log('Iniciando extracción completa de datos del DUI con GPT-4 Vision...');
+
+      const response = await this.openaiService.analyzeImage(
+        imageBuffer,
+        this.DUI_FULL_EXTRACTION_PROMPT,
+        mimeType,
+      );
+
+      this.logger.debug(`Respuesta de OpenAI (DUI Full): ${response}`);
+
+      // Parsear la respuesta JSON
+      const result = this.parseFullDuiResponse(response);
+      const confianza = this.parseConfianza(result.confianza);
+
+      // Validar formato del DUI si se extrajo
+      let duiValido = result.dui_encontrado;
+      if (duiValido && !this.isValidDuiFormat(duiValido)) {
+        this.logger.warn(`DUI extraído con formato inválido: ${duiValido}`);
+        duiValido = null;
+      }
+
+      // Validar formato de fecha si se extrajo
+      let fechaValida = result.fecha_nacimiento;
+      if (fechaValida && !this.isValidDateFormat(fechaValida)) {
+        this.logger.warn(`Fecha extraída con formato inválido: ${fechaValida}`);
+        fechaValida = null;
+      }
+
+      if (duiValido || result.nombre_completo || fechaValida) {
+        this.logger.log(
+          `DUI extraído: ${duiValido || 'N/A'}, ` +
+          `Nombre: ${result.nombre_completo || 'N/A'}, ` +
+          `Fecha Nac: ${fechaValida || 'N/A'} (confianza: ${confianza})`,
+        );
+        return {
+          dui_extraido: duiValido,
+          nombre_completo: result.nombre_completo,
+          fecha_nacimiento: fechaValida,
+          confianza,
+          mensaje: 'Datos del DUI extraídos exitosamente',
+        };
+      }
+
+      return {
+        dui_extraido: null,
+        nombre_completo: null,
+        fecha_nacimiento: null,
+        confianza: 'baja',
+        mensaje: 'No se pudieron extraer datos del DUI',
+      };
+    } catch (error) {
+      this.logger.error(`Error al extraer datos completos del DUI: ${error.message}`);
+      return {
+        dui_extraido: null,
+        nombre_completo: null,
+        fecha_nacimiento: null,
+        confianza: 'baja',
+        mensaje: `Error en el análisis: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Extrae NIT y Estado Familiar de la parte trasera del DUI
+   * @param imageBuffer Buffer de la imagen del DUI trasera
+   * @param mimeType Tipo MIME de la imagen
+   */
+  async extractDuiTraseraData(
+    imageBuffer: Buffer,
+    mimeType: string = 'image/jpeg',
+  ): Promise<DuiTraseraExtractionResult> {
+    // Verificar si OpenAI está disponible
+    if (!this.openaiService.isAvailable()) {
+      this.logger.warn('OpenAI no está disponible para extracción de DUI trasera');
+      return {
+        nit: null,
+        estado_familiar: null,
+        confianza: 'baja',
+        mensaje: 'El servicio de validación por IA no está disponible',
+      };
+    }
+
+    try {
+      this.logger.log('Iniciando extracción de datos del DUI trasera con GPT-4 Vision...');
+
+      const response = await this.openaiService.analyzeImage(
+        imageBuffer,
+        this.DUI_TRASERA_EXTRACTION_PROMPT,
+        mimeType,
+      );
+
+      this.logger.debug(`Respuesta de OpenAI (DUI Trasera): ${response}`);
+
+      // Parsear la respuesta JSON
+      const result = this.parseDuiTraseraResponse(response);
+      const confianza = this.parseConfianza(result.confianza);
+
+      // Validar formato del NIT si se extrajo
+      let nitValido = result.nit;
+      if (nitValido && !this.isValidNitFormat(nitValido)) {
+        this.logger.warn(`NIT extraído con formato inválido: ${nitValido}`);
+        // No invalidamos el NIT, solo advertimos (el formato puede variar)
+      }
+
+      // Normalizar estado familiar
+      let estadoFamiliarNormalizado = result.estado_familiar;
+      if (estadoFamiliarNormalizado) {
+        estadoFamiliarNormalizado = estadoFamiliarNormalizado.toUpperCase().trim();
+      }
+
+      if (nitValido || estadoFamiliarNormalizado) {
+        this.logger.log(
+          `DUI Trasera analizado - NIT: ${nitValido || 'N/A'}, ` +
+          `Estado Familiar: ${estadoFamiliarNormalizado || 'N/A'} (confianza: ${confianza})`,
+        );
+        return {
+          nit: nitValido,
+          estado_familiar: estadoFamiliarNormalizado,
+          confianza,
+          mensaje: 'Datos del DUI trasera extraídos exitosamente',
+        };
+      }
+
+      return {
+        nit: null,
+        estado_familiar: null,
+        confianza: 'baja',
+        mensaje: 'No se pudieron extraer datos del DUI trasera',
+      };
+    } catch (error) {
+      this.logger.error(`Error al extraer datos del DUI trasera: ${error.message}`);
+      return {
+        nit: null,
+        estado_familiar: null,
+        confianza: 'baja',
+        mensaje: `Error en el análisis: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Parsea la respuesta de OpenAI para extracción del DUI trasera
+   */
+  private parseDuiTraseraResponse(response: string): {
+    nit: string | null;
+    estado_familiar: string | null;
+    confianza: string;
+  } {
+    try {
+      // Limpiar la respuesta de posibles caracteres extra
+      let cleanResponse = response.trim();
+
+      // Remover backticks de markdown si existen
+      if (cleanResponse.startsWith('```')) {
+        cleanResponse = cleanResponse.replace(/```json?\n?/g, '').replace(/```/g, '');
+      }
+
+      cleanResponse = cleanResponse.trim();
+
+      const parsed = JSON.parse(cleanResponse);
+      return {
+        nit: parsed.nit || null,
+        estado_familiar: parsed.estado_familiar || null,
+        confianza: parsed.confianza || 'media',
+      };
+    } catch (error) {
+      this.logger.error(`Error al parsear respuesta de DUI trasera: ${error.message}`);
+      this.logger.debug(`Respuesta original: ${response}`);
+
+      // Intentar extraer NIT con regex como fallback (formato: ####-######-###-#)
+      const nitMatch = response.match(/\d{4}-\d{6}-\d{3}-\d/);
+      return {
+        nit: nitMatch ? nitMatch[0] : null,
+        estado_familiar: null,
+        confianza: 'baja',
+      };
+    }
+  }
+
+  /**
+   * Valida el formato del NIT salvadoreño
+   * Formato: ####-######-###-# (14 dígitos con guiones)
+   */
+  private isValidNitFormat(nit: string): boolean {
+    const nitRegex = /^\d{4}-\d{6}-\d{3}-\d$/;
+    return nitRegex.test(nit);
+  }
+
+  /**
+   * Parsea la respuesta de OpenAI para extracción completa del DUI
+   */
+  private parseFullDuiResponse(response: string): {
+    dui_encontrado: string | null;
+    nombre_completo: string | null;
+    fecha_nacimiento: string | null;
+    confianza: string;
+  } {
+    try {
+      // Limpiar la respuesta de posibles caracteres extra
+      let cleanResponse = response.trim();
+
+      // Remover backticks de markdown si existen
+      if (cleanResponse.startsWith('```')) {
+        cleanResponse = cleanResponse.replace(/```json?\n?/g, '').replace(/```/g, '');
+      }
+
+      cleanResponse = cleanResponse.trim();
+
+      const parsed = JSON.parse(cleanResponse);
+      return {
+        dui_encontrado: parsed.dui_encontrado || null,
+        nombre_completo: parsed.nombre_completo || null,
+        fecha_nacimiento: parsed.fecha_nacimiento || null,
+        confianza: parsed.confianza || 'media',
+      };
+    } catch (error) {
+      this.logger.error(`Error al parsear respuesta de DUI completo: ${error.message}`);
+      this.logger.debug(`Respuesta original: ${response}`);
+
+      // Intentar extraer DUI con regex como fallback
+      const duiMatch = response.match(/\d{8}-\d/);
+      return {
+        dui_encontrado: duiMatch ? duiMatch[0] : null,
+        nombre_completo: null,
+        fecha_nacimiento: null,
+        confianza: 'baja',
+      };
+    }
+  }
+
+  /**
+   * Valida el formato de fecha YYYY-MM-DD
+   */
+  private isValidDateFormat(date: string): boolean {
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(date)) return false;
+
+    // Validar que sea una fecha válida
+    const parsedDate = new Date(date);
+    return !isNaN(parsedDate.getTime());
+  }
+
+  /**
    * Parsea la respuesta de OpenAI a JSON
    */
   private parseOpenAIResponse(response: string): { dui_encontrado: string | null; confianza: string } {
@@ -301,6 +630,9 @@ Niveles de confianza: "alta", "media", "baja"`;
       return {
         numero_contrato: null,
         direccion: null,
+        colonia: null,
+        municipio: null,
+        departamento: null,
         tipo_servicio: 'DESCONOCIDO',
         confianza: 'baja',
         mensaje: 'El servicio de validación por IA no está disponible',
@@ -328,12 +660,18 @@ Niveles de confianza: "alta", "media", "baja"`;
         this.logger.log(
           `Recibo analizado - NC: ${result.numero_contrato || 'N/A'}, ` +
           `Dirección: ${result.direccion ? result.direccion.substring(0, 50) + '...' : 'N/A'}, ` +
+          `Colonia: ${result.colonia || 'N/A'}, ` +
+          `Municipio: ${result.municipio || 'N/A'}, ` +
+          `Departamento: ${result.departamento || 'N/A'}, ` +
           `Tipo: ${tipoServicio}, Confianza: ${confianza}`,
         );
 
         return {
           numero_contrato: result.numero_contrato,
           direccion: result.direccion,
+          colonia: result.colonia,
+          municipio: result.municipio,
+          departamento: result.departamento,
           tipo_servicio: tipoServicio,
           confianza,
           mensaje: 'Datos del recibo extraídos exitosamente',
@@ -343,6 +681,9 @@ Niveles de confianza: "alta", "media", "baja"`;
       return {
         numero_contrato: null,
         direccion: null,
+        colonia: null,
+        municipio: null,
+        departamento: null,
         tipo_servicio: tipoServicio,
         confianza: 'baja',
         mensaje: 'No se pudieron extraer datos del recibo',
@@ -352,6 +693,9 @@ Niveles de confianza: "alta", "media", "baja"`;
       return {
         numero_contrato: null,
         direccion: null,
+        colonia: null,
+        municipio: null,
+        departamento: null,
         tipo_servicio: 'DESCONOCIDO',
         confianza: 'baja',
         mensaje: `Error en el análisis: ${error.message}`,
@@ -365,6 +709,9 @@ Niveles de confianza: "alta", "media", "baja"`;
   private parseReciboResponse(response: string): {
     numero_contrato: string | null;
     direccion: string | null;
+    colonia: string | null;
+    municipio: string | null;
+    departamento: string | null;
     tipo_servicio: string;
     confianza: string;
   } {
@@ -383,6 +730,9 @@ Niveles de confianza: "alta", "media", "baja"`;
       return {
         numero_contrato: parsed.numero_contrato || null,
         direccion: parsed.direccion || null,
+        colonia: parsed.colonia || null,
+        municipio: parsed.municipio || null,
+        departamento: parsed.departamento || null,
         tipo_servicio: parsed.tipo_servicio || 'DESCONOCIDO',
         confianza: parsed.confianza || 'media',
       };
@@ -393,6 +743,9 @@ Niveles de confianza: "alta", "media", "baja"`;
       return {
         numero_contrato: null,
         direccion: null,
+        colonia: null,
+        municipio: null,
+        departamento: null,
         tipo_servicio: 'DESCONOCIDO',
         confianza: 'baja',
       };

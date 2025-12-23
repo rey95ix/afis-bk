@@ -17,7 +17,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiProp
 import { Auth, GetUser } from 'src/modules/auth/decorators';
 import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
-import { ClienteDocumentosService, UploadDocumentosResult } from './cliente-documentos.service';
+import { ClienteDocumentosService, UploadDocumentosResult, AnalisisDocumentosResult } from './cliente-documentos.service';
 import { memoryStorage } from 'multer';
 
 @ApiTags('Cliente Documentos')
@@ -98,6 +98,74 @@ export class ClienteDocumentosController {
       files,
       usuario.id_usuario,
     );
+  }
+
+  @RequirePermissions('atencion_cliente.clientes:gestionar_documentos')
+  @Post('analizar')
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [
+        { name: 'dui_frente', maxCount: 1 },
+        { name: 'dui_trasera', maxCount: 1 },
+        { name: 'nit_frente', maxCount: 1 },
+        { name: 'nit_trasera', maxCount: 1 },
+        { name: 'recibo', maxCount: 1 },
+      ],
+      {
+        storage: memoryStorage(),
+        fileFilter: (req, file, callback) => {
+          if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+            return callback(
+              new BadRequestException('Solo se permiten imágenes (JPG, PNG, WEBP)'),
+              false,
+            );
+          }
+          callback(null, true);
+        },
+        limits: {
+          fileSize: 5 * 1024 * 1024, // 5MB
+        },
+      },
+    ),
+  )
+  @ApiOperation({
+    summary: 'Analizar documentos sin guardarlos',
+    description: `Analiza documentos con IA para extraer información y buscar duplicados SIN crear registros.
+
+    **Uso principal**: Pre-llenar el formulario de cliente con datos extraídos del DUI y recibo.
+
+    **Datos extraídos del DUI**:
+    - Número de DUI
+    - Nombre completo del titular
+    - Fecha de nacimiento
+
+    **Datos extraídos del Recibo**:
+    - Número de contrato
+    - Dirección
+    - Tipo de servicio (ENERGIA/AGUA)
+
+    **Búsqueda de duplicados**: Si se detecta número de contrato o dirección,
+    se buscan clientes existentes con datos similares.`,
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiResponse({
+    status: 201,
+    description: 'Datos extraídos de los documentos. No se guarda nada en el servidor.',
+  })
+  @ApiResponse({ status: 400, description: 'Archivos inválidos.' })
+  async analizarDocumentos(
+    @UploadedFiles()
+    files: {
+      dui_frente?: Express.Multer.File[];
+      dui_trasera?: Express.Multer.File[];
+      nit_frente?: Express.Multer.File[];
+      nit_trasera?: Express.Multer.File[];
+      recibo?: Express.Multer.File[];
+    },
+  ): Promise<AnalisisDocumentosResult> {
+    // No se requiere validación de archivos obligatorios
+    // ya que es un endpoint de análisis opcional
+    return this.clienteDocumentosService.analizarDocumentosSinGuardar(files);
   }
 
   @RequirePermissions('atencion_cliente.clientes:gestionar_documentos')
