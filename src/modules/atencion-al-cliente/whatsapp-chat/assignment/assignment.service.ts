@@ -232,4 +232,152 @@ export class AssignmentService {
     // Luego asignar al nuevo usuario
     return this.assignChat(chatId, dto, reassignedById);
   }
+
+  /**
+   * Verificar si la asignación automática está habilitada
+   */
+  async isAutoAssignEnabled(): Promise<boolean> {
+    const config = await this.prisma.configuracion_whatsapp.findFirst({
+      orderBy: { id_config: 'desc' },
+    });
+
+    // Por defecto habilitado si no hay configuración
+    return config?.auto_asignacion ?? true;
+  }
+
+  /**
+   * Obtener el máximo de chats por agente configurado
+   */
+  async getMaxChatsPerAgent(): Promise<number> {
+    const config = await this.prisma.configuracion_whatsapp.findFirst({
+      orderBy: { id_config: 'desc' },
+    });
+
+    return config?.max_chats_por_agente ?? 10;
+  }
+
+  /**
+   * Asignar automáticamente un chat al agente con menos carga
+   */
+  async autoAssignChat(chatId: number): Promise<{ assigned: boolean; userId?: number; reason: string }> {
+    // Verificar si la asignación automática está habilitada
+    const isEnabled = await this.isAutoAssignEnabled();
+    if (!isEnabled) {
+      return { assigned: false, reason: 'Asignación automática deshabilitada' };
+    }
+
+    const maxChatsPerAgent = await this.getMaxChatsPerAgent();
+
+    // Obtener agentes disponibles ordenados por menor carga
+    const agents = await this.getAvailableAgents();
+
+    // Filtrar agentes que no han alcanzado el límite
+    const availableAgents = agents.filter(
+      (agent) => agent.chats_activos < maxChatsPerAgent,
+    );
+
+    if (availableAgents.length === 0) {
+      return {
+        assigned: false,
+        reason: 'No hay agentes disponibles o todos han alcanzado el límite de chats',
+      };
+    }
+
+    // Ordenar por menor cantidad de chats activos
+    availableAgents.sort((a, b) => a.chats_activos - b.chats_activos);
+
+    // Asignar al agente con menos carga
+    const selectedAgent = availableAgents[0];
+
+    try {
+      await this.assignChatSystem(chatId, {
+        id_usuario: selectedAgent.id_usuario,
+        razon: 'Asignación automática al agente con menor carga',
+      });
+
+      return {
+        assigned: true,
+        userId: selectedAgent.id_usuario,
+        reason: `Asignado automáticamente a ${selectedAgent.nombre_completo}`,
+      };
+    } catch (error) {
+      return {
+        assigned: false,
+        reason: `Error al asignar: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Asignar un chat por el sistema (sin usuario que asigna)
+   * Usado para asignaciones automáticas
+   */
+  async assignChatSystem(chatId: number, dto: AssignChatDto) {
+    // Verificar que el chat existe
+    const chat = await this.prisma.whatsapp_chat.findUnique({
+      where: { id_chat: chatId },
+    });
+
+    if (!chat) {
+      throw new NotFoundException(`Chat con ID ${chatId} no encontrado`);
+    }
+
+    if (chat.estado === 'CERRADO') {
+      throw new BadRequestException('No se puede asignar un chat cerrado');
+    }
+
+    // Verificar que el usuario existe
+    const usuario = await this.prisma.usuarios.findUnique({
+      where: { id_usuario: dto.id_usuario },
+    });
+
+    if (!usuario) {
+      throw new NotFoundException(`Usuario con ID ${dto.id_usuario} no encontrado`);
+    }
+
+    // Desactivar asignaciones anteriores
+    await this.prisma.whatsapp_chat_assignment.updateMany({
+      where: { id_chat: chatId, activo: true },
+      data: {
+        activo: false,
+        fecha_desasignacion: new Date(),
+        razon: 'Reasignado automáticamente',
+      },
+    });
+
+    // Crear nueva asignación (sin id_asignado_por para asignaciones del sistema)
+    const assignment = await this.prisma.whatsapp_chat_assignment.create({
+      data: {
+        id_chat: chatId,
+        id_usuario: dto.id_usuario,
+        razon: dto.razon || 'Asignación automática del sistema',
+      },
+      include: {
+        usuario: {
+          select: {
+            id_usuario: true,
+            nombres: true,
+            apellidos: true,
+          },
+        },
+      },
+    });
+
+    // Actualizar el chat con el usuario asignado
+    await this.prisma.whatsapp_chat.update({
+      where: { id_chat: chatId },
+      data: {
+        id_usuario_asignado: dto.id_usuario,
+        estado: 'ABIERTO',
+      },
+    });
+
+    await this.prisma.logAction(
+      'AUTO_ASIGNAR_WHATSAPP_CHAT',
+      undefined,
+      `Chat #${chatId} auto-asignado a ${usuario.nombres} ${usuario.apellidos}`,
+    );
+
+    return assignment;
+  }
 }

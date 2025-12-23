@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -11,6 +12,9 @@ import { ChatService } from '../chat/chat.service';
 import { WhatsAppApiService } from '../whatsapp-api/whatsapp-api.service';
 import { MinioService } from '../../../minio/minio.service';
 import { WhatsAppChatGateway } from '../whatsapp-chat.gateway';
+import { AssignmentService } from '../assignment/assignment.service';
+import { TemplateService } from '../template/template.service';
+import { SendTemplateDto } from '../template/dto/send-template.dto';
 
 @Injectable()
 export class MessageService {
@@ -22,6 +26,8 @@ export class MessageService {
     private readonly whatsAppApiService: WhatsAppApiService,
     private readonly minioService: MinioService,
     private readonly chatGateway: WhatsAppChatGateway,
+    private readonly assignmentService: AssignmentService,
+    private readonly templateService: TemplateService,
   ) {}
 
   /**
@@ -66,8 +72,19 @@ export class MessageService {
     // Verificar que el chat existe y está activo
     const chat = await this.prisma.whatsapp_chat.findUnique({
       where: { id_chat: chatId },
+      include: {
+        usuario_asignado: {
+          select: {
+            id_usuario: true,
+            nombres: true,
+            apellidos: true,
+          },
+        },
+      },
     });
-
+    const usuarioActivo = await this.prisma.usuarios.findUnique({
+      where: { id_usuario: userId, estado: 'ACTIVO' },
+    });
     if (!chat) {
       throw new NotFoundException(`Chat con ID ${chatId} no encontrado`);
     }
@@ -76,9 +93,51 @@ export class MessageService {
       throw new BadRequestException('No se puede enviar mensajes a un chat cerrado');
     }
 
+    // Validar ventana de 24 horas para mensajes que no son plantilla
+    const tipoMensaje = sendMessageDto.tipo || 'TEXTO';
+    if (tipoMensaje !== 'PLANTILLA') {
+      const windowStatus = await this.chatService.canSendFreeformMessage(chatId);
+      if (!windowStatus.canSend) {
+        throw new ForbiddenException({
+          message: 'La ventana de 24 horas ha expirado. Debe usar una plantilla aprobada para iniciar la conversación.',
+          code: 'WHATSAPP_WINDOW_CLOSED',
+          requiresTemplate: true,
+          expiresAt: windowStatus.expiresAt,
+        });
+      }
+    }
+
+    // Reasignación automática: Si el usuario que responde no es el asignado, reasignar
+    if (chat.id_usuario_asignado && chat.id_usuario_asignado !== userId) {
+      this.logger.log(
+        `Chat #${chatId}: Reasignando de usuario ${chat.usuario_asignado?.nombres} ${chat.usuario_asignado?.apellidos} a ${usuarioActivo?.nombres} ${usuarioActivo?.apellidos} por respuesta`,
+      );
+
+      // Reasignar automáticamente
+      await this.assignmentService.assignChat(
+        chatId,
+        { id_usuario: userId, razon: 'Reasignación automática por respuesta' },
+        userId,
+      );
+
+      // Emitir evento de reasignación
+      this.chatGateway.emitChatUpdated({
+        ...chat,
+        id_usuario_asignado: userId,
+        _reassigned: true,
+        _previous_user: chat.usuario_asignado,
+      });
+    } else if (!chat.id_usuario_asignado) {
+      // Si el chat no tiene asignado, asignar al que responde
+      await this.assignmentService.assignChat(
+        chatId,
+        { id_usuario: userId, razon: 'Asignación automática por primera respuesta' },
+        userId,
+      );
+    }
+
     // Enviar mensaje a WhatsApp segun el tipo
     let whatsappMessageId: string | null = null;
-    const tipoMensaje = sendMessageDto.tipo || 'TEXTO';
 
     try {
       switch (tipoMensaje) {
@@ -176,6 +235,149 @@ export class MessageService {
       'ENVIAR_WHATSAPP_MENSAJE',
       userId,
       `Mensaje enviado en chat #${chatId}`,
+    );
+
+    // Emitir nuevo mensaje via WebSocket
+    this.chatGateway.emitNewMessage(chatId, message);
+
+    return message;
+  }
+
+  /**
+   * Enviar un mensaje de plantilla en un chat (para reabrir ventana de 24h)
+   */
+  async sendTemplateMessage(
+    chatId: number,
+    sendTemplateDto: SendTemplateDto,
+    userId: number,
+  ) {
+    // Verificar que el chat existe
+    const chat = await this.prisma.whatsapp_chat.findUnique({
+      where: { id_chat: chatId },
+      include: {
+        usuario_asignado: {
+          select: {
+            id_usuario: true,
+            nombres: true,
+            apellidos: true,
+          },
+        },
+      },
+    });
+
+    if (!chat) {
+      throw new NotFoundException(`Chat con ID ${chatId} no encontrado`);
+    }
+
+    if (chat.estado === 'CERRADO') {
+      throw new BadRequestException('No se puede enviar mensajes a un chat cerrado');
+    }
+
+    // Obtener la plantilla
+    const template = await this.templateService.findOne(sendTemplateDto.id_template);
+
+    // Reasignación automática si es necesario
+    if (chat.id_usuario_asignado && chat.id_usuario_asignado !== userId) {
+      this.logger.log(
+        `Chat #${chatId}: Reasignando de usuario ${chat.id_usuario_asignado} a ${userId} por envío de plantilla`,
+      );
+
+      await this.assignmentService.assignChat(
+        chatId,
+        { id_usuario: userId, razon: 'Reasignación automática por envío de plantilla' },
+        userId,
+      );
+
+      this.chatGateway.emitChatUpdated({
+        ...chat,
+        id_usuario_asignado: userId,
+        _reassigned: true,
+        _previous_user: chat.usuario_asignado,
+      });
+    } else if (!chat.id_usuario_asignado) {
+      await this.assignmentService.assignChat(
+        chatId,
+        { id_usuario: userId, razon: 'Asignación automática por envío de plantilla' },
+        userId,
+      );
+    }
+
+    // Enviar plantilla a WhatsApp
+    const result = await this.templateService.sendTemplate(
+      chat.telefono_cliente,
+      sendTemplateDto,
+    );
+
+    if (!result.success) {
+      // Crear mensaje fallido
+      await this.prisma.whatsapp_message.create({
+        data: {
+          id_chat: chatId,
+          whatsapp_message_id: `msg_template_failed_${Date.now()}`,
+          direccion: 'SALIENTE',
+          tipo: 'PLANTILLA',
+          contenido: `[Plantilla: ${template.nombre}]`,
+          id_usuario_envia: userId,
+          es_de_ia: false,
+          estado: 'FALLIDO',
+          metadata: {
+            template_id: template.id_template,
+            template_nombre: template.nombre,
+            parametros: sendTemplateDto.parametros,
+            error: result.error,
+          },
+        },
+      });
+
+      throw new BadRequestException(`Error al enviar plantilla: ${result.error}`);
+    }
+
+    // Generar preview del contenido de la plantilla
+    const preview = this.templateService.previewTemplate(
+      template,
+      sendTemplateDto.parametros || {},
+    );
+    const contenidoPreview = preview.body || `[Plantilla: ${template.nombre}]`;
+
+    // Crear el mensaje de plantilla
+    const message = await this.prisma.whatsapp_message.create({
+      data: {
+        id_chat: chatId,
+        whatsapp_message_id: result.messageId || `msg_template_${Date.now()}`,
+        direccion: 'SALIENTE',
+        tipo: 'PLANTILLA',
+        contenido: contenidoPreview,
+        id_usuario_envia: userId,
+        es_de_ia: false,
+        estado: 'ENVIADO',
+        metadata: {
+          template_id: template.id_template,
+          template_nombre: template.nombre,
+          parametros: sendTemplateDto.parametros,
+          componentes: template.componentes,
+        },
+      },
+      include: {
+        usuario_envia: {
+          select: {
+            id_usuario: true,
+            nombres: true,
+            apellidos: true,
+          },
+        },
+      },
+    });
+
+    // Actualizar preview del último mensaje en el chat
+    await this.chatService.updateLastMessage(chatId, contenidoPreview, false);
+
+    // Actualizar métricas
+    await this.updateMetrics(chatId, false);
+
+    await this.prisma.logAction(
+      'ENVIAR_WHATSAPP_PLANTILLA',
+      userId,
+      `Plantilla "${template.nombre}" enviada en chat #${chatId}`,
     );
 
     // Emitir nuevo mensaje via WebSocket

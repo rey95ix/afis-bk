@@ -1,16 +1,20 @@
 # Modulo WhatsApp Chat
 
-Sistema completo de gestion de chats de WhatsApp Business con integracion de IA para atencion automatizada al cliente.
+Sistema completo de gestion de chats de WhatsApp Business con integracion de IA para atencion automatizada al cliente, cumpliendo con las politicas de Meta.
 
 ## Descripcion General
 
 Este modulo proporciona:
 - **Gestion de Chats**: CRUD completo de conversaciones con clientes via WhatsApp
 - **Mensajeria**: Envio/recepcion de mensajes (texto, imagen, video, audio, documentos)
+- **Ventana de 24 Horas**: Validacion y cumplimiento de politica de Meta
+- **Sistema de Plantillas**: Plantillas HSM aprobadas para iniciar conversaciones
+- **Asignacion Automatica**: Asignacion inteligente al agente con menos carga
+- **Reasignacion al Responder**: Reasignacion automatica cuando otro agente responde
 - **Integracion IA**: Respuestas automaticas con OpenAI/Claude y motor de reglas
-- **Asignacion de Agentes**: Sistema de asignacion y reasignacion de chats
 - **Analytics**: Metricas de rendimiento, tiempos de respuesta, satisfaccion
 - **Webhook WhatsApp**: Recepcion de eventos en tiempo real
+- **Auditoria Completa**: Registro de quien envia cada mensaje y cambios de asignacion
 
 ---
 
@@ -19,6 +23,7 @@ Este modulo proporciona:
 ```
 whatsapp-chat/
 ├── whatsapp-chat.module.ts
+├── whatsapp-chat.gateway.ts          # WebSocket para tiempo real
 │
 ├── analytics/
 │   ├── analytics.controller.ts
@@ -26,14 +31,15 @@ whatsapp-chat/
 │
 ├── assignment/
 │   ├── assignment.controller.ts
-│   ├── assignment.service.ts
+│   ├── assignment.service.ts         # Incluye asignacion automatica
 │   └── dto/
 │       ├── assign-chat.dto.ts
+│       ├── unassign-chat.dto.ts
 │       └── index.ts
 │
 ├── chat/
-│   ├── chat.controller.ts
-│   ├── chat.service.ts
+│   ├── chat.controller.ts            # Incluye endpoint window-status
+│   ├── chat.service.ts               # Incluye validacion 24h
 │   └── dto/
 │       ├── create-chat.dto.ts
 │       ├── query-chat.dto.ts
@@ -56,16 +62,25 @@ whatsapp-chat/
 │       └── index.ts
 │
 ├── message/
-│   ├── message.controller.ts
-│   ├── message.service.ts
+│   ├── message.controller.ts         # Incluye envio de plantillas
+│   ├── message.service.ts            # Incluye validacion 24h y reasignacion
 │   └── dto/
 │       ├── query-message.dto.ts
 │       ├── send-message.dto.ts
 │       └── index.ts
 │
+├── template/                         # NUEVO: Sistema de plantillas
+│   ├── template.controller.ts
+│   ├── template.service.ts
+│   └── dto/
+│       ├── create-template.dto.ts
+│       ├── update-template.dto.ts
+│       ├── send-template.dto.ts
+│       └── index.ts
+│
 └── whatsapp-api/
     ├── whatsapp-api.service.ts
-    ├── whatsapp-webhook.controller.ts
+    ├── whatsapp-webhook.controller.ts  # Incluye asignacion automatica
     └── dto/
         ├── webhook-payload.dto.ts
         └── index.ts
@@ -84,6 +99,7 @@ whatsapp-chat/
 | `POST` | `/` | `whatsapp_chat:crear` | Iniciar nuevo chat con cliente |
 | `GET` | `/` | `whatsapp_chat:ver` | Listar chats con filtros y paginacion |
 | `GET` | `/stats` | `whatsapp_chat:ver` | Estadisticas generales de chats |
+| `GET` | `/:id/window-status` | `whatsapp_chat:ver` | **NUEVO:** Estado de ventana 24h |
 | `GET` | `/:id` | `whatsapp_chat:ver` | Obtener chat por ID con mensajes |
 | `PATCH` | `/:id` | `whatsapp_chat:editar` | Actualizar chat (estado, tags, asignado) |
 | `POST` | `/:id/close` | `whatsapp_chat:editar` | Cerrar chat con metricas finales |
@@ -139,6 +155,19 @@ whatsapp-chat/
 | `POST` | `/reorder` | `whatsapp_ia:configurar` | Reordenar prioridades |
 | `POST` | `/:id/duplicate` | `whatsapp_ia:configurar` | Duplicar regla |
 | `POST` | `/test` | `whatsapp_ia:configurar` | Evaluar mensaje contra reglas |
+
+### TemplateController - `/templates`
+
+| Metodo | Endpoint | Permiso | Descripcion |
+|--------|----------|---------|-------------|
+| `POST` | `/` | `whatsapp_chat:crear` | Registrar plantilla manualmente |
+| `GET` | `/` | `whatsapp_chat:ver` | Listar plantillas con filtros |
+| `GET` | `/approved` | `whatsapp_chat:ver` | Listar solo plantillas aprobadas |
+| `GET` | `/:id` | `whatsapp_chat:ver` | Obtener plantilla por ID |
+| `PATCH` | `/:id` | `whatsapp_chat:editar` | Actualizar plantilla |
+| `DELETE` | `/:id` | `whatsapp_chat:editar` | Eliminar plantilla |
+| `POST` | `/sync` | `whatsapp_chat:editar` | Sincronizar desde Meta API |
+| `POST` | `/:templateId/send/:chatId` | `whatsapp_chat:crear` | Enviar plantilla a chat |
 
 ### AnalyticsController - `/analytics`
 
@@ -261,6 +290,20 @@ getChatMetrics(chatId)               // Metricas de chat
 getTrends(periodo?)                  // Tendencias
 ```
 
+### TemplateService
+Gestion de plantillas HSM de WhatsApp.
+
+```typescript
+create(dto, userId)                          // Crear plantilla manual
+findAll(queryDto)                            // Listar con filtros
+findAllApproved()                            // Solo aprobadas
+findOne(id)                                  // Por ID
+update(id, dto, userId)                      // Actualizar
+delete(id)                                   // Eliminar
+syncFromMeta()                               // Sincronizar desde Meta API
+sendTemplate(templateId, chatId, params, userId)  // Enviar a chat
+```
+
 ---
 
 ## DTOs
@@ -375,6 +418,47 @@ getTrends(periodo?)                  // Tendencias
 }
 ```
 
+### CreateTemplateDto
+```typescript
+{
+  nombre: string;                  // Nombre unico de la plantilla
+  idioma?: string;                 // Default: "es"
+  categoria: 'MARKETING' | 'UTILITY' | 'AUTHENTICATION';
+  estado?: 'APPROVED' | 'PENDING' | 'REJECTED';
+  componentes: {                   // Estructura de la plantilla
+    header?: {
+      type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
+      text?: string;
+      url?: string;
+    };
+    body: {
+      text: string;                // Texto con {{1}}, {{2}} para variables
+    };
+    footer?: {
+      text: string;
+    };
+    buttons?: Array<{
+      type: 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER';
+      text: string;
+      url?: string;
+      phone_number?: string;
+    }>;
+  };
+  variables?: Array<{              // Descripcion de variables
+    index: number;
+    name: string;
+    example: string;
+  }>;
+}
+```
+
+### SendTemplateDto
+```typescript
+{
+  parametros?: Record<string, string>;  // Valores para variables: {"1": "Juan", "2": "12345"}
+}
+```
+
 ---
 
 ## Modelos de Base de Datos
@@ -390,6 +474,7 @@ getTrends(periodo?)                  // Tendencias
 | `id_usuario_asignado` | Int? (FK) | Usuario asignado |
 | `id_cliente` | Int? (FK) | Cliente vinculado |
 | `ultimo_mensaje_at` | DateTime? | Timestamp ultimo mensaje |
+| `ultima_interaccion_cliente` | DateTime? | **NUEVO:** Ultimo mensaje del cliente (para ventana 24h) |
 | `preview_ultimo_mensaje` | String? | Preview del mensaje |
 | `mensajes_no_leidos` | Int | Contador no leidos |
 | `ia_habilitada` | Boolean | IA activa en chat |
@@ -469,6 +554,31 @@ getTrends(periodo?)                  // Tendencias
 | `puntuacion_satisfaccion` | Int? | 1-5 |
 | `fue_escalado` | Boolean | Si escalo a humano |
 
+### whatsapp_template (NUEVO)
+| Campo | Tipo | Descripcion |
+|-------|------|-------------|
+| `id_template` | Int (PK) | ID |
+| `nombre` | String (UK) | Nombre unico de plantilla |
+| `idioma` | String | Codigo idioma (es, en_US) |
+| `categoria` | Enum | MARKETING, UTILITY, AUTHENTICATION |
+| `estado` | Enum | APPROVED, PENDING, REJECTED |
+| `componentes` | JSON | Header, body, footer, buttons |
+| `variables` | JSON? | Descripcion de variables |
+| `meta_template_id` | String? | ID en Meta (si sincronizado) |
+| `fecha_creacion` | DateTime | Cuando se creo |
+| `fecha_sync` | DateTime? | Ultima sincronizacion con Meta |
+| `id_usuario_crea` | Int? (FK) | Quien la registro |
+
+### configuracion_whatsapp (NUEVO)
+| Campo | Tipo | Descripcion |
+|-------|------|-------------|
+| `id_config` | Int (PK) | ID |
+| `auto_asignacion` | Boolean | Asignar automaticamente chats nuevos |
+| `max_chats_por_agente` | Int | Limite de chats simultaneos por agente |
+| `reasignar_al_responder` | Boolean | Reasignar cuando otro agente responde |
+| `tiempo_inactividad_min` | Int | Minutos para considerar chat inactivo |
+| `fecha_actualizacion` | DateTime | Ultima modificacion |
+
 ---
 
 ## Variables de Entorno
@@ -543,6 +653,75 @@ OPENAI_MAX_TOKENS=500
 5. Se guarda mensaje con es_de_ia=true
 ```
 
+### Flujo de Ventana de 24 Horas (NUEVO)
+```
+1. Cada mensaje ENTRANTE del cliente actualiza `ultima_interaccion_cliente`
+2. Al intentar enviar mensaje SALIENTE:
+   a. Se calcula diferencia: ahora - ultima_interaccion_cliente
+   b. Si diferencia <= 24 horas -> Puede enviar mensaje libre
+   c. Si diferencia > 24 horas -> Requiere plantilla HSM
+3. Frontend muestra indicador visual:
+   - Verde: >12 horas restantes
+   - Amarillo: 4-12 horas restantes
+   - Rojo: <4 horas restantes
+   - "Ventana cerrada": Expiro, solo plantillas
+4. Endpoint GET /chats/:id/window-status retorna:
+   - canSend: boolean
+   - hoursRemaining: number | null
+   - expiresAt: DateTime | null
+   - requiresTemplate: boolean
+```
+
+### Flujo de Plantillas HSM (NUEVO)
+```
+1. Administrador registra plantillas manualmente o sincroniza desde Meta
+2. Plantilla debe estar en estado APPROVED para poder usarse
+3. Cuando ventana de 24h esta cerrada:
+   a. Frontend muestra selector de plantillas
+   b. Usuario selecciona plantilla y llena variables
+   c. POST /templates/:templateId/send/:chatId con parametros
+4. Backend envia plantilla via WhatsApp API:
+   POST graph.facebook.com/{phone_id}/messages
+   {
+     "messaging_product": "whatsapp",
+     "to": "{telefono}",
+     "type": "template",
+     "template": {
+       "name": "{nombre_plantilla}",
+       "language": {"code": "es"},
+       "components": [...]
+     }
+   }
+5. Al recibir respuesta del cliente, se reabre ventana de 24h
+```
+
+### Flujo de Asignacion Automatica (NUEVO)
+```
+1. Cliente nuevo envia primer mensaje
+2. Webhook crea chat con estado PENDIENTE
+3. Si auto_asignacion esta habilitado:
+   a. Se obtienen agentes con permiso whatsapp_chat:ver
+   b. Se ordenan por cantidad de chats activos ASC
+   c. Se filtra por max_chats_por_agente
+   d. Se asigna al agente con menos carga
+4. Chat cambia a estado ABIERTO
+5. Se registra asignacion con razon "Asignacion automatica"
+6. Se emite evento WebSocket 'chat-assigned'
+```
+
+### Flujo de Reasignacion al Responder (NUEVO)
+```
+1. Agente B responde en chat asignado a Agente A
+2. MessageService detecta que userId != chat.id_usuario_asignado
+3. Si reasignar_al_responder esta habilitado:
+   a. Se desactiva asignacion actual del Agente A
+   b. Se crea nueva asignacion para Agente B
+   c. Se actualiza id_usuario_asignado en chat
+   d. Se registra en auditoria: "Reasignado por respuesta"
+4. Se emite evento WebSocket 'chat-reassigned'
+5. Agente A recibe notificacion de que perdio la asignacion
+```
+
 ---
 
 ## Permisos
@@ -580,3 +759,68 @@ OPENAI_MAX_TOKENS=500
 - Webhook verifica firma HMAC-SHA256
 - API keys se encriptan en base de datos
 - No se loguean datos sensibles
+
+### Categorias de Plantillas
+- `MARKETING`: Promociones, ofertas, novedades
+- `UTILITY`: Notificaciones transaccionales, confirmaciones
+- `AUTHENTICATION`: Codigos OTP, verificacion
+
+### Estados de Plantillas
+- `APPROVED`: Aprobada por Meta, lista para usar
+- `PENDING`: En revision por Meta
+- `REJECTED`: Rechazada, no se puede usar
+
+### Auditoria
+Todas las operaciones criticas quedan registradas:
+- `id_usuario_envia` en cada mensaje saliente manual
+- `id_asignado_por` en cada asignacion
+- `razon` en asignaciones y desasignaciones
+- Historial completo en `whatsapp_chat_assignment`
+- Timestamps en todas las tablas
+
+---
+
+## Integracion Frontend
+
+### Componentes Angular
+```
+whatsapp-chat/
+├── chat-inbox/              # Componente principal
+│   ├── Lista de chats con filtros
+│   ├── Panel de conversacion
+│   ├── Indicador de ventana 24h
+│   └── Selector de plantillas
+├── ai-config-panel/         # Configuracion de IA
+├── ai-rules-panel/          # Reglas automaticas
+└── whatsapp-dashboard/      # Metricas (pendiente)
+```
+
+### Servicios Angular
+```typescript
+// whatsapp-chat.service.ts
+getChats(params)              // Listar chats
+getChatById(id)               // Detalle de chat
+sendMessage(chatId, dto)      // Enviar mensaje
+getWindowStatus(chatId)       // Estado ventana 24h
+getTemplates()                // Listar plantillas
+sendTemplate(templateId, chatId, params)  // Enviar plantilla
+assignChat(chatId, userId)    // Asignar
+getAvailableAgents()          // Agentes disponibles
+```
+
+### WebSocket Events
+```typescript
+// Eventos recibidos
+'new-message'        // Nuevo mensaje entrante
+'message-status'     // Cambio de estado de mensaje
+'chat-updated'       // Chat modificado
+'chat-assigned'      // Chat asignado
+'chat-reassigned'    // Chat reasignado a otro agente
+'typing'             // Indicador de escritura
+
+// Eventos emitidos
+'join-chat'          // Unirse a sala de chat
+'leave-chat'         // Salir de sala
+'typing-start'       // Empezar a escribir
+'typing-stop'        // Dejar de escribir
+```

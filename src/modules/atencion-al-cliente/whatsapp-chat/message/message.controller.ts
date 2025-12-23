@@ -15,6 +15,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { MessageService } from './message.service';
 import { SendMessageDto, QueryMessageDto } from './dto';
+import { SendTemplateDto } from '../template/dto/send-template.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -65,6 +66,41 @@ export class MessageController {
     @Request() req,
   ) {
     return this.messageService.sendMessage(chatId, sendMessageDto, req.user.id_usuario);
+  }
+
+  @RequirePermissions('atencion_cliente.whatsapp_chat:crear')
+  @Post('template')
+  @ApiOperation({
+    summary: 'Enviar un mensaje con plantilla',
+    description: 'Envía un mensaje usando una plantilla de WhatsApp aprobada. Útil para reabrir la ventana de 24 horas.',
+  })
+  @ApiParam({
+    name: 'chatId',
+    description: 'ID del chat',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Plantilla enviada exitosamente',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Error al enviar la plantilla',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Plantilla no aprobada o desactivada',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Chat o plantilla no encontrados',
+  })
+  sendTemplateMessage(
+    @Param('chatId', ParseIntPipe) chatId: number,
+    @Body() sendTemplateDto: SendTemplateDto,
+    @Request() req,
+  ) {
+    return this.messageService.sendTemplateMessage(chatId, sendTemplateDto, req.user.id_usuario);
   }
 
   @RequirePermissions('atencion_cliente.whatsapp_chat:crear')

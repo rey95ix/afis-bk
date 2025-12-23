@@ -20,6 +20,7 @@ import { MessageService } from '../message/message.service';
 import { RuleEngineService } from '../ia/rule-engine.service';
 import { OpenAIChatService } from '../ia/openai-chat.service';
 import { WhatsAppChatGateway } from '../whatsapp-chat.gateway';
+import { AssignmentService } from '../assignment/assignment.service';
 
 @ApiTags('WhatsApp Webhook')
 @Controller('api/atencion-al-cliente/whatsapp-chat/webhook')
@@ -33,6 +34,7 @@ export class WhatsAppWebhookController {
     private readonly ruleEngineService: RuleEngineService,
     private readonly openaiChatService: OpenAIChatService,
     private readonly chatGateway: WhatsAppChatGateway,
+    private readonly assignmentService: AssignmentService,
   ) { }
 
   /**
@@ -146,11 +148,21 @@ export class WhatsAppWebhookController {
 
     try {
       // Buscar o crear chat
-      const chat = await this.chatService.findOrCreateByPhone(
+      const { chat, isNew } = await this.chatService.findOrCreateByPhone(
         telefono,
         `chat_${Date.now()}`,
         nombre,
       );
+
+      // Si es un chat nuevo, intentar asignar automáticamente
+      if (isNew) {
+        const autoAssignResult = await this.assignmentService.autoAssignChat(chat.id_chat);
+        if (autoAssignResult.assigned) {
+          this.logger.log(`New chat #${chat.id_chat} auto-assigned: ${autoAssignResult.reason}`);
+        } else {
+          this.logger.log(`New chat #${chat.id_chat} not auto-assigned: ${autoAssignResult.reason}`);
+        }
+      }
 
       // Extraer contenido según el tipo de mensaje
       let contenido = '';
@@ -353,6 +365,12 @@ export class WhatsAppWebhookController {
           messageContext,
         );
         this.logger.log(`Chat ${chatId} escalated to human`);
+
+        // Intentar asignar automáticamente al escalar
+        const autoAssignResult = await this.assignmentService.autoAssignChat(chatId);
+        if (autoAssignResult.assigned) {
+          this.logger.log(`Escalated chat #${chatId} auto-assigned: ${autoAssignResult.reason}`);
+        }
       }
     } catch (error) {
       this.logger.error(`Error processing with IA: ${error.message}`);

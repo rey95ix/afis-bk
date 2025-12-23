@@ -2883,6 +2883,7 @@ model whatsapp_chat {
   estado                     estado_chat @default(PENDIENTE)
   id_usuario_asignado        Int?
   ultimo_mensaje_at          DateTime?
+  ultima_interaccion_cliente DateTime? // Último mensaje ENTRANTE del cliente (para validación 24h)
   preview_ultimo_mensaje     String?   @db.Text
   mensajes_no_leidos         Int       @default(0)
   ia_habilitada              Boolean   @default(true)
@@ -2905,6 +2906,7 @@ model whatsapp_chat {
   @@index([estado])
   @@index([telefono_cliente])
   @@index([ultimo_mensaje_at])
+  @@index([ultima_interaccion_cliente])
 }
 
 // Mensaje de WhatsApp
@@ -3034,4 +3036,41 @@ model whatsapp_chat_metrics {
   chat                       whatsapp_chat @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_metrics_chat")
 
   @@index([id_chat])
+}
+
+// Plantillas de WhatsApp aprobadas por Meta
+model whatsapp_template {
+  id_template                Int       @id @default(autoincrement())
+  meta_template_id           String?   @unique // ID de la plantilla en Meta
+  nombre                     String    @unique // Nombre único de la plantilla en Meta
+  idioma                     String    @default("es") // Código de idioma (es, en_US, etc.)
+  categoria                  String    // MARKETING, UTILITY, AUTHENTICATION
+  estado                     String    @default("PENDING") // APPROVED, PENDING, REJECTED, DISABLED
+  reject_reason              String?   // Razón de rechazo de Meta
+  componentes                Json      // Estructura: { header?, body, footer?, buttons? }
+  variables                  Json?     // Variables requeridas: [{ name, type, example }]
+  descripcion                String?   @db.Text
+  activo                     Boolean   @default(true) // Para habilitar/deshabilitar localmente
+  sincronizado_con_meta      Boolean   @default(false) // Si está sincronizado con Meta
+  ultima_sincronizacion      DateTime? // Última vez que se sincronizó con Meta
+  fecha_creacion             DateTime  @default(now())
+  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+
+  @@index([nombre])
+  @@index([categoria])
+  @@index([estado])
+  @@index([activo])
+  @@index([meta_template_id])
+}
+
+// Configuración global de WhatsApp Chat
+model configuracion_whatsapp {
+  id_config                  Int       @id @default(autoincrement())
+  auto_asignacion            Boolean   @default(true) // Asignar automáticamente chats nuevos
+  max_chats_por_agente       Int       @default(10) // Máximo de chats activos por agente
+  notificaciones_push        Boolean   @default(true) // Habilitar notificaciones push
+  sonido_notificacion        Boolean   @default(true) // Sonido en notificaciones
+  tiempo_alerta_sin_respuesta Int      @default(5) // Minutos sin respuesta para alertar
+  fecha_creacion             DateTime  @default(now())
+  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
 }

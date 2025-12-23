@@ -90,6 +90,39 @@ export class ChatController {
   }
 
   @RequirePermissions('atencion_cliente.whatsapp_chat:ver')
+  @Get(':id/window-status')
+  @ApiOperation({
+    summary: 'Verificar estado de ventana de 24 horas',
+    description:
+      'Verifica si se puede enviar un mensaje de forma libre o si se requiere usar una plantilla. La ventana de 24 horas se calcula desde el último mensaje del cliente.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del chat',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Estado de la ventana obtenido',
+    schema: {
+      type: 'object',
+      properties: {
+        canSend: { type: 'boolean', description: 'Si se puede enviar mensaje de forma libre' },
+        hoursRemaining: { type: 'number', nullable: true, description: 'Horas restantes de la ventana' },
+        expiresAt: { type: 'string', nullable: true, description: 'Fecha/hora de expiración' },
+        requiresTemplate: { type: 'boolean', description: 'Si requiere usar plantilla' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Chat no encontrado',
+  })
+  getWindowStatus(@Param('id', ParseIntPipe) id: number) {
+    return this.chatService.canSendFreeformMessage(id);
+  }
+
+  @RequirePermissions('atencion_cliente.whatsapp_chat:ver')
   @Get(':id')
   @ApiOperation({
     summary: 'Obtener un chat por ID',

@@ -29,6 +29,11 @@ import { AssignmentService } from './assignment/assignment.service';
 import { AnalyticsController } from './analytics/analytics.controller';
 import { AnalyticsService } from './analytics/analytics.service';
 
+// Templates
+import { TemplateController } from './template/template.controller';
+import { TemplateService } from './template/template.service';
+import { MetaTemplateService } from './template/meta-template.service';
+
 // WebSocket Gateway
 import { WhatsAppChatGateway } from './whatsapp-chat.gateway';
 
@@ -49,6 +54,7 @@ import { MinioModule } from '../../minio/minio.module';
     AssignmentController,
     AgentsController,
     AnalyticsController,
+    TemplateController,
   ],
   providers: [
     ChatService,
@@ -60,6 +66,8 @@ import { MinioModule } from '../../minio/minio.module';
     OpenAIChatService,
     AssignmentService,
     AnalyticsService,
+    TemplateService,
+    MetaTemplateService,
     WhatsAppChatGateway,
   ],
   exports: [
@@ -72,6 +80,8 @@ import { MinioModule } from '../../minio/minio.module';
     OpenAIChatService,
     AssignmentService,
     AnalyticsService,
+    TemplateService,
+    MetaTemplateService,
     WhatsAppChatGateway,
   ],
 })

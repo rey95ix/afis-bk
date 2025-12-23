@@ -438,12 +438,13 @@ export class ChatService {
 
   /**
    * Buscar o crear chat por teléfono (para webhook)
+   * Retorna el chat y un indicador si fue recién creado
    */
   async findOrCreateByPhone(
     telefono: string,
     whatsappChatId: string,
     nombre?: string,
-  ) {
+  ): Promise<{ chat: any; isNew: boolean }> {
     // Buscar chat existente activo
     let chat = await this.prisma.whatsapp_chat.findFirst({
       where: {
@@ -452,36 +453,42 @@ export class ChatService {
       },
     });
 
-    if (!chat) {
-      // Buscar cliente por teléfono
-      const cliente = await this.prisma.cliente.findFirst({
-        where: {
-          OR: [
-            { telefono1: { contains: telefono.replace('+', '') } },
-            { telefono2: { contains: telefono.replace('+', '') } },
-          ],
-        },
-      });
-
-      // Crear nuevo chat
-      chat = await this.prisma.whatsapp_chat.create({
-        data: {
-          whatsapp_chat_id: whatsappChatId,
-          telefono_cliente: telefono,
-          nombre_cliente: nombre,
-          id_cliente: cliente?.id_cliente,
-          estado: 'IA_MANEJANDO', // Iniciar con IA
-          ia_habilitada: true,
-        },
-      });
-
-      // Crear métricas
-      await this.prisma.whatsapp_chat_metrics.create({
-        data: { id_chat: chat.id_chat },
-      });
+    if (chat) {
+      return { chat, isNew: false };
     }
 
-    return chat;
+    // Buscar cliente por teléfono
+    const cliente = await this.prisma.cliente.findFirst({
+      where: {
+        OR: [
+          { telefono1: { contains: telefono.replace('+', '') } },
+          { telefono2: { contains: telefono.replace('+', '') } },
+        ],
+      },
+    });
+
+    // Crear nuevo chat
+    chat = await this.prisma.whatsapp_chat.create({
+      data: {
+        whatsapp_chat_id: whatsappChatId,
+        telefono_cliente: telefono,
+        nombre_cliente: nombre,
+        id_cliente: cliente?.id_cliente,
+        estado: 'IA_MANEJANDO', // Iniciar con IA
+        ia_habilitada: true,
+        ultima_interaccion_cliente: new Date(), // Iniciar ventana de 24h
+      },
+    });
+
+    // Crear métricas
+    await this.prisma.whatsapp_chat_metrics.create({
+      data: { id_chat: chat.id_chat },
+    });
+
+    // Emitir nuevo chat via WebSocket
+    this.chatGateway.emitChatUpdated(chat);
+
+    return { chat, isNew: true };
   }
 
   /**
@@ -495,12 +502,67 @@ export class ChatService {
 
     if (isInbound) {
       updateData.mensajes_no_leidos = { increment: 1 };
+      // Actualizar última interacción del cliente para validación de ventana 24h
+      updateData.ultima_interaccion_cliente = new Date();
     }
 
     return this.prisma.whatsapp_chat.update({
       where: { id_chat: chatId },
       data: updateData,
     });
+  }
+
+  /**
+   * Verificar si se puede enviar mensaje de texto libre (ventana de 24h)
+   * @returns { canSend: boolean, hoursRemaining: number | null, expiresAt: Date | null }
+   */
+  async canSendFreeformMessage(chatId: number): Promise<{
+    canSend: boolean;
+    hoursRemaining: number | null;
+    expiresAt: Date | null;
+    requiresTemplate: boolean;
+  }> {
+    const chat = await this.prisma.whatsapp_chat.findUnique({
+      where: { id_chat: chatId },
+      select: { ultima_interaccion_cliente: true, fecha_creacion: true },
+    });
+
+    if (!chat) {
+      throw new NotFoundException(`Chat con ID ${chatId} no encontrado`);
+    }
+
+    // Si nunca hubo interacción del cliente, usar fecha de creación (primer mensaje entrante)
+    const lastClientInteraction = chat.ultima_interaccion_cliente || chat.fecha_creacion;
+
+    if (!lastClientInteraction) {
+      // Chat sin mensajes del cliente - requiere plantilla
+      return {
+        canSend: false,
+        hoursRemaining: null,
+        expiresAt: null,
+        requiresTemplate: true,
+      };
+    }
+
+    const now = new Date();
+    const windowEnd = new Date(lastClientInteraction.getTime() + 24 * 60 * 60 * 1000);
+    const hoursRemaining = (windowEnd.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    if (hoursRemaining <= 0) {
+      return {
+        canSend: false,
+        hoursRemaining: 0,
+        expiresAt: windowEnd,
+        requiresTemplate: true,
+      };
+    }
+
+    return {
+      canSend: true,
+      hoursRemaining: Math.round(hoursRemaining * 10) / 10, // Redondear a 1 decimal
+      expiresAt: windowEnd,
+      requiresTemplate: false,
+    };
   }
 
   /**
