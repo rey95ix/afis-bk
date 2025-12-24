@@ -8,6 +8,7 @@ import {
   ValidateNested,
   Min,
   IsNumber,
+  IsDateString,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { TipoOrdenSalida } from './create-orden-salida.dto';
@@ -109,4 +110,38 @@ export class UpdateOrdenSalidaDto {
   @ValidateNested({ each: true })
   @Type(() => UpdateOrdenSalidaDetalleDto)
   detalle?: UpdateOrdenSalidaDetalleDto[];
+
+  // === Campos para DESTRUCCION_CERTIFICADA ===
+
+  @ApiPropertyOptional({
+    description: 'Nombre de la empresa certificada para destrucción',
+    example: 'EcoDestrucción S.A. de C.V.',
+  })
+  @IsOptional()
+  @IsString()
+  empresa_destructora?: string;
+
+  @ApiPropertyOptional({
+    description: 'Número de certificado de destrucción',
+    example: 'CERT-2024-001234',
+  })
+  @IsOptional()
+  @IsString()
+  numero_certificado?: string;
+
+  @ApiPropertyOptional({
+    description: 'Fecha de destrucción efectiva',
+    example: '2024-12-24',
+  })
+  @IsOptional()
+  @IsDateString()
+  fecha_destruccion?: string;
+
+  @ApiPropertyOptional({
+    description: 'URL o ruta del documento de certificación escaneado',
+    example: 'https://storage.example.com/certificados/cert-2024-001234.pdf',
+  })
+  @IsOptional()
+  @IsString()
+  url_certificado?: string;
 }

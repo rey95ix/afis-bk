@@ -108,6 +108,13 @@ export class OrdenesSalidaService {
         id_usuario_solicita: user.id_usuario,
         subtotal: new Prisma.Decimal(subtotal),
         total: new Prisma.Decimal(subtotal),
+        // Campos para DESTRUCCION_CERTIFICADA
+        empresa_destructora: createOrdenSalidaDto.empresa_destructora,
+        numero_certificado: createOrdenSalidaDto.numero_certificado,
+        fecha_destruccion: createOrdenSalidaDto.fecha_destruccion
+          ? new Date(createOrdenSalidaDto.fecha_destruccion)
+          : null,
+        url_certificado: createOrdenSalidaDto.url_certificado,
         detalle: {
           create: createOrdenSalidaDto.detalle.map((item) => ({
             id_catalogo: item.id_catalogo,
@@ -373,6 +380,13 @@ export class OrdenesSalidaService {
         id_bodega_origen: updateOrdenSalidaDto.id_bodega_origen,
         id_estante: updateOrdenSalidaDto.id_estante,
         motivo: updateOrdenSalidaDto.motivo,
+        // Campos para DESTRUCCION_CERTIFICADA
+        empresa_destructora: updateOrdenSalidaDto.empresa_destructora,
+        numero_certificado: updateOrdenSalidaDto.numero_certificado,
+        fecha_destruccion: updateOrdenSalidaDto.fecha_destruccion
+          ? new Date(updateOrdenSalidaDto.fecha_destruccion)
+          : undefined,
+        url_certificado: updateOrdenSalidaDto.url_certificado,
         subtotal: updateOrdenSalidaDto.detalle
           ? new Prisma.Decimal(subtotal)
           : undefined,
@@ -851,11 +865,13 @@ export class OrdenesSalidaService {
     // 5. Mapeo de nombres de tipos
     const TIPO_NOMBRE = {
       VENTA: 'Venta',
+      DONACION: 'Donación',
+      BAJA_INVENTARIO: 'Baja de Inventario',
+      DEVOLUCION_PROVEEDOR: 'Devolución a Proveedor',
+      TRASLADO_EXTERNO: 'Traslado Externo',
       CONSUMO_INTERNO: 'Consumo Interno',
-      TRASLADO: 'Traslado',
-      DEVOLUCION: 'Devolución',
-      AJUSTE: 'Ajuste',
-      PERDIDA: 'Pérdida',
+      MERMA: 'Merma',
+      DESTRUCCION_CERTIFICADA: 'Destrucción Certificada',
       OTRO: 'Otro',
     };
 

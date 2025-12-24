@@ -3,7 +3,9 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MinioService } from '../../minio/minio.service';
 import {
@@ -33,10 +35,187 @@ import axios from 'axios';
 
 @Injectable()
 export class AuditoriasInventarioService {
+  private readonly logger = new Logger(AuditoriasInventarioService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly minioService: MinioService,
   ) { }
+
+  // ==========================================
+  // CRON JOBS - Programación Automática
+  // ==========================================
+
+  /**
+   * Programa auditoría trimestral automáticamente
+   * Se ejecuta el primer día de cada trimestre a las 00:00
+   * (1 de Enero, 1 de Abril, 1 de Julio, 1 de Octubre)
+   */
+  @Cron('0 0 1 1,4,7,10 *')
+  async programarAuditoriaTrimestral(): Promise<void> {
+    this.logger.log('Ejecutando programación automática de auditoría trimestral...');
+
+    try {
+      const trimestre = this.getTrimestre(new Date());
+      const year = new Date().getFullYear();
+      const codigo = `AUD-${year}Q${trimestre}-AUTO`;
+
+      // Verificar si ya existe una auditoría para este trimestre
+      const existe = await this.prisma.auditorias_inventario.findFirst({
+        where: {
+          codigo: { startsWith: `AUD-${year}Q${trimestre}` }
+        }
+      });
+
+      if (existe) {
+        this.logger.log(`Ya existe auditoría para Q${trimestre} ${year}: ${existe.codigo}`);
+        return;
+      }
+
+      // Obtener todas las bodegas activas para auditar
+      const bodegasActivas = await this.prisma.bodegas.findMany({
+        where: { estado: 'ACTIVO' },
+        select: { id_bodega: true, nombre: true }
+      });
+
+      if (bodegasActivas.length === 0) {
+        this.logger.warn('No hay bodegas activas para programar auditoría trimestral');
+        return;
+      }
+
+      // Crear auditoría programada para cada bodega
+      const auditoriasCreadas: string[] = [];
+
+      for (const bodega of bodegasActivas) {
+        const codigoBodega = `AUD-${year}Q${trimestre}-B${bodega.id_bodega}`;
+
+        // Verificar si ya existe para esta bodega
+        const existeBodega = await this.prisma.auditorias_inventario.findFirst({
+          where: { codigo: codigoBodega }
+        });
+
+        if (existeBodega) continue;
+
+        await this.prisma.auditorias_inventario.create({
+          data: {
+            codigo: codigoBodega,
+            tipo: 'COMPLETA',
+            estado: 'PLANIFICADA',
+            id_bodega: bodega.id_bodega,
+            id_usuario_planifica: 1, // Usuario sistema para CRON automático
+            incluir_todas_categorias: true,
+            fecha_planificada: this.getFechaInicioTrimestre(),
+            observaciones: `Auditoría trimestral Q${trimestre}-${year} programada automáticamente. Bodega: ${bodega.nombre}`,
+          }
+        });
+
+        auditoriasCreadas.push(codigoBodega);
+      }
+
+      this.logger.log(`Auditorías trimestrales programadas: ${auditoriasCreadas.length}`);
+      auditoriasCreadas.forEach(cod => this.logger.log(`  - ${cod}`));
+
+    } catch (error) {
+      this.logger.error('Error al programar auditoría trimestral:', error);
+    }
+  }
+
+  /**
+   * Método manual para programar auditorías con frecuencia personalizada
+   */
+  async programarAuditorias(params: {
+    frecuencia: 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL';
+    tipo: 'COMPLETA' | 'PARCIAL';
+    fechaInicio: Date;
+    id_bodega?: number;
+    notificar?: boolean;
+    id_usuario: number;
+  }): Promise<{ cantidad: number; auditorias: string[] }> {
+    const { frecuencia, tipo, fechaInicio, id_bodega, notificar, id_usuario } = params;
+
+    // Determinar bodegas a auditar
+    let bodegas;
+    if (id_bodega) {
+      const bodega = await this.prisma.bodegas.findUnique({
+        where: { id_bodega },
+        select: { id_bodega: true, nombre: true }
+      });
+      if (!bodega) {
+        throw new NotFoundException(`Bodega con ID ${id_bodega} no encontrada`);
+      }
+      bodegas = [bodega];
+    } else {
+      bodegas = await this.prisma.bodegas.findMany({
+        where: { estado: 'ACTIVO' },
+        select: { id_bodega: true, nombre: true }
+      });
+    }
+
+    const auditoriasCreadas: string[] = [];
+    const year = fechaInicio.getFullYear();
+    const prefijo = frecuencia === 'TRIMESTRAL' ? 'Q' : frecuencia === 'SEMESTRAL' ? 'S' : 'A';
+    const periodo = frecuencia === 'TRIMESTRAL'
+      ? this.getTrimestre(fechaInicio)
+      : frecuencia === 'SEMESTRAL'
+        ? (fechaInicio.getMonth() < 6 ? 1 : 2)
+        : 1;
+
+    for (const bodega of bodegas) {
+      const codigo = `AUD-${year}${prefijo}${periodo}-B${bodega.id_bodega}`;
+
+      // Verificar que no exista
+      const existe = await this.prisma.auditorias_inventario.findFirst({
+        where: { codigo }
+      });
+
+      if (existe) {
+        this.logger.log(`Auditoría ${codigo} ya existe, omitiendo...`);
+        continue;
+      }
+
+      await this.prisma.auditorias_inventario.create({
+        data: {
+          codigo,
+          tipo: tipo === 'COMPLETA' ? 'COMPLETA' : 'PARCIAL',
+          estado: 'PLANIFICADA',
+          id_bodega: bodega.id_bodega,
+          id_usuario_planifica: id_usuario,
+          incluir_todas_categorias: tipo === 'COMPLETA',
+          fecha_planificada: fechaInicio,
+          observaciones: `Auditoría ${frecuencia.toLowerCase()} programada manualmente. Bodega: ${bodega.nombre}`,
+        }
+      });
+
+      auditoriasCreadas.push(codigo);
+    }
+
+    this.logger.log(`Programadas ${auditoriasCreadas.length} auditorías ${frecuencia}`);
+
+    return {
+      cantidad: auditoriasCreadas.length,
+      auditorias: auditoriasCreadas
+    };
+  }
+
+  /**
+   * Obtiene el número de trimestre (1-4) para una fecha
+   */
+  private getTrimestre(fecha: Date): number {
+    return Math.floor(fecha.getMonth() / 3) + 1;
+  }
+
+  /**
+   * Obtiene la fecha de inicio del trimestre actual
+   */
+  private getFechaInicioTrimestre(): Date {
+    const now = new Date();
+    const trimestre = this.getTrimestre(now);
+    return new Date(now.getFullYear(), (trimestre - 1) * 3, 1);
+  }
+
+  // ==========================================
+  // Generación de Códigos
+  // ==========================================
 
   /**
    * Generar código único para auditoría: AUD-YYYYMM-####

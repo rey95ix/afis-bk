@@ -384,6 +384,11 @@ model catalogo {
   descripcion                String?
   cantidad_minima            Int?                            @default(0) // stock mínimo
   cantidad_maxima            Int?                            @default(0) // stock máximo
+  lead_time_dias             Int?                            // Días que tarda el proveedor
+  demanda_promedio_diaria    Decimal?                        @db.Decimal(10, 2) // Consumo promedio/día
+  stock_seguridad            Int?                            // Buffer de seguridad
+  punto_reorden              Int?                            // ROP = (Demanda * Lead Time) + SS
+  vida_util_meses            Int?                            // Vida útil del producto en meses
   estado                     estado                          @default(ACTIVO)
   fecha_creacion             DateTime                        @default(now())
   fecha_ultima_actualizacion DateTime                        @default(now()) @updatedAt
@@ -1032,6 +1037,8 @@ enum estado_inventario {
   RESERVADO
   EN_TRANSITO
   ASIGNADO
+  EN_INSPECCION
+  EN_REPARACION
   DEFECTUOSO
   BAJA
 }
@@ -1559,6 +1566,7 @@ enum tipo_orden_salida {
   TRASLADO_EXTERNO
   CONSUMO_INTERNO
   MERMA
+  DESTRUCCION_CERTIFICADA // Destruccion segura de equipos con datos sensibles
   OTRO
 }
 
@@ -1594,6 +1602,12 @@ model ordenes_salida {
   // Totales
   subtotal Decimal? @default(0) @db.Decimal(12, 2)
   total    Decimal? @default(0) @db.Decimal(12, 2)
+
+  // Campos para DESTRUCCION_CERTIFICADA
+  empresa_destructora   String?   // Empresa certificada para destrucción
+  numero_certificado    String?   // Número de certificado de destrucción
+  fecha_destruccion     DateTime? // Fecha efectiva de destrucción
+  url_certificado       String?   @db.Text // URL/ruta del documento escaneado
 
   // Fechas
   fecha_solicitud            DateTime  @default(now())
@@ -1667,6 +1681,7 @@ enum estado_envio_sms {
 
 enum tipo_auditoria {
   COMPLETA
+  PARCIAL   // Auditoría de muestra (no todos los items)
   SORPRESA
 }
 

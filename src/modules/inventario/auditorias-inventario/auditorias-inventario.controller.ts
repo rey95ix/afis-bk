@@ -39,6 +39,7 @@ import {
   FilterAjusteDto,
   QueryMetricasDto,
   UploadEvidenciaDto,
+  ProgramarAuditoriasDto,
 } from './dto';
 import { Auth, GetUser } from '../../auth/decorators';
 import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
@@ -52,6 +53,41 @@ export class AuditoriasInventarioController {
   constructor(
     private readonly auditoriasInventarioService: AuditoriasInventarioService,
   ) {}
+
+  // ==================== Programación de Auditorías ====================
+
+  @RequirePermissions('inventario.auditorias:crear')
+  @Post('programar')
+  @ApiOperation({
+    summary: 'Programar auditorías con frecuencia predefinida',
+    description:
+      'Crea auditorías programadas para una o todas las bodegas activas con frecuencia TRIMESTRAL, SEMESTRAL o ANUAL',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Auditorías programadas exitosamente',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos inválidos',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Bodega no encontrada',
+  })
+  programarAuditorias(
+    @Body() programarDto: ProgramarAuditoriasDto,
+    @GetUser('id_usuario') userId: number,
+  ) {
+    return this.auditoriasInventarioService.programarAuditorias({
+      frecuencia: programarDto.frecuencia,
+      tipo: programarDto.tipo,
+      fechaInicio: new Date(programarDto.fechaInicio),
+      id_bodega: programarDto.id_bodega,
+      notificar: programarDto.notificar,
+      id_usuario: userId,
+    });
+  }
 
   // ==================== CRUD de Auditorías ====================
 

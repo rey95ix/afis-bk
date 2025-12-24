@@ -5,12 +5,17 @@ import {
   QueryMovimientosDto,
   QuerySeriesDto,
   QuerySeriesDisponiblesDto,
+  RealizarInspeccionDto,
+  ResultadoInspeccion,
+  CompletarReparacionDto,
+  ResultadoReparacion,
 } from './dto';
 import { PaginatedResult } from 'src/common/dto';
 import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as ExcelJS from 'exceljs';
+import { estado_inventario, tipo_movimiento } from '@prisma/client';
 
 @Injectable()
 export class ItemsInventarioService {
@@ -1142,5 +1147,1142 @@ export class ItemsInventarioService {
     // 8. Generar buffer
     const buffer = await workbook.xlsx.writeBuffer();
     return Buffer.from(buffer);
+  }
+
+  // ============================================
+  // MÉTODOS PARA CÁLCULO DE ROP (PUNTO DE REORDEN)
+  // ============================================
+
+  /**
+   * Calcula el Punto de Reorden para un producto
+   * ROP = (Demanda Promedio Diaria × Lead Time) + Stock Seguridad
+   */
+  async calcularROP(catalogoId: number): Promise<number> {
+    const catalogo = await this.prisma.catalogo.findUnique({
+      where: { id_catalogo: catalogoId },
+    });
+
+    if (!catalogo) {
+      throw new NotFoundException(
+        `Catálogo con ID ${catalogoId} no encontrado`,
+      );
+    }
+
+    // Si no hay datos para calcular, retornar cantidad_minima como fallback
+    if (!catalogo.demanda_promedio_diaria || !catalogo.lead_time_dias) {
+      return catalogo.cantidad_minima || 0;
+    }
+
+    const demandaDuranteLeadTime =
+      Number(catalogo.demanda_promedio_diaria) * catalogo.lead_time_dias;
+
+    const stockSeguridad = catalogo.stock_seguridad || 0;
+
+    return Math.ceil(demandaDuranteLeadTime + stockSeguridad);
+  }
+
+  /**
+   * Actualiza el ROP calculado en el catálogo
+   */
+  async actualizarROPAutomatico(
+    catalogoId: number,
+  ): Promise<{ id_catalogo: number; punto_reorden: number; calculado: boolean }> {
+    const catalogo = await this.prisma.catalogo.findUnique({
+      where: { id_catalogo: catalogoId },
+    });
+
+    if (!catalogo) {
+      throw new NotFoundException(
+        `Catálogo con ID ${catalogoId} no encontrado`,
+      );
+    }
+
+    // Verificar si hay datos suficientes para calcular
+    const tieneParametros =
+      catalogo.demanda_promedio_diaria && catalogo.lead_time_dias;
+
+    if (!tieneParametros) {
+      return {
+        id_catalogo: catalogoId,
+        punto_reorden: catalogo.punto_reorden || catalogo.cantidad_minima || 0,
+        calculado: false,
+      };
+    }
+
+    const rop = await this.calcularROP(catalogoId);
+
+    await this.prisma.catalogo.update({
+      where: { id_catalogo: catalogoId },
+      data: { punto_reorden: rop },
+    });
+
+    return {
+      id_catalogo: catalogoId,
+      punto_reorden: rop,
+      calculado: true,
+    };
+  }
+
+  /**
+   * Actualiza los parámetros ROP de un catálogo y recalcula automáticamente
+   */
+  async actualizarParametrosROP(
+    catalogoId: number,
+    params: {
+      lead_time_dias?: number;
+      demanda_promedio_diaria?: number;
+      stock_seguridad?: number;
+    },
+  ): Promise<{
+    id_catalogo: number;
+    lead_time_dias: number | null;
+    demanda_promedio_diaria: number | null;
+    stock_seguridad: number | null;
+    punto_reorden: number | null;
+  }> {
+    const catalogo = await this.prisma.catalogo.findUnique({
+      where: { id_catalogo: catalogoId },
+    });
+
+    if (!catalogo) {
+      throw new NotFoundException(
+        `Catálogo con ID ${catalogoId} no encontrado`,
+      );
+    }
+
+    // Actualizar parámetros
+    const updatedCatalogo = await this.prisma.catalogo.update({
+      where: { id_catalogo: catalogoId },
+      data: {
+        lead_time_dias: params.lead_time_dias ?? catalogo.lead_time_dias,
+        demanda_promedio_diaria:
+          params.demanda_promedio_diaria ?? catalogo.demanda_promedio_diaria,
+        stock_seguridad: params.stock_seguridad ?? catalogo.stock_seguridad,
+      },
+    });
+
+    // Recalcular ROP si hay datos suficientes
+    let puntoReorden = updatedCatalogo.punto_reorden;
+
+    if (
+      updatedCatalogo.demanda_promedio_diaria &&
+      updatedCatalogo.lead_time_dias
+    ) {
+      const rop = await this.calcularROP(catalogoId);
+      await this.prisma.catalogo.update({
+        where: { id_catalogo: catalogoId },
+        data: { punto_reorden: rop },
+      });
+      puntoReorden = rop;
+    }
+
+    return {
+      id_catalogo: catalogoId,
+      lead_time_dias: updatedCatalogo.lead_time_dias,
+      demanda_promedio_diaria: updatedCatalogo.demanda_promedio_diaria
+        ? Number(updatedCatalogo.demanda_promedio_diaria)
+        : null,
+      stock_seguridad: updatedCatalogo.stock_seguridad,
+      punto_reorden: puntoReorden,
+    };
+  }
+
+  /**
+   * Recalcula el ROP para todos los productos que tienen parámetros configurados
+   */
+  async recalcularROPMasivo(): Promise<{
+    total_procesados: number;
+    total_actualizados: number;
+    resultados: Array<{ id_catalogo: number; nombre: string; punto_reorden: number }>;
+  }> {
+    // Obtener todos los catálogos con parámetros ROP configurados
+    const catalogos = await this.prisma.catalogo.findMany({
+      where: {
+        demanda_promedio_diaria: { not: null },
+        lead_time_dias: { not: null },
+        estado: 'ACTIVO',
+      },
+      select: {
+        id_catalogo: true,
+        nombre: true,
+        demanda_promedio_diaria: true,
+        lead_time_dias: true,
+        stock_seguridad: true,
+      },
+    });
+
+    const resultados: Array<{
+      id_catalogo: number;
+      nombre: string;
+      punto_reorden: number;
+    }> = [];
+
+    for (const catalogo of catalogos) {
+      const demandaDuranteLeadTime =
+        Number(catalogo.demanda_promedio_diaria) * catalogo.lead_time_dias!;
+      const stockSeguridad = catalogo.stock_seguridad || 0;
+      const rop = Math.ceil(demandaDuranteLeadTime + stockSeguridad);
+
+      await this.prisma.catalogo.update({
+        where: { id_catalogo: catalogo.id_catalogo },
+        data: { punto_reorden: rop },
+      });
+
+      resultados.push({
+        id_catalogo: catalogo.id_catalogo,
+        nombre: catalogo.nombre,
+        punto_reorden: rop,
+      });
+    }
+
+    return {
+      total_procesados: catalogos.length,
+      total_actualizados: resultados.length,
+      resultados,
+    };
+  }
+
+  /**
+   * Obtiene productos con stock por debajo del punto de reorden (ROP)
+   */
+  async getAlertasROP(bodegaId?: number): Promise<any[]> {
+    const whereClause: any = {
+      catalogo: {
+        punto_reorden: { not: null },
+        estado: 'ACTIVO',
+      },
+    };
+
+    if (bodegaId) {
+      whereClause.id_bodega = bodegaId;
+    }
+
+    const inventarios = await this.prisma.inventario.findMany({
+      where: whereClause,
+      include: {
+        catalogo: {
+          select: {
+            id_catalogo: true,
+            codigo: true,
+            nombre: true,
+            cantidad_minima: true,
+            punto_reorden: true,
+            lead_time_dias: true,
+            demanda_promedio_diaria: true,
+            stock_seguridad: true,
+          },
+        },
+        bodega: {
+          select: {
+            id_bodega: true,
+            nombre: true,
+          },
+        },
+      },
+    });
+
+    // Filtrar los que están por debajo del ROP
+    return inventarios
+      .filter((inv) => {
+        const rop = inv.catalogo.punto_reorden || 0;
+        return inv.cantidad_disponible <= rop;
+      })
+      .map((inv) => {
+        const rop = inv.catalogo.punto_reorden || 0;
+        const stockActual = inv.cantidad_disponible;
+        const diasCubiertos = inv.catalogo.demanda_promedio_diaria
+          ? Math.floor(
+              stockActual / Number(inv.catalogo.demanda_promedio_diaria),
+            )
+          : null;
+
+        return {
+          id_inventario: inv.id_inventario,
+          producto: {
+            id_catalogo: inv.catalogo.id_catalogo,
+            codigo: inv.catalogo.codigo,
+            nombre: inv.catalogo.nombre,
+          },
+          bodega: inv.bodega,
+          stock_actual: stockActual,
+          punto_reorden: rop,
+          deficit: rop - stockActual,
+          dias_cubiertos: diasCubiertos,
+          lead_time_dias: inv.catalogo.lead_time_dias,
+          requiere_pedido_urgente:
+            diasCubiertos !== null &&
+            inv.catalogo.lead_time_dias !== null &&
+            diasCubiertos < inv.catalogo.lead_time_dias,
+        };
+      })
+      .sort((a, b) => {
+        // Ordenar por urgencia: primero los que requieren pedido urgente
+        if (a.requiere_pedido_urgente && !b.requiere_pedido_urgente) return -1;
+        if (!a.requiere_pedido_urgente && b.requiere_pedido_urgente) return 1;
+        // Luego por déficit (mayor déficit primero)
+        return b.deficit - a.deficit;
+      });
+  }
+
+  // ============================================
+  // ALERTAS STOCK BAJO (cantidad_minima)
+  // ============================================
+
+  /**
+   * Obtiene items con stock por debajo de cantidad_minima
+   * Diferente de ROP: usa cantidad_minima como umbral simple
+   */
+  async getAlertasStockBajo(bodegaId?: number): Promise<any[]> {
+    const whereClause: any = {
+      catalogo: {
+        cantidad_minima: { not: null },
+        estado: 'ACTIVO',
+      },
+    };
+
+    if (bodegaId) {
+      whereClause.id_bodega = bodegaId;
+    }
+
+    const inventarios = await this.prisma.inventario.findMany({
+      where: whereClause,
+      include: {
+        catalogo: true,
+        bodega: true,
+      },
+    });
+
+    // Filtrar los que están por debajo de cantidad_minima
+    return inventarios
+      .filter((inv) => {
+        const minimo = inv.catalogo.cantidad_minima || 0;
+        return inv.cantidad_disponible <= minimo;
+      })
+      .map((inv) => {
+        const minimo = inv.catalogo.cantidad_minima || 0;
+        const diferencia = inv.cantidad_disponible - minimo;
+
+        return {
+          id_inventario: inv.id_inventario,
+          catalogo: inv.catalogo.nombre,
+          codigo: inv.catalogo.codigo,
+          bodega: inv.bodega.nombre,
+          cantidad_disponible: inv.cantidad_disponible,
+          cantidad_minima: minimo,
+          diferencia: diferencia,
+          criticidad:
+            diferencia <= -minimo * 0.5
+              ? 'CRITICO'
+              : diferencia < 0
+                ? 'ALERTA'
+                : 'BAJO',
+        };
+      })
+      .sort((a, b) => a.diferencia - b.diferencia); // Más críticos primero
+  }
+
+  // ============================================
+  // LOGICA FIFO PARA ASIGNACION DE SERIES
+  // ============================================
+
+  /**
+   * Obtiene series disponibles para asignación usando FIFO
+   * Los equipos más antiguos (fecha_ingreso ASC) se asignan primero
+   * @param catalogoId - ID del producto en catálogo
+   * @param bodegaId - ID de la bodega
+   * @param cantidad - Cantidad de series a obtener
+   * @returns Series ordenadas por fecha de ingreso (más antigua primero)
+   */
+  async getSeriesForAssignment(
+    catalogoId: number,
+    bodegaId: number,
+    cantidad: number,
+  ): Promise<any[]> {
+    // Primero verificar que existe inventario del producto en la bodega
+    const inventario = await this.prisma.inventario.findFirst({
+      where: {
+        id_catalogo: catalogoId,
+        id_bodega: bodegaId,
+      },
+    });
+
+    if (!inventario) {
+      throw new NotFoundException(
+        `No existe inventario del producto ${catalogoId} en la bodega ${bodegaId}`,
+      );
+    }
+
+    // Obtener series disponibles ordenadas por FIFO (fecha_ingreso ASC)
+    const series = await this.prisma.inventario_series.findMany({
+      where: {
+        id_inventario: inventario.id_inventario,
+        estado: 'DISPONIBLE',
+      },
+      orderBy: {
+        fecha_ingreso: 'asc', // FIFO - primero los más antiguos
+      },
+      take: cantidad,
+      select: {
+        id_serie: true,
+        numero_serie: true,
+        fecha_ingreso: true,
+        estado: true,
+        inventario: {
+          select: {
+            catalogo: {
+              select: {
+                id_catalogo: true,
+                codigo: true,
+                nombre: true,
+              },
+            },
+            bodega: {
+              select: {
+                id_bodega: true,
+                nombre: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (series.length < cantidad) {
+      throw new BadRequestException(
+        `Stock insuficiente. Se solicitaron ${cantidad} unidades pero solo hay ${series.length} disponibles`,
+      );
+    }
+
+    return series.map((serie) => ({
+      id_serie: serie.id_serie,
+      numero_serie: serie.numero_serie,
+      fecha_ingreso: serie.fecha_ingreso,
+      dias_en_inventario: Math.floor(
+        (Date.now() - new Date(serie.fecha_ingreso).getTime()) /
+          (1000 * 60 * 60 * 24),
+      ),
+      producto: serie.inventario?.catalogo,
+      bodega: serie.inventario?.bodega,
+    }));
+  }
+
+  /**
+   * Valida y sugiere series a asignar usando FIFO
+   * Útil para preview antes de confirmar asignación
+   */
+  async sugerirSeriesFIFO(
+    catalogoId: number,
+    bodegaId: number,
+    cantidad: number,
+  ): Promise<{
+    series_sugeridas: any[];
+    stock_disponible: number;
+    stock_solicitado: number;
+    puede_completar: boolean;
+  }> {
+    const inventario = await this.prisma.inventario.findFirst({
+      where: {
+        id_catalogo: catalogoId,
+        id_bodega: bodegaId,
+      },
+    });
+
+    if (!inventario) {
+      return {
+        series_sugeridas: [],
+        stock_disponible: 0,
+        stock_solicitado: cantidad,
+        puede_completar: false,
+      };
+    }
+
+    const seriesDisponibles = await this.prisma.inventario_series.findMany({
+      where: {
+        id_inventario: inventario.id_inventario,
+        estado: 'DISPONIBLE',
+      },
+      orderBy: {
+        fecha_ingreso: 'asc', // FIFO
+      },
+      select: {
+        id_serie: true,
+        numero_serie: true,
+        fecha_ingreso: true,
+      },
+    });
+
+    const seriesSugeridas = seriesDisponibles.slice(0, cantidad).map((s) => ({
+      id_serie: s.id_serie,
+      numero_serie: s.numero_serie,
+      fecha_ingreso: s.fecha_ingreso,
+      dias_en_inventario: Math.floor(
+        (Date.now() - new Date(s.fecha_ingreso).getTime()) /
+          (1000 * 60 * 60 * 24),
+      ),
+    }));
+
+    return {
+      series_sugeridas: seriesSugeridas,
+      stock_disponible: seriesDisponibles.length,
+      stock_solicitado: cantidad,
+      puede_completar: seriesDisponibles.length >= cantidad,
+    };
+  }
+
+  // ============================================
+  // INSPECCIÓN DE EQUIPOS DEVUELTOS
+  // ============================================
+
+  /**
+   * Obtiene series en estado EN_INSPECCION
+   */
+  async findSeriesEnInspeccion(
+    queryDto: QuerySeriesDisponiblesDto,
+  ): Promise<PaginatedResult<any>> {
+    const {
+      id_bodega,
+      page = 1,
+      limit = 10,
+      search,
+    } = queryDto;
+
+    const skip = (page - 1) * limit;
+
+    // Construir where
+    const where: any = {
+      estado: estado_inventario.EN_INSPECCION,
+    };
+
+    if (id_bodega) {
+      where.inventario = {
+        id_bodega: +id_bodega,
+      };
+    }
+
+    if (search) {
+      where.OR = [
+        { numero_serie: { contains: search, mode: 'insensitive' } },
+        { mac_address: { contains: search, mode: 'insensitive' } },
+        {
+          inventario: {
+            catalogo: {
+              nombre: { contains: search, mode: 'insensitive' },
+            },
+          },
+        },
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.inventario_series.findMany({
+        where,
+        include: {
+          inventario: {
+            include: {
+              catalogo: {
+                select: {
+                  id_catalogo: true,
+                  codigo: true,
+                  nombre: true,
+                  descripcion: true,
+                },
+              },
+              bodega: {
+                select: {
+                  id_bodega: true,
+                  nombre: true,
+                },
+              },
+            },
+          },
+          orden_trabajo: {
+            select: {
+              id_orden: true,
+              codigo: true,
+              cliente: {
+                select: {
+                  id_cliente: true,
+                  titular: true,
+                },
+              },
+            },
+          },
+        },
+        skip,
+        take: limit,
+        orderBy: { fecha_ultima_actualizacion: 'desc' },
+      }),
+      this.prisma.inventario_series.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    // Transformar datos para incluir catalogo y bodega directamente
+    const seriesTransformadas = data.map((serie) => ({
+      id_serie: serie.id_serie,
+      numero_serie: serie.numero_serie,
+      estado: serie.estado,
+      observaciones: serie.observaciones,
+      fecha_ultima_actualizacion: serie.fecha_ultima_actualizacion,
+      id_catalogo: serie.inventario?.catalogo?.id_catalogo,
+      catalogo: serie.inventario?.catalogo,
+      id_bodega: serie.inventario?.id_bodega,
+      bodega: serie.inventario?.bodega,
+      id_orden_trabajo: serie.id_orden_trabajo,
+      orden_trabajo: serie.orden_trabajo,
+    }));
+
+    return {
+      data: seriesTransformadas,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+      },
+    };
+  }
+
+  /**
+   * Obtiene detalle de una serie específica
+   */
+  async findSerieById(id: number): Promise<any> {
+    const serie = await this.prisma.inventario_series.findUnique({
+      where: { id_serie: id },
+      include: {
+        inventario: {
+          include: {
+            catalogo: true,
+            bodega: true,
+          },
+        },
+        orden_trabajo: {
+          include: {
+            cliente: true,
+          },
+        },
+        cliente: true,
+      },
+    });
+
+    if (!serie) {
+      throw new NotFoundException(`Serie con ID ${id} no encontrada`);
+    }
+
+    return serie;
+  }
+
+  /**
+   * Obtiene historial de movimientos de una serie
+   */
+  async findHistorialSerie(id: number): Promise<any> {
+    // Verificar que la serie existe
+    await this.findSerieById(id);
+
+    // Buscar historial de cambios de estado de esta serie
+    const historial = await this.prisma.historial_series.findMany({
+      where: {
+        id_serie: id,
+      },
+      include: {
+        usuario: {
+          select: {
+            id_usuario: true,
+            nombres: true,
+            apellidos: true,
+          },
+        },
+      },
+      orderBy: {
+        fecha_movimiento: 'desc',
+      },
+      take: 50,
+    });
+
+    return {
+      movimientos: historial.map((h) => ({
+        id_historial: h.id_historial,
+        estado_anterior: h.estado_anterior,
+        estado_nuevo: h.estado_nuevo,
+        fecha_movimiento: h.fecha_movimiento,
+        observaciones: h.observaciones,
+        usuario: h.usuario
+          ? {
+              id: h.usuario.id_usuario,
+              nombre: `${h.usuario.nombres} ${h.usuario.apellidos}`,
+            }
+          : null,
+        id_orden_trabajo: h.id_orden_trabajo,
+      })),
+    };
+  }
+
+  /**
+   * Realiza la inspección de una serie y cambia su estado
+   */
+  async realizarInspeccion(
+    dto: RealizarInspeccionDto,
+    userId: number,
+  ): Promise<any> {
+    const { id_serie, resultado, observaciones, id_bodega_destino } = dto;
+
+    // Obtener la serie
+    const serie = await this.prisma.inventario_series.findUnique({
+      where: { id_serie },
+      include: {
+        inventario: {
+          include: {
+            catalogo: true,
+            bodega: true,
+          },
+        },
+      },
+    });
+
+    if (!serie) {
+      throw new NotFoundException(`Serie con ID ${id_serie} no encontrada`);
+    }
+
+    if (serie.estado !== estado_inventario.EN_INSPECCION) {
+      throw new BadRequestException(
+        `La serie no está en estado EN_INSPECCION. Estado actual: ${serie.estado}`,
+      );
+    }
+
+    // Determinar nuevo estado según resultado
+    let nuevoEstado: estado_inventario;
+    switch (resultado) {
+      case ResultadoInspeccion.APROBADO:
+        nuevoEstado = estado_inventario.DISPONIBLE;
+        break;
+      case ResultadoInspeccion.REQUIERE_REPARACION:
+        nuevoEstado = estado_inventario.EN_REPARACION;
+        break;
+      case ResultadoInspeccion.DANO_PERMANENTE:
+        nuevoEstado = estado_inventario.DEFECTUOSO;
+        break;
+      default:
+        throw new BadRequestException('Resultado de inspección no válido');
+    }
+
+    // Actualizar la serie (fecha_ultima_actualizacion se actualiza automáticamente con @updatedAt)
+    const serieActualizada = await this.prisma.inventario_series.update({
+      where: { id_serie },
+      data: {
+        estado: nuevoEstado,
+        observaciones: `[Inspección ${new Date().toISOString()}] ${resultado}: ${observaciones}`,
+      },
+      include: {
+        inventario: {
+          include: {
+            catalogo: true,
+            bodega: true,
+          },
+        },
+      },
+    });
+
+    // Registrar en historial de la serie
+    await this.prisma.historial_series.create({
+      data: {
+        id_serie,
+        estado_anterior: estado_inventario.EN_INSPECCION,
+        estado_nuevo: nuevoEstado,
+        id_bodega_anterior: serie.inventario?.id_bodega,
+        id_bodega_nueva: id_bodega_destino || serie.inventario?.id_bodega,
+        id_usuario: userId,
+        observaciones: `Inspección: ${resultado}. ${observaciones}`,
+      },
+    });
+
+    // Si vuelve a DISPONIBLE, actualizar cantidad disponible en inventario
+    if (nuevoEstado === estado_inventario.DISPONIBLE && serie.id_inventario) {
+      await this.prisma.inventario.update({
+        where: { id_inventario: serie.id_inventario },
+        data: {
+          cantidad_disponible: {
+            increment: 1,
+          },
+        },
+      });
+    }
+
+    // Registrar movimiento si hay inventario asociado
+    if (serie.inventario) {
+      await this.prisma.movimientos_inventario.create({
+        data: {
+          tipo: tipo_movimiento.AJUSTE_INVENTARIO,
+          id_catalogo: serie.inventario.id_catalogo,
+          id_bodega_origen: serie.inventario.id_bodega,
+          id_bodega_destino: id_bodega_destino || serie.inventario.id_bodega,
+          cantidad: 1,
+          observaciones: `Inspección de equipo: ${resultado}. ${observaciones}`,
+          id_usuario: userId,
+          fecha_movimiento: new Date(),
+        },
+      });
+    }
+
+    return {
+      success: true,
+      message: `Inspección registrada. Nuevo estado: ${nuevoEstado}`,
+      data: serieActualizada,
+    };
+  }
+
+  /**
+   * Cambia el estado de una serie directamente
+   */
+  async cambiarEstadoSerie(
+    id: number,
+    nuevoEstado: string,
+    observaciones?: string,
+  ): Promise<any> {
+    const serie = await this.prisma.inventario_series.findUnique({
+      where: { id_serie: id },
+    });
+
+    if (!serie) {
+      throw new NotFoundException(`Serie con ID ${id} no encontrada`);
+    }
+
+    const estadosValidos = Object.values(estado_inventario);
+
+    if (!estadosValidos.includes(nuevoEstado as estado_inventario)) {
+      throw new BadRequestException(
+        `Estado no válido. Estados permitidos: ${estadosValidos.join(', ')}`,
+      );
+    }
+
+    const serieActualizada = await this.prisma.inventario_series.update({
+      where: { id_serie: id },
+      data: {
+        estado: nuevoEstado as estado_inventario,
+        observaciones: observaciones
+          ? `${serie.observaciones || ''}\n[${new Date().toISOString()}] ${observaciones}`
+          : serie.observaciones,
+      },
+    });
+
+    return {
+      success: true,
+      message: `Estado actualizado a ${nuevoEstado}`,
+      data: serieActualizada,
+    };
+  }
+
+  /**
+   * Obtiene conteo de series por estado
+   */
+  async getConteosPorEstado(): Promise<Record<string, number>> {
+    const conteos = await this.prisma.inventario_series.groupBy({
+      by: ['estado'],
+      _count: {
+        id_serie: true,
+      },
+    });
+
+    const resultado: Record<string, number> = {};
+    conteos.forEach((c) => {
+      resultado[c.estado] = c._count.id_serie;
+    });
+
+    return resultado;
+  }
+
+  // ============================================
+  // REPARACIONES
+  // ============================================
+
+  /**
+   * Completa la reparación de una serie
+   * Cambia el estado de EN_REPARACION a DISPONIBLE o DEFECTUOSO
+   */
+  async completarReparacion(
+    dto: CompletarReparacionDto,
+    userId: number,
+  ): Promise<any> {
+    const { id_serie, resultado, observaciones, costo_reparacion } = dto;
+
+    // Obtener la serie
+    const serie = await this.prisma.inventario_series.findUnique({
+      where: { id_serie },
+      include: {
+        inventario: {
+          include: {
+            catalogo: true,
+            bodega: true,
+          },
+        },
+      },
+    });
+
+    if (!serie) {
+      throw new NotFoundException(`Serie con ID ${id_serie} no encontrada`);
+    }
+
+    if (serie.estado !== estado_inventario.EN_REPARACION) {
+      throw new BadRequestException(
+        `La serie no está en estado EN_REPARACION. Estado actual: ${serie.estado}`,
+      );
+    }
+
+    // Determinar nuevo estado según resultado
+    const nuevoEstado =
+      resultado === ResultadoReparacion.EXITOSA
+        ? estado_inventario.DISPONIBLE
+        : estado_inventario.DEFECTUOSO;
+
+    // Construir observaciones con costo si aplica
+    const obsCompleta = costo_reparacion
+      ? `[Reparación ${new Date().toISOString()}] ${resultado}: ${observaciones}. Costo: $${costo_reparacion}`
+      : `[Reparación ${new Date().toISOString()}] ${resultado}: ${observaciones}`;
+
+    // Actualizar la serie
+    const serieActualizada = await this.prisma.inventario_series.update({
+      where: { id_serie },
+      data: {
+        estado: nuevoEstado,
+        observaciones: obsCompleta,
+      },
+      include: {
+        inventario: {
+          include: {
+            catalogo: true,
+            bodega: true,
+          },
+        },
+      },
+    });
+
+    // Registrar en historial de la serie
+    await this.prisma.historial_series.create({
+      data: {
+        id_serie,
+        estado_anterior: estado_inventario.EN_REPARACION,
+        estado_nuevo: nuevoEstado,
+        id_bodega_anterior: serie.inventario?.id_bodega,
+        id_bodega_nueva: serie.inventario?.id_bodega,
+        id_usuario: userId,
+        observaciones: `Reparación ${resultado}. ${observaciones}${costo_reparacion ? `. Costo: $${costo_reparacion}` : ''}`,
+      },
+    });
+
+    // Si vuelve a DISPONIBLE, actualizar cantidad disponible en inventario
+    if (nuevoEstado === estado_inventario.DISPONIBLE && serie.id_inventario) {
+      await this.prisma.inventario.update({
+        where: { id_inventario: serie.id_inventario },
+        data: {
+          cantidad_disponible: {
+            increment: 1,
+          },
+        },
+      });
+    }
+
+    // Registrar movimiento si hay inventario asociado
+    if (serie.inventario) {
+      await this.prisma.movimientos_inventario.create({
+        data: {
+          tipo: tipo_movimiento.AJUSTE_INVENTARIO,
+          id_catalogo: serie.inventario.id_catalogo,
+          id_bodega_origen: serie.inventario.id_bodega,
+          id_bodega_destino: serie.inventario.id_bodega,
+          cantidad: resultado === ResultadoReparacion.EXITOSA ? 1 : 0,
+          observaciones: `Reparación completada: ${resultado}. ${observaciones}${costo_reparacion ? `. Costo: $${costo_reparacion}` : ''}`,
+          id_usuario: userId,
+          fecha_movimiento: new Date(),
+        },
+      });
+    }
+
+    const mensaje =
+      resultado === ResultadoReparacion.EXITOSA
+        ? 'Equipo reparado y devuelto a inventario disponible'
+        : 'Reparación fallida. Equipo marcado como defectuoso';
+
+    return {
+      success: true,
+      message: mensaje,
+      data: serieActualizada,
+    };
+  }
+
+  // ============================================
+  // ITEMS OBSOLETOS (VIDA ÚTIL VENCIDA)
+  // ============================================
+
+  /**
+   * Obtiene series con vida útil vencida
+   * Obsoleto = fecha_ingreso + vida_util_meses < fecha_actual
+   * @param bodegaId - Filtro opcional por bodega
+   * @param categoriaId - Filtro opcional por categoría
+   */
+  async getItemsObsoletos(
+    bodegaId?: number,
+    categoriaId?: number,
+  ): Promise<any[]> {
+    const ahora = new Date();
+
+    // Buscar series activas con vida_util_meses definida en catálogo
+    const whereClause: any = {
+      estado: { in: ['DISPONIBLE', 'ASIGNADO', 'RESERVADO'] },
+      inventario: {
+        catalogo: {
+          vida_util_meses: { not: null },
+        },
+      },
+    };
+
+    // Agregar filtro de bodega si se proporciona
+    if (bodegaId) {
+      whereClause.inventario.id_bodega = bodegaId;
+    }
+
+    // Agregar filtro de categoría si se proporciona
+    if (categoriaId) {
+      whereClause.inventario.catalogo.id_categoria = categoriaId;
+    }
+
+    const series = await this.prisma.inventario_series.findMany({
+      where: whereClause,
+      include: {
+        inventario: {
+          include: {
+            catalogo: {
+              select: {
+                id_catalogo: true,
+                codigo: true,
+                nombre: true,
+                descripcion: true,
+                vida_util_meses: true,
+                categoria: {
+                  select: {
+                    id_categoria: true,
+                    nombre: true,
+                  },
+                },
+              },
+            },
+            bodega: {
+              select: {
+                id_bodega: true,
+                nombre: true,
+                tipo: true,
+              },
+            },
+          },
+        },
+        cliente: {
+          select: {
+            id_cliente: true,
+            titular: true,
+          },
+        },
+      },
+      orderBy: {
+        fecha_ingreso: 'asc',
+      },
+    });
+
+    // Filtrar los que tienen vida útil vencida y calcular días vencido
+    const itemsObsoletos = series
+      .filter((serie) => {
+        const vidaUtilMeses = serie.inventario?.catalogo?.vida_util_meses;
+        if (!vidaUtilMeses || !serie.fecha_ingreso) return false;
+
+        const fechaIngreso = new Date(serie.fecha_ingreso);
+        const fechaVencimiento = new Date(fechaIngreso);
+        fechaVencimiento.setMonth(fechaVencimiento.getMonth() + vidaUtilMeses);
+
+        return fechaVencimiento < ahora;
+      })
+      .map((serie) => {
+        const vidaUtilMeses = serie.inventario?.catalogo?.vida_util_meses || 0;
+        const fechaIngreso = new Date(serie.fecha_ingreso);
+        const fechaVencimiento = new Date(fechaIngreso);
+        fechaVencimiento.setMonth(fechaVencimiento.getMonth() + vidaUtilMeses);
+
+        // Calcular días vencido
+        const diasVencido = Math.floor(
+          (ahora.getTime() - fechaVencimiento.getTime()) / (1000 * 60 * 60 * 24),
+        );
+
+        return {
+          id_serie: serie.id_serie,
+          numero_serie: serie.numero_serie,
+          estado: serie.estado,
+          fecha_ingreso: serie.fecha_ingreso,
+          vida_util_meses: vidaUtilMeses,
+          fecha_vencimiento: fechaVencimiento,
+          dias_vencido: diasVencido,
+          producto: {
+            id_catalogo: serie.inventario?.catalogo?.id_catalogo,
+            codigo: serie.inventario?.catalogo?.codigo,
+            nombre: serie.inventario?.catalogo?.nombre,
+            descripcion: serie.inventario?.catalogo?.descripcion,
+          },
+          categoria: serie.inventario?.catalogo?.categoria,
+          bodega: serie.inventario?.bodega,
+          cliente: serie.cliente,
+          recomendacion:
+            diasVencido > 180
+              ? 'BAJA_INMEDIATA'
+              : diasVencido > 90
+                ? 'PROGRAMAR_BAJA'
+                : 'EVALUAR_REEMPLAZO',
+        };
+      });
+
+    // Ordenar por días vencido (más vencido primero)
+    return itemsObsoletos.sort((a, b) => b.dias_vencido - a.dias_vencido);
+  }
+
+  /**
+   * Obtiene resumen de items obsoletos por categoría y bodega
+   */
+  async getResumenItemsObsoletos(): Promise<{
+    total_obsoletos: number;
+    por_categoria: Array<{ categoria: string; cantidad: number }>;
+    por_bodega: Array<{ bodega: string; cantidad: number }>;
+    por_recomendacion: Record<string, number>;
+  }> {
+    const itemsObsoletos = await this.getItemsObsoletos();
+
+    // Agrupar por categoría
+    const porCategoriaMap = new Map<string, number>();
+    const porBodegaMap = new Map<string, number>();
+    const porRecomendacion: Record<string, number> = {
+      BAJA_INMEDIATA: 0,
+      PROGRAMAR_BAJA: 0,
+      EVALUAR_REEMPLAZO: 0,
+    };
+
+    itemsObsoletos.forEach((item) => {
+      // Por categoría
+      const categoriaNombre = item.categoria?.nombre || 'Sin categoría';
+      porCategoriaMap.set(
+        categoriaNombre,
+        (porCategoriaMap.get(categoriaNombre) || 0) + 1,
+      );
+
+      // Por bodega
+      const bodegaNombre = item.bodega?.nombre || 'Sin bodega';
+      porBodegaMap.set(bodegaNombre, (porBodegaMap.get(bodegaNombre) || 0) + 1);
+
+      // Por recomendación
+      porRecomendacion[item.recomendacion]++;
+    });
+
+    return {
+      total_obsoletos: itemsObsoletos.length,
+      por_categoria: Array.from(porCategoriaMap.entries())
+        .map(([categoria, cantidad]) => ({ categoria, cantidad }))
+        .sort((a, b) => b.cantidad - a.cantidad),
+      por_bodega: Array.from(porBodegaMap.entries())
+        .map(([bodega, cantidad]) => ({ bodega, cantidad }))
+        .sort((a, b) => b.cantidad - a.cantidad),
+      por_recomendacion: porRecomendacion,
+    };
   }
 }

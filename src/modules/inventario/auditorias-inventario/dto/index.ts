@@ -8,6 +8,7 @@ export * from './escanear-serie.dto';
 export * from './finalizar-auditoria.dto';
 export * from './finalizar-y-aplicar-directo.dto';
 export * from './upload-evidencia.dto';
+export * from './programar-auditorias.dto';
 
 // Ajustes
 export * from './create-ajuste.dto';

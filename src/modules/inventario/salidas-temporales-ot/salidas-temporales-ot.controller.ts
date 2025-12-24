@@ -10,6 +10,8 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Patch,
+  ParseBoolPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -18,10 +20,15 @@ import {
   ApiResponse,
   ApiConsumes,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { SalidasTemporalesOtService } from './salidas-temporales-ot.service';
 import { CreateSalidaTemporalDto } from './dto/create-salida-temporal.dto';
 import { QuerySalidaTemporalDto } from './dto/query-salida-temporal.dto';
+import {
+  ProcesarInspeccionDto,
+  ProcesarInspeccionBulkDto,
+} from './dto/procesar-inspeccion.dto';
 import type { usuarios } from '@prisma/client';
 import { Auth, GetUser } from 'src/modules/auth/decorators';
 
@@ -209,7 +216,7 @@ export class SalidasTemporalesOtController {
   @ApiOperation({
     summary: 'Cancelar salida temporal',
     description:
-      'Cancela una salida temporal y revierte el inventario (devuelve materiales a bodega)',
+      'Cancela una salida temporal y envía los equipos serializados a inspección post-devolución',
   })
   @ApiResponse({
     status: 200,
@@ -225,5 +232,114 @@ export class SalidasTemporalesOtController {
   })
   cancel(@Param('id', ParseIntPipe) id: number, @GetUser() user: usuarios) {
     return this.service.cancel(id, user);
+  }
+
+  // ============================================
+  // ENDPOINTS DE INSPECCIÓN POST-DEVOLUCIÓN
+  // ============================================
+
+  @Get('inspeccion/pendientes')
+  @Auth()
+  @ApiOperation({
+    summary: 'Obtener series pendientes de inspección',
+    description:
+      'Lista todas las series en estado EN_INSPECCION que requieren revisión post-devolución',
+  })
+  @ApiQuery({
+    name: 'bodegaId',
+    required: false,
+    description: 'Filtrar por bodega específica',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de series pendientes de inspección',
+  })
+  getSeriesEnInspeccion(
+    @GetUser() user: usuarios,
+    @Query('bodegaId') bodegaId?: number,
+  ) {
+    return this.service.getSeriesEnInspeccion(
+      user,
+      bodegaId ? Number(bodegaId) : undefined,
+    );
+  }
+
+  @Post('inspeccion/procesar')
+  @Auth()
+  @ApiOperation({
+    summary: 'Procesar resultado de inspección',
+    description:
+      'Registra el resultado de la inspección y transiciona la serie al estado correspondiente: ' +
+      'APROBADO → DISPONIBLE, REQUIERE_REPARACION → EN_REPARACION, DANO_PERMANENTE → DEFECTUOSO',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Inspección procesada exitosamente',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'La serie no está en estado EN_INSPECCION',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Serie no encontrada',
+  })
+  procesarInspeccion(
+    @Body() dto: ProcesarInspeccionDto,
+    @GetUser() user: usuarios,
+  ) {
+    return this.service.procesarInspeccion(dto, user);
+  }
+
+  @Post('inspeccion/procesar-lote')
+  @Auth()
+  @ApiOperation({
+    summary: 'Procesar múltiples inspecciones en lote',
+    description: 'Procesa varias inspecciones de una sola vez',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Inspecciones procesadas (puede incluir errores parciales)',
+  })
+  procesarInspeccionBulk(
+    @Body() dto: ProcesarInspeccionBulkDto,
+    @GetUser() user: usuarios,
+  ) {
+    return this.service.procesarInspeccionBulk(dto.inspecciones, user);
+  }
+
+  @Patch('reparacion/:idSerie/completar')
+  @Auth()
+  @ApiOperation({
+    summary: 'Completar reparación de serie',
+    description:
+      'Registra el resultado de la reparación: exitosa → DISPONIBLE, fallida → DEFECTUOSO',
+  })
+  @ApiQuery({
+    name: 'exitosa',
+    required: true,
+    description: 'Indica si la reparación fue exitosa',
+    type: Boolean,
+  })
+  @ApiQuery({
+    name: 'observaciones',
+    required: false,
+    description: 'Observaciones sobre la reparación',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Reparación completada exitosamente',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'La serie no está en estado EN_REPARACION',
+  })
+  completarReparacion(
+    @Param('idSerie', ParseIntPipe) idSerie: number,
+    @Query('exitosa', ParseBoolPipe) exitosa: boolean,
+    @Query('observaciones') observaciones: string,
+    @GetUser() user: usuarios,
+  ) {
+    return this.service.completarReparacion(idSerie, exitosa, observaciones, user);
   }
 }

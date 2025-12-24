@@ -9,6 +9,7 @@ export class QuerySeriesDisponiblesDto {
     example: 1,
     type: Number,
   })
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   id_catalogo: number;
@@ -18,6 +19,7 @@ export class QuerySeriesDisponiblesDto {
     example: 1,
     type: Number,
   })
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   id_bodega: number;

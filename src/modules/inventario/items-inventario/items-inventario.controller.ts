@@ -5,6 +5,9 @@ import {
   Query,
   ParseIntPipe,
   Res,
+  Patch,
+  Post,
+  Body,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { ItemsInventarioService } from './items-inventario.service';
@@ -19,6 +22,8 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiQuery,
+  ApiBody,
 } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
 import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
@@ -228,5 +233,298 @@ export class ItemsInventarioController {
     });
 
     res.end(excelBuffer);
+  }
+
+  // ============================================
+  // ENDPOINTS DE ROP (PUNTO DE REORDEN)
+  // ============================================
+
+  @RequirePermissions('inventario.items:ver')
+  @Get('alertas-rop')
+  @ApiOperation({
+    summary: 'Obtener alertas de stock bajo según ROP',
+    description:
+      'Retorna los items del inventario que están por debajo de su Punto de Reorden (ROP) calculado, ' +
+      'ordenados por urgencia. Incluye información de días cubiertos y si requiere pedido urgente.',
+  })
+  @ApiQuery({
+    name: 'bodegaId',
+    required: false,
+    description: 'Filtrar por bodega específica',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de items con stock bajo según ROP.',
+  })
+  getAlertasROP(@Query('bodegaId') bodegaId?: number) {
+    return this.itemsInventarioService.getAlertasROP(
+      bodegaId ? Number(bodegaId) : undefined,
+    );
+  }
+
+  @RequirePermissions('inventario.catalogo:editar')
+  @Patch('catalogo/:id/calcular-rop')
+  @ApiOperation({
+    summary: 'Calcular y actualizar ROP de un producto',
+    description:
+      'Calcula el Punto de Reorden usando la fórmula: ROP = (Demanda Promedio Diaria × Lead Time) + Stock Seguridad. ' +
+      'Requiere que el producto tenga configurados los parámetros de demanda y lead time.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del catálogo',
+    type: Number,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'ROP calculado y actualizado exitosamente.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Catálogo no encontrado.',
+  })
+  actualizarROPAutomatico(@Param('id', ParseIntPipe) id: number) {
+    return this.itemsInventarioService.actualizarROPAutomatico(id);
+  }
+
+  @RequirePermissions('inventario.catalogo:editar')
+  @Patch('catalogo/:id/parametros-rop')
+  @ApiOperation({
+    summary: 'Actualizar parámetros ROP de un producto',
+    description:
+      'Actualiza los parámetros usados para calcular el ROP (lead_time_dias, demanda_promedio_diaria, stock_seguridad) ' +
+      'y recalcula automáticamente el punto de reorden.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del catálogo',
+    type: Number,
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        lead_time_dias: {
+          type: 'integer',
+          description: 'Días que tarda el proveedor en entregar',
+          example: 15,
+        },
+        demanda_promedio_diaria: {
+          type: 'number',
+          description: 'Consumo promedio diario del producto',
+          example: 2.5,
+        },
+        stock_seguridad: {
+          type: 'integer',
+          description: 'Unidades de buffer de seguridad',
+          example: 10,
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Parámetros actualizados y ROP recalculado.',
+  })
+  actualizarParametrosROP(
+    @Param('id', ParseIntPipe) id: number,
+    @Body()
+    params: {
+      lead_time_dias?: number;
+      demanda_promedio_diaria?: number;
+      stock_seguridad?: number;
+    },
+  ) {
+    return this.itemsInventarioService.actualizarParametrosROP(id, params);
+  }
+
+  @RequirePermissions('inventario.catalogo:editar')
+  @Post('catalogo/recalcular-rop-masivo')
+  @ApiOperation({
+    summary: 'Recalcular ROP masivamente',
+    description:
+      'Recalcula el Punto de Reorden para todos los productos que tienen configurados los parámetros necesarios ' +
+      '(demanda_promedio_diaria y lead_time_dias). Útil para actualización periódica.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resumen del proceso de recálculo masivo.',
+  })
+  recalcularROPMasivo() {
+    return this.itemsInventarioService.recalcularROPMasivo();
+  }
+
+  // ============================================
+  // ALERTAS STOCK BAJO (cantidad_minima)
+  // ============================================
+
+  @RequirePermissions('inventario.items:ver')
+  @Get('alertas-stock-bajo')
+  @ApiOperation({
+    summary: 'Obtener alertas de stock bajo (cantidad_minima)',
+    description:
+      'Retorna los items del inventario que están por debajo de su cantidad_minima establecida. ' +
+      'Diferente del ROP, este es un umbral simple sin considerar lead time ni demanda.',
+  })
+  @ApiQuery({
+    name: 'bodegaId',
+    required: false,
+    description: 'Filtrar por bodega específica',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de items con stock bajo ordenados por criticidad.',
+  })
+  getAlertasStockBajo(@Query('bodegaId') bodegaId?: number) {
+    return this.itemsInventarioService.getAlertasStockBajo(
+      bodegaId ? Number(bodegaId) : undefined,
+    );
+  }
+
+  // ============================================
+  // ITEMS OBSOLETOS (VIDA ÚTIL VENCIDA)
+  // ============================================
+
+  @RequirePermissions('inventario.items:ver')
+  @Get('items-obsoletos')
+  @ApiOperation({
+    summary: 'Obtener series con vida útil vencida',
+    description:
+      'Retorna las series cuya vida útil ha vencido (fecha_ingreso + vida_util_meses < fecha_actual). ' +
+      'Incluye recomendación de acción según días vencido: BAJA_INMEDIATA (>180 días), ' +
+      'PROGRAMAR_BAJA (>90 días), EVALUAR_REEMPLAZO (≤90 días).',
+  })
+  @ApiQuery({
+    name: 'bodegaId',
+    required: false,
+    description: 'Filtrar por bodega específica',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'categoriaId',
+    required: false,
+    description: 'Filtrar por categoría específica',
+    type: Number,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de series obsoletas ordenadas por días vencido (mayor primero).',
+  })
+  getItemsObsoletos(
+    @Query('bodegaId') bodegaId?: string,
+    @Query('categoriaId') categoriaId?: string,
+  ) {
+    return this.itemsInventarioService.getItemsObsoletos(
+      bodegaId ? Number(bodegaId) : undefined,
+      categoriaId ? Number(categoriaId) : undefined,
+    );
+  }
+
+  @RequirePermissions('inventario.items:ver')
+  @Get('items-obsoletos/resumen')
+  @ApiOperation({
+    summary: 'Obtener resumen de items obsoletos',
+    description:
+      'Retorna un resumen estadístico de items obsoletos agrupados por categoría, ' +
+      'bodega y recomendación de acción.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resumen de items obsoletos con agrupaciones.',
+  })
+  getResumenItemsObsoletos() {
+    return this.itemsInventarioService.getResumenItemsObsoletos();
+  }
+
+  // ============================================
+  // LOGICA FIFO PARA ASIGNACION DE SERIES
+  // ============================================
+
+  @RequirePermissions('inventario.items:ver')
+  @Get('series-fifo/:idCatalogo/:idBodega')
+  @ApiOperation({
+    summary: 'Obtener series para asignación usando FIFO',
+    description:
+      'Retorna series disponibles ordenadas por fecha de ingreso (más antiguas primero). ' +
+      'Implementa la política FIFO (First-In-First-Out) para evitar obsolescencia de equipos.',
+  })
+  @ApiParam({
+    name: 'idCatalogo',
+    description: 'ID del producto en catálogo',
+    type: Number,
+  })
+  @ApiParam({
+    name: 'idBodega',
+    description: 'ID de la bodega',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'cantidad',
+    required: true,
+    description: 'Cantidad de series a obtener',
+    type: Number,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Series ordenadas por FIFO (más antiguas primero).',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Stock insuficiente para la cantidad solicitada.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'No existe inventario del producto en la bodega.',
+  })
+  getSeriesForAssignment(
+    @Param('idCatalogo', ParseIntPipe) idCatalogo: number,
+    @Param('idBodega', ParseIntPipe) idBodega: number,
+    @Query('cantidad', ParseIntPipe) cantidad: number,
+  ) {
+    return this.itemsInventarioService.getSeriesForAssignment(
+      idCatalogo,
+      idBodega,
+      cantidad,
+    );
+  }
+
+  @RequirePermissions('inventario.items:ver')
+  @Get('sugerir-series-fifo/:idCatalogo/:idBodega')
+  @ApiOperation({
+    summary: 'Sugerir series para asignación usando FIFO',
+    description:
+      'Sugiere series a asignar siguiendo FIFO sin validar cantidad. ' +
+      'Útil para preview antes de confirmar una asignación.',
+  })
+  @ApiParam({
+    name: 'idCatalogo',
+    description: 'ID del producto en catálogo',
+    type: Number,
+  })
+  @ApiParam({
+    name: 'idBodega',
+    description: 'ID de la bodega',
+    type: Number,
+  })
+  @ApiQuery({
+    name: 'cantidad',
+    required: true,
+    description: 'Cantidad de series deseadas',
+    type: Number,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Sugerencia de series con información de disponibilidad.',
+  })
+  sugerirSeriesFIFO(
+    @Param('idCatalogo', ParseIntPipe) idCatalogo: number,
+    @Param('idBodega', ParseIntPipe) idBodega: number,
+    @Query('cantidad', ParseIntPipe) cantidad: number,
+  ) {
+    return this.itemsInventarioService.sugerirSeriesFIFO(
+      idCatalogo,
+      idBodega,
+      cantidad,
+    );
   }
 }

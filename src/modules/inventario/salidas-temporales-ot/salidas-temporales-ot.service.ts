@@ -10,7 +10,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MinioService } from '../../minio/minio.service';
 import { CreateSalidaTemporalDto } from './dto/create-salida-temporal.dto';
 import { QuerySalidaTemporalDto } from './dto/query-salida-temporal.dto';
-import type { usuarios } from '@prisma/client';
+import {
+  ProcesarInspeccionDto,
+  ResultadoInspeccion,
+} from './dto/procesar-inspeccion.dto';
+import type { usuarios, estado_inventario } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
@@ -497,24 +501,24 @@ export class SalidasTemporalesOtService {
         const cantidad = item.cantidad;
 
         if (esSerializado) {
-          // Liberar serie
+          // Enviar serie a inspección post-devolución
           await prisma.inventario_series.update({
             where: { id_serie: item.id_serie! },
             data: {
-              estado: 'DISPONIBLE',
+              estado: 'EN_INSPECCION',
               id_orden_trabajo: null,
               fecha_asignacion: null,
             },
           });
 
-          // Crear historial
+          // Crear historial - transición a inspección
           await prisma.historial_series.create({
             data: {
               id_serie: item.id_serie!,
               estado_anterior: 'ASIGNADO',
-              estado_nuevo: 'DISPONIBLE',
+              estado_nuevo: 'EN_INSPECCION',
               id_usuario: user.id_usuario,
-              observaciones: `Cancelación de salida temporal ${salida.codigo}`,
+              observaciones: `Devolución pendiente de inspección - salida temporal ${salida.codigo}`,
             },
           });
 
@@ -644,5 +648,286 @@ export class SalidasTemporalesOtService {
     }
 
     return inventario;
+  }
+
+  /**
+   * Obtener series pendientes de inspección post-devolución
+   */
+  async getSeriesEnInspeccion(user: usuarios, bodegaId?: number) {
+    const whereClause: any = {
+      estado: 'EN_INSPECCION',
+    };
+
+    // Si se especifica bodega, filtrar por ella
+    if (bodegaId) {
+      whereClause.inventario = { id_bodega: bodegaId };
+    }
+
+    const series = await this.prisma.inventario_series.findMany({
+      where: whereClause,
+      include: {
+        inventario: {
+          include: {
+            catalogo: {
+              select: {
+                id_catalogo: true,
+                codigo: true,
+                nombre: true,
+              },
+            },
+            bodega: {
+              select: {
+                id_bodega: true,
+                nombre: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        fecha_ultima_actualizacion: 'asc',
+      },
+    });
+
+    // Obtener historial para cada serie
+    const result = await Promise.all(
+      series.map(async (serie) => {
+        const ultimoHistorial = await this.prisma.historial_series.findFirst({
+          where: { id_serie: serie.id_serie },
+          orderBy: { fecha_movimiento: 'desc' },
+          include: {
+            usuario: {
+              select: {
+                nombres: true,
+                apellidos: true,
+              },
+            },
+          },
+        });
+
+        return {
+          id_serie: serie.id_serie,
+          numero_serie: serie.numero_serie,
+          mac_address: serie.mac_address,
+          producto: serie.inventario?.catalogo || null,
+          bodega: serie.inventario?.bodega || null,
+          fecha_devolucion: ultimoHistorial?.fecha_movimiento || null,
+          observaciones_devolucion: ultimoHistorial?.observaciones || null,
+          devuelto_por: ultimoHistorial?.usuario
+            ? `${ultimoHistorial.usuario.nombres} ${ultimoHistorial.usuario.apellidos}`
+            : null,
+        };
+      }),
+    );
+
+    return result;
+  }
+
+  /**
+   * Procesar resultado de inspección post-devolución
+   * Transiciona la serie de EN_INSPECCION a su estado final
+   */
+  async procesarInspeccion(
+    dto: ProcesarInspeccionDto,
+    user: usuarios,
+  ): Promise<{ id_serie: number; estado_nuevo: estado_inventario }> {
+    // Verificar que la serie existe y está en inspección
+    const serie = await this.prisma.inventario_series.findUnique({
+      where: { id_serie: dto.id_serie },
+      include: {
+        inventario: {
+          include: { catalogo: true, bodega: true },
+        },
+      },
+    });
+
+    if (!serie) {
+      throw new NotFoundException(`Serie con ID ${dto.id_serie} no encontrada`);
+    }
+
+    if (serie.estado !== 'EN_INSPECCION') {
+      throw new BadRequestException(
+        `La serie ${serie.numero_serie} no está en estado EN_INSPECCION (estado actual: ${serie.estado})`,
+      );
+    }
+
+    if (!serie.inventario) {
+      throw new BadRequestException(
+        `La serie ${serie.numero_serie} no tiene inventario asociado`,
+      );
+    }
+
+    // Guardar referencias del inventario antes de la transacción
+    const { id_catalogo, id_bodega } = serie.inventario;
+
+    // Mapear resultado de inspección a estado final
+    const mapeoEstados: Record<ResultadoInspeccion, estado_inventario> = {
+      [ResultadoInspeccion.APROBADO]: 'DISPONIBLE',
+      [ResultadoInspeccion.REQUIERE_REPARACION]: 'EN_REPARACION',
+      [ResultadoInspeccion.DANO_PERMANENTE]: 'DEFECTUOSO',
+    };
+
+    const estadoNuevo = mapeoEstados[dto.resultado];
+
+    await this.prisma.$transaction(async (prisma) => {
+      // Actualizar estado de la serie
+      await prisma.inventario_series.update({
+        where: { id_serie: dto.id_serie },
+        data: { estado: estadoNuevo },
+      });
+
+      // Registrar en historial
+      await prisma.historial_series.create({
+        data: {
+          id_serie: dto.id_serie,
+          estado_anterior: 'EN_INSPECCION',
+          estado_nuevo: estadoNuevo,
+          id_usuario: user.id_usuario,
+          observaciones:
+            dto.observaciones ||
+            `Inspección completada: ${dto.resultado}`,
+        },
+      });
+
+      // Si el equipo pasa la inspección, incrementar cantidad disponible
+      if (estadoNuevo === 'DISPONIBLE') {
+        await prisma.inventario.updateMany({
+          where: {
+            id_catalogo,
+            id_bodega,
+          },
+          data: {
+            cantidad_disponible: { increment: 1 },
+          },
+        });
+      }
+
+      // Registrar en log
+      await prisma.log.create({
+        data: {
+          accion: 'INSPECCION_POST_DEVOLUCION',
+          descripcion: `Serie ${serie.numero_serie} inspeccionada: ${dto.resultado} → ${estadoNuevo}`,
+          id_usuario: user.id_usuario,
+        },
+      });
+    });
+
+    this.logger.log(
+      `Inspección procesada: Serie ${serie.numero_serie} → ${estadoNuevo}`,
+    );
+
+    return {
+      id_serie: dto.id_serie,
+      estado_nuevo: estadoNuevo,
+    };
+  }
+
+  /**
+   * Procesar múltiples inspecciones en lote
+   */
+  async procesarInspeccionBulk(
+    inspecciones: ProcesarInspeccionDto[],
+    user: usuarios,
+  ): Promise<{ procesadas: number; resultados: any[] }> {
+    const resultados: any[] = [];
+
+    for (const inspeccion of inspecciones) {
+      try {
+        const resultado = await this.procesarInspeccion(inspeccion, user);
+        resultados.push({ ...resultado, success: true });
+      } catch (error) {
+        resultados.push({
+          id_serie: inspeccion.id_serie,
+          success: false,
+          error: error.message,
+        });
+      }
+    }
+
+    return {
+      procesadas: resultados.filter((r) => r.success).length,
+      resultados,
+    };
+  }
+
+  /**
+   * Completar reparación de serie
+   * Transiciona de EN_REPARACION a DISPONIBLE o DEFECTUOSO
+   */
+  async completarReparacion(
+    idSerie: number,
+    reparacionExitosa: boolean,
+    observaciones: string,
+    user: usuarios,
+  ): Promise<{ id_serie: number; estado_nuevo: estado_inventario }> {
+    const serie = await this.prisma.inventario_series.findUnique({
+      where: { id_serie: idSerie },
+      include: { inventario: true },
+    });
+
+    if (!serie) {
+      throw new NotFoundException(`Serie con ID ${idSerie} no encontrada`);
+    }
+
+    if (serie.estado !== 'EN_REPARACION') {
+      throw new BadRequestException(
+        `La serie no está en estado EN_REPARACION (estado actual: ${serie.estado})`,
+      );
+    }
+
+    if (!serie.inventario) {
+      throw new BadRequestException(
+        `La serie con ID ${idSerie} no tiene inventario asociado`,
+      );
+    }
+
+    // Guardar referencias del inventario antes de la transacción
+    const { id_catalogo, id_bodega } = serie.inventario;
+
+    const estadoNuevo: estado_inventario = reparacionExitosa
+      ? 'DISPONIBLE'
+      : 'DEFECTUOSO';
+
+    await this.prisma.$transaction(async (prisma) => {
+      await prisma.inventario_series.update({
+        where: { id_serie: idSerie },
+        data: { estado: estadoNuevo },
+      });
+
+      await prisma.historial_series.create({
+        data: {
+          id_serie: idSerie,
+          estado_anterior: 'EN_REPARACION',
+          estado_nuevo: estadoNuevo,
+          id_usuario: user.id_usuario,
+          observaciones:
+            observaciones ||
+            `Reparación ${reparacionExitosa ? 'exitosa' : 'fallida'}`,
+        },
+      });
+
+      // Si la reparación fue exitosa, incrementar cantidad disponible
+      if (estadoNuevo === 'DISPONIBLE') {
+        await prisma.inventario.updateMany({
+          where: {
+            id_catalogo,
+            id_bodega,
+          },
+          data: {
+            cantidad_disponible: { increment: 1 },
+          },
+        });
+      }
+
+      await prisma.log.create({
+        data: {
+          accion: 'COMPLETAR_REPARACION',
+          descripcion: `Reparación de serie ${idSerie}: ${reparacionExitosa ? 'exitosa' : 'fallida'}`,
+          id_usuario: user.id_usuario,
+        },
+      });
+    });
+
+    return { id_serie: idSerie, estado_nuevo: estadoNuevo };
   }
 }

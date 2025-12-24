@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { SucursalesController } from './sucursales/sucursales.controller';
@@ -29,13 +30,16 @@ import { AuditoriasInventarioController } from './auditorias-inventario/auditori
 import { AuditoriasInventarioService } from './auditorias-inventario/auditorias-inventario.service';
 import { SalidasTemporalesOtController } from './salidas-temporales-ot/salidas-temporales-ot.controller';
 import { SalidasTemporalesOtService } from './salidas-temporales-ot/salidas-temporales-ot.service';
+import { MetricasInventarioController } from './metricas-inventario/metricas-inventario.controller';
+import { MetricasInventarioService } from './metricas-inventario/metricas-inventario.service';
 import { MinioModule } from '../minio/minio.module';
 
 @Module({
-  imports: [ 
+  imports: [
     AuthModule,
     PrismaModule,
-    MinioModule
+    MinioModule,
+    ScheduleModule.forRoot(),
   ],
   controllers: [
     SucursalesController,
@@ -52,6 +56,7 @@ import { MinioModule } from '../minio/minio.module';
     MovimientosInventarioController,
     AuditoriasInventarioController,
     SalidasTemporalesOtController,
+    MetricasInventarioController,
   ],
   providers: [
     SucursalesService,
@@ -67,6 +72,8 @@ import { MinioModule } from '../minio/minio.module';
     MovimientosInventarioService,
     AuditoriasInventarioService,
     SalidasTemporalesOtService,
+    MetricasInventarioService,
   ],
+  exports: [MetricasInventarioService],
 })
 export class InventarioModule { }
