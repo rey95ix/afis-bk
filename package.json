@@ -17,7 +17,15 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "seed": "npx prisma db seed",
+    "seed:permisos": "npx ts-node -O '{\"module\":\"CommonJS\"}' prisma/seeds/permisos/permisos.seed.ts",
+    "build:seeds": "tsc -p prisma/tsconfig.seed.json",
+    "seed:prod": "node dist/prisma/seeds/permisos/permisos.seed.js",
+    "postbuild": "npm run build:seeds"
+  },
+  "prisma": {
+    "seed": "ts-node -O '{\"module\":\"CommonJS\"}' prisma/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.7",

@@ -2098,6 +2098,121 @@ export class AsignarPermisosComponent {
 
 ---
 
+## Sistema de Seeds de Permisos
+
+El sistema incluye un mecanismo de seeds para gestionar permisos de forma centralizada y automatizada.
+
+### Estructura de Archivos
+
+```
+prisma/
+├── seed.ts                    # Entry point principal de Prisma seed
+├── tsconfig.seed.json         # Configuración para compilar seeds
+└── seeds/
+    ├── index.ts               # Orquestador de todos los seeds
+    └── permisos/
+        ├── index.ts           # Exports del módulo
+        ├── permisos.types.ts  # Tipos TypeScript (TipoAccion, TipoPermiso, etc.)
+        ├── permisos.data.ts   # ARCHIVO MAESTRO DE PERMISOS
+        └── permisos.seed.ts   # Lógica del seed y asignación a roles
+```
+
+### Comandos Disponibles
+
+```bash
+# Desarrollo (usa ts-node)
+npm run seed:permisos
+
+# Producción (usa JavaScript compilado)
+npm run seed:prod
+
+# Compilar seeds manualmente
+npm run build:seeds
+
+# Seed completo de Prisma
+npm run seed
+```
+
+### Cómo Agregar Nuevos Permisos
+
+1. **Editar el archivo maestro**: `prisma/seeds/permisos/permisos.data.ts`
+
+2. **Usar los helpers disponibles**:
+
+```typescript
+// Permiso estándar (genera código: modulo.recurso:accion)
+crearPermiso('inventario', 'nuevo_recurso', 'VER', 'Ver Nuevo Recurso', 'Descripción'),
+
+// Permiso con código custom
+crearPermisoCustom('inventario', 'compras', 'mi_accion', 'Mi Acción', 'Descripción'),
+
+// Permiso crítico con auditoría
+crearPermiso('administracion', 'usuarios', 'ELIMINAR', 'Eliminar Usuarios', 'Desc', {
+  es_critico: true,
+  requiere_auditoria: true,
+}),
+```
+
+3. **Ejecutar el seed**:
+```bash
+npm run seed:permisos
+```
+
+### Asignación Automática a Roles
+
+Los permisos se asignan automáticamente a roles según la configuración en `permisos.seed.ts`:
+
+```typescript
+const PERMISOS_POR_ROL = {
+  [ROL_IDS.ADMIN]: ['*'],                           // Todos los permisos
+  [ROL_IDS.INVENTARIO]: ['inventario.*'],           // Todo el módulo inventario
+  [ROL_IDS.ATENCION_CLIENTE]: ['atencion_cliente.*', 'sms.*'],
+  [ROL_IDS.TECNICO]: [
+    'atencion_cliente.ordenes:ver',
+    'atencion_cliente.ordenes:ejecutar',
+  ],
+};
+```
+
+**Patrones soportados:**
+- `'*'` - Todos los permisos del sistema
+- `'modulo.*'` - Todos los permisos del módulo
+- `'modulo.recurso:*'` - Todas las acciones del recurso
+- `'modulo.recurso:accion'` - Permiso específico
+
+### Comportamiento del Seed
+
+| Acción | Resultado |
+|--------|-----------|
+| Agregar permiso nuevo | Se inserta y asigna automáticamente a roles |
+| Ejecutar sin cambios | No hace nada (skipDuplicates) |
+| Permiso ya existente | Se ignora, sin error |
+| Rol no existe en BD | Se salta con advertencia |
+
+### Integración con Docker/Producción
+
+Para ejecutar el seed automáticamente al levantar el contenedor:
+
+```yaml
+# docker-compose.yml
+command: >
+  sh -c "
+    npx prisma migrate deploy &&
+    npm run seed:prod &&
+    npm run start:prod
+  "
+```
+
+**Importante**: El build del proyecto (`npm run build`) automáticamente compila los seeds gracias al script `postbuild`.
+
+### Validaciones Incluidas
+
+- **Códigos duplicados**: El seed detecta y lanza error si hay códigos duplicados en `PERMISOS_MAESTROS`
+- **Roles inexistentes**: Salta roles que no existen en la BD con advertencia
+- **Códigos inválidos**: Advierte sobre códigos de permisos que no existen en la BD
+
+---
+
 ## Notas Finales
 
 ### Mejores Prácticas
@@ -2108,11 +2223,13 @@ export class AsignarPermisosComponent {
 4. **Expiración de Permisos Temporales**: Usar `fecha_expiracion` para permisos temporales
 5. **Invalidar Caché**: Recordar invalidar caché al modificar permisos
 6. **Auditar Acciones**: Revisar logs de acciones con `requiere_auditoria`
+7. **Centralizar Permisos**: Usar el archivo `permisos.data.ts` como única fuente de verdad
 
 ### Próximos Pasos
 
-- [ ] Implementar endpoints de administración de permisos
-- [ ] Implementar endpoints de administración de políticas
+- [x] Implementar sistema de seeds de permisos
+- [x] Implementar endpoints de administración de permisos
+- [x] Implementar endpoints de administración de políticas
 - [ ] Crear componentes de administración en frontend
 - [ ] Agregar políticas personalizadas según necesidades
 - [ ] Implementar auditoría avanzada de permisos
@@ -2120,6 +2237,6 @@ export class AsignarPermisosComponent {
 
 ---
 
-**Última actualización**: 2025-11-17
-**Versión**: 1.0
+**Última actualización**: 2025-12-23
+**Versión**: 1.1
 **Autor**: Sistema AFIS - Módulo de Autorizacion

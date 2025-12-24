@@ -41,18 +41,28 @@ async metodoDelEndpoint() {
 | POST (custom) | `POST /recurso/:id/aprobar` | `:aprobar` | `{modulo}.{recurso}:aprobar` |
 | GET (PDF/Excel) | `GET /recurso/:id/pdf` | `:exportar` | `{modulo}.{recurso}:exportar` |
 
-#### 4. Crear el permiso en SQL
+#### 4. Crear el permiso en el archivo maestro
 
-Agrega el INSERT en `/Users/relex/Desktop/afis/afis-bk/prisma/migrations/permisos_completos.sql`:
+Agrega el permiso en `prisma/seeds/permisos/permisos.data.ts`:
 
-```sql
-INSERT INTO permisos (codigo, nombre, descripcion, modulo, recurso, accion, tipo, estado, es_critico, requiere_auditoria) VALUES
-('{modulo}.{recurso}:{accion}', 'Nombre Descriptivo', 'Descripción detallada', '{modulo}', '{recurso}', '{ACCION}', 'RECURSO', 'ACTIVO', false, false);
+```typescript
+// Usar los helpers disponibles
+crearPermiso('{modulo}', '{recurso}', '{ACCION}', 'Nombre Descriptivo', 'Descripción detallada'),
+
+// Para permisos con opciones especiales
+crearPermiso('{modulo}', '{recurso}', 'ELIMINAR', 'Eliminar X', 'Desc', {
+  es_critico: true,
+  requiere_auditoria: true,
+}),
+
+// Para acciones custom
+crearPermisoCustom('{modulo}', '{recurso}', 'mi_accion', 'Mi Acción', 'Descripción'),
 ```
 
-#### 5. Ejecutar el SQL
+#### 5. Ejecutar el seed
 ```bash
-npx prisma db seed  # O ejecutar el SQL directamente
+npm run seed:permisos  # Desarrollo (ts-node)
+npm run seed:prod      # Producción (compilado)
 ```
 
 ### Ejemplos Completos
@@ -95,16 +105,20 @@ async aprobar(@Param('id') id: number) {
 - **Endpoints públicos**: `auth.controller.ts` (login, forgot-password, reset-password)
 - **Endpoints de desarrollo**: `seed.controller.ts`, `utilidades.controller.ts`
 
-### ✅ Checklist para Nuevos Endpoints
+### ✅ Checklist OBLIGATORIO para Nuevos Endpoints
+
+> ⚠️ **IMPORTANTE**: NO se aceptarán PRs con endpoints que no tengan permisos configurados.
 
 Antes de hacer commit, verifica:
-- [ ] ✅ Agregaste import de `RequirePermissions`
-- [ ] ✅ Agregaste decorador `@RequirePermissions()` al endpoint
-- [ ] ✅ El código sigue el formato `{modulo}.{recurso}:{accion}`
-- [ ] ✅ Creaste el INSERT SQL en `permisos_completos.sql`
-- [ ] ✅ Ejecutaste el seed o el SQL directamente
-- [ ] ✅ Probaste que usuarios sin permiso reciben HTTP 403
-- [ ] ✅ Probaste que Super Admin (id_rol = 1) siempre tiene acceso
+- [ ] Agregaste import de `RequirePermissions`
+- [ ] Agregaste decorador `@RequirePermissions()` al endpoint
+- [ ] El código sigue el formato `{modulo}.{recurso}:{accion}`
+- [ ] Agregaste el permiso en `prisma/seeds/permisos/permisos.data.ts`
+- [ ] Ejecutaste `npm run seed:permisos`
+- [ ] Probaste que usuarios sin permiso reciben HTTP 403
+- [ ] Probaste que Super Admin (id_rol = 1) siempre tiene acceso
+
+**🚫 Un endpoint sin permiso es un endpoint incompleto.**
 
 ### 🔐 Jerarquía de Validación
 
@@ -514,54 +528,36 @@ Código: 'inventario.requisiciones:aprobar'
 Código: 'atencion_cliente.clientes:ver'
 ```
 
-### 3. Crear el INSERT SQL
+### 3. Agregar el Permiso al Archivo Maestro
 
-Una vez identificado el código, agrega el INSERT a: `prisma/migrations/permisos_completos.sql`
+Una vez identificado el código, agrega el permiso a: `prisma/seeds/permisos/permisos.data.ts`
 
-```sql
-INSERT INTO permisos (
-  codigo,
-  nombre,
-  descripcion,
-  modulo,
-  recurso,
-  accion,
-  tipo,
-  estado,
-  es_critico,
-  requiere_auditoria
-) VALUES (
-  '{modulo}.{recurso}:{accion}',                    -- Código único
-  '{Nombre Descriptivo}',                           -- Nombre corto
-  '{Descripción detallada de lo que permite}',      -- Descripción
-  '{modulo}',                                       -- Módulo
-  '{recurso}',                                      -- Recurso
-  '{ACCION_EN_MAYUSCULAS}',                        -- VER, CREAR, EDITAR, etc.
-  'RECURSO',                                        -- Tipo (casi siempre RECURSO)
-  'ACTIVO',                                         -- Estado
-  false,                                            -- es_critico (true si es peligroso)
-  false                                             -- requiere_auditoria
-);
+**Usando la función helper (recomendado):**
+
+```typescript
+// Para acciones estándar (VER, CREAR, EDITAR, ELIMINAR, APROBAR, etc.)
+crearPermiso('{modulo}', '{recurso}', '{ACCION}', 'Nombre Descriptivo', 'Descripción detallada'),
+
+// Para acciones personalizadas
+crearPermisoCustom(
+  '{modulo}',
+  '{recurso}',
+  '{codigo_accion}',      // ej: 'recepcionar', 'autorizar'
+  'Nombre Descriptivo',
+  'Descripción detallada',
+  { es_critico: true, requiere_auditoria: true }  // Opciones adicionales
+),
 ```
 
 #### Ejemplo Real
 
-```sql
-INSERT INTO permisos (
-  codigo, nombre, descripcion, modulo, recurso, accion, tipo, estado, es_critico, requiere_auditoria
-) VALUES (
-  'inventario.compras:crear',
-  'Crear Compras',
-  'Permite crear nuevas órdenes de compra locales',
-  'inventario',
-  'compras',
-  'CREAR',
-  'RECURSO',
-  'ACTIVO',
-  false,
-  true  -- Requiere auditoría porque crea registros financieros
-);
+```typescript
+// En la sección correspondiente del módulo (ej: INVENTARIO)
+crearPermiso('inventario', 'compras', 'CREAR', 'Crear Compras', 'Permite crear nuevas órdenes de compra locales'),
+crearPermisoCustom('inventario', 'compras', 'recepcionar', 'Recepcionar Compras', 'Permite recepcionar compras', { requiere_auditoria: true }),
 ```
+
+**Nota:** El sistema valida automáticamente que no existan códigos duplicados al ejecutar el seed.
 
 ### 4. Agregar el Decorador al Endpoint
 
@@ -605,33 +601,41 @@ export class ComprasController {
 }
 ```
 
-### 5. Ejecutar el INSERT en la Base de Datos
+### 5. Ejecutar el Seed de Permisos
 
-**Opción A - Ejecutar SQL directamente**:
 ```bash
-# Conectarse a PostgreSQL y ejecutar el INSERT
-psql -U postgres -d afis -f prisma/migrations/permisos_completos.sql
+# Desarrollo - usa ts-node
+npm run seed:permisos
+
+# Producción - usa JS compilado
+npm run seed:prod
 ```
 
-**Opción B - Volver a ejecutar seed (más fácil)**:
-```bash
-# El seed ejecuta automáticamente todos los permisos del archivo
-npx prisma db seed
+El seed:
+- Inserta permisos nuevos (ignora duplicados con `skipDuplicates`)
+- Muestra estadísticas de permisos por módulo
+- Advierte sobre códigos inválidos en la configuración de roles
+
+### 6. Asignación Automática a Roles
+
+Los permisos se asignan automáticamente a roles según la configuración en `prisma/seeds/permisos/permisos.seed.ts`:
+
+```typescript
+const PERMISOS_POR_ROL: Record<number, string[]> = {
+  [ROL_IDS.ADMIN]: ['*'],                    // Todos los permisos
+  [ROL_IDS.INVENTARIO]: ['inventario.*'],    // Todo el módulo inventario
+  [ROL_IDS.TECNICO]: [
+    'atencion_cliente.ordenes:ver',          // Permisos específicos
+    'atencion_cliente.ordenes:ejecutar',
+  ],
+};
 ```
 
-### 6. Asignar Permiso al Rol Admin
-
-**AUTOMÁTICO**: El seed del sistema asigna automáticamente TODOS los permisos activos al rol Admin (id_rol = 1).
-
-Si creaste el permiso manualmente sin seed, asígnalo así:
-
-```sql
--- Asignar nuevo permiso al rol Admin
-INSERT INTO rol_permisos (id_rol, id_permiso)
-SELECT 1, id_permiso
-FROM permisos
-WHERE codigo = 'inventario.compras:crear';
-```
+**Patrones soportados:**
+- `'*'` → Todos los permisos
+- `'modulo.*'` → Todos los permisos del módulo
+- `'modulo.recurso:*'` → Todas las acciones del recurso
+- `'modulo.recurso:accion'` → Permiso específico
 
 ---
 
@@ -706,24 +710,29 @@ async remove(@Param('id') id: number) {
 
 ---
 
-## Checklist para Nuevos Endpoints
+## ⚠️ Checklist OBLIGATORIO para Nuevos Endpoints
+
+> **🚨 REGLA OBLIGATORIA**: Todo endpoint nuevo DEBE tener su permiso correspondiente.
+> **NO se aceptarán PRs con endpoints sin permisos configurados.**
 
 Al crear un nuevo endpoint, verifica:
 
-- [ ] ✅ Identificaste el módulo, recurso y acción
-- [ ] ✅ Creaste el código en formato `modulo.recurso:accion`
-- [ ] ✅ Agregaste el INSERT a `prisma/migrations/permisos_completos.sql`
-- [ ] ✅ Agregaste el decorador `@RequirePermissions()` al endpoint
-- [ ] ✅ Ejecutaste el SQL o el seed
-- [ ] ✅ Verificaste que el rol Admin tiene el permiso
-- [ ] ✅ Probaste el endpoint con un usuario sin permiso (debe dar 403)
-- [ ] ✅ Probaste el endpoint con Super Admin (debe funcionar siempre)
+- [ ] 1. Identificaste el módulo, recurso y acción
+- [ ] 2. Creaste el código en formato `modulo.recurso:accion`
+- [ ] 3. Agregaste el permiso en `prisma/seeds/permisos/permisos.data.ts`
+- [ ] 4. Agregaste el decorador `@RequirePermissions()` al endpoint
+- [ ] 5. Ejecutaste `npm run seed:permisos`
+- [ ] 6. Verificaste que el rol Admin tiene el permiso
+- [ ] 7. Probaste el endpoint con un usuario sin permiso (debe dar 403)
+- [ ] 8. Probaste el endpoint con Super Admin (debe funcionar siempre)
+
+**Un endpoint sin permiso = Un endpoint que NO debe ir a producción.**
 
 ---
 
 ## Ubicación de Archivos Clave
 
-- **SQL de Permisos**: `prisma/migrations/permisos_completos.sql`
+- **Permisos (Archivo Maestro)**: `prisma/seeds/permisos/permisos.data.ts`
 - **Guard de Permisos**: `src/modules/auth/guards/permissions.guard.ts`
 - **Decorador**: `src/modules/auth/decorators/require-permissions.decorator.ts`
 - **Documentación**: `SISTEMA_PERMISOS.md`

@@ -34,6 +34,7 @@ export class ClientesController {
 
   // ============= CATÁLOGOS =============
   @Get('catalogos/estados-civiles')
+  @RequirePermissions('atencion_cliente.catalogos:ver')
   @ApiOperation({ summary: 'Obtener catálogo de estados civiles' })
   @ApiResponse({
     status: 200,
@@ -44,6 +45,7 @@ export class ClientesController {
   }
 
   @Get('catalogos/estados-vivienda')
+  @RequirePermissions('atencion_cliente.catalogos:ver')
   @ApiOperation({ summary: 'Obtener catálogo de estados de vivienda' })
   @ApiResponse({
     status: 200,

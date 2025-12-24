@@ -10,7 +10,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
-import { Auth, GetUser } from 'src/modules/auth/decorators';
+import { Auth, GetUser, RequirePermissions } from 'src/modules/auth/decorators';
 import { CreateDiagnosticoDto } from './dto/create-diagnostico.dto';
 import { UpdateDiagnosticoDto } from './dto/update-diagnostico.dto';
 import { PaginationDto } from 'src/common/dto';
@@ -23,6 +23,7 @@ export class DiagnosticosCatalogoController {
   constructor(private readonly diagnosticosCatalogoService: DiagnosticosCatalogoService) {}
 
   @Post()
+  @RequirePermissions('administracion.diagnosticos:crear')
   @ApiOperation({
     summary: 'Crear un nuevo diagnóstico',
     description: 'Crea un nuevo diagnóstico en el catálogo de diagnósticos técnicos.',
@@ -44,6 +45,7 @@ export class DiagnosticosCatalogoController {
   }
 
   @Get()
+  @RequirePermissions('administracion.diagnosticos:ver')
   @ApiOperation({
     summary: 'Listar todos los diagnósticos con paginación',
     description: 'Obtiene la lista paginada de diagnósticos con opción de búsqueda.',
@@ -57,6 +59,7 @@ export class DiagnosticosCatalogoController {
   }
 
   @Get(':id')
+  @RequirePermissions('administracion.diagnosticos:ver')
   @ApiOperation({
     summary: 'Obtener un diagnóstico por ID',
     description: 'Obtiene los detalles de un diagnóstico específico.',
@@ -79,6 +82,7 @@ export class DiagnosticosCatalogoController {
   }
 
   @Put(':id')
+  @RequirePermissions('administracion.diagnosticos:editar')
   @ApiOperation({
     summary: 'Actualizar un diagnóstico',
     description: 'Actualiza los datos de un diagnóstico existente.',
@@ -110,6 +114,7 @@ export class DiagnosticosCatalogoController {
   }
 
   @Delete(':id')
+  @RequirePermissions('administracion.diagnosticos:eliminar')
   @ApiOperation({
     summary: 'Eliminar un diagnóstico',
     description: 'Elimina (desactiva) un diagnóstico del catálogo.',
