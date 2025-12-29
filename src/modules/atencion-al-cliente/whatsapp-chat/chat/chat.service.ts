@@ -566,6 +566,58 @@ export class ChatService {
   }
 
   /**
+   * Verificar si existe un chat activo con un número de teléfono
+   * Retorna información del chat y estado de la ventana 24h si existe
+   */
+  async checkPhoneNumber(telefono: string): Promise<{
+    exists: boolean;
+    chat?: {
+      id_chat: number;
+      estado: string;
+      nombre_cliente: string | null;
+      windowStatus: {
+        canSend: boolean;
+        hoursRemaining: number | null;
+        requiresTemplate: boolean;
+      };
+    };
+  }> {
+    // Buscar chat activo (no CERRADO) con este teléfono
+    const chat = await this.prisma.whatsapp_chat.findFirst({
+      where: {
+        telefono_cliente: telefono,
+        estado: { not: 'CERRADO' },
+      },
+      select: {
+        id_chat: true,
+        estado: true,
+        nombre_cliente: true,
+      },
+    });
+
+    if (!chat) {
+      return { exists: false };
+    }
+
+    // Obtener estado de la ventana 24h
+    const windowStatus = await this.canSendFreeformMessage(chat.id_chat);
+
+    return {
+      exists: true,
+      chat: {
+        id_chat: chat.id_chat,
+        estado: chat.estado,
+        nombre_cliente: chat.nombre_cliente,
+        windowStatus: {
+          canSend: windowStatus.canSend,
+          hoursRemaining: windowStatus.hoursRemaining,
+          requiresTemplate: windowStatus.requiresTemplate,
+        },
+      },
+    };
+  }
+
+  /**
    * Marcar mensajes como leídos
    */
   async markAsRead(chatId: number) {

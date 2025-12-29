@@ -90,6 +90,49 @@ export class ChatController {
   }
 
   @RequirePermissions('atencion_cliente.whatsapp_chat:ver')
+  @Get('check-phone/:telefono')
+  @ApiOperation({
+    summary: 'Verificar si existe chat con un número de teléfono',
+    description:
+      'Verifica si existe un chat activo con el número especificado y retorna información del estado de la ventana de 24h.',
+  })
+  @ApiParam({
+    name: 'telefono',
+    description: 'Número de teléfono en formato E.164 (ej: +50370001234)',
+    example: '+50370001234',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resultado de la verificación',
+    schema: {
+      type: 'object',
+      properties: {
+        exists: { type: 'boolean', description: 'Si existe un chat activo con este número' },
+        chat: {
+          type: 'object',
+          nullable: true,
+          properties: {
+            id_chat: { type: 'number' },
+            estado: { type: 'string' },
+            nombre_cliente: { type: 'string', nullable: true },
+            windowStatus: {
+              type: 'object',
+              properties: {
+                canSend: { type: 'boolean' },
+                hoursRemaining: { type: 'number', nullable: true },
+                requiresTemplate: { type: 'boolean' },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  checkPhone(@Param('telefono') telefono: string) {
+    return this.chatService.checkPhoneNumber(telefono);
+  }
+
+  @RequirePermissions('atencion_cliente.whatsapp_chat:ver')
   @Get(':id/window-status')
   @ApiOperation({
     summary: 'Verificar estado de ventana de 24 horas',

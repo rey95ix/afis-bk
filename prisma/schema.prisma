@@ -152,6 +152,29 @@ model cliente {
   fecha_creacion             DateTime @default(now())
   fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 
+  // === CAMPOS DE AUTENTICACIÓN PORTAL CLIENTES ===
+  password                   String?                  // Hash bcrypt (null hasta que active cuenta)
+  cuenta_activada            Boolean   @default(false) // Si el cliente ha activado su cuenta
+  fecha_activacion           DateTime?                // Cuándo activó la cuenta
+
+  // Reset de contraseña
+  reset_password_token       String?   @unique       // Token hasheado SHA256
+  reset_password_expires     DateTime?               // Expiración del token (30 min)
+
+  // Activación de cuenta
+  activation_token           String?   @unique       // Token para activar cuenta inicial
+  activation_token_expires   DateTime?               // Expiración token activación (24h)
+
+  // Seguridad
+  intentos_fallidos          Int       @default(0)   // Contador de intentos fallidos
+  cuenta_bloqueada           Boolean   @default(false)
+  fecha_bloqueo              DateTime?
+  ultimo_login               DateTime?
+
+  // Dispositivos/Sesiones
+  fcm_token_cliente          String?                 // Para notificaciones push móviles
+
+  // === RELACIONES ===
   direcciones       clienteDirecciones[]
   datosfacturacion  clienteDatosFacturacion[]
   documentos        clienteDocumentos[]
@@ -163,6 +186,13 @@ model cliente {
   dte_emitidos      dte_emitidos[]
   // WhatsApp Chat
   whatsapp_chats    whatsapp_chat[]
+  // Sesiones y logs de cliente
+  sesiones          cliente_sesiones[]
+  logs              cliente_log[]
+
+  // Índices para búsqueda rápida en auth
+  @@index([correo_electronico])
+  @@index([cuenta_activada])
 }
 
 model clienteDocumentos {
@@ -3088,4 +3118,48 @@ model configuracion_whatsapp {
   tiempo_alerta_sin_respuesta Int      @default(5) // Minutos sin respuesta para alertar
   fecha_creacion             DateTime  @default(now())
   fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+}
+
+// ============================================
+// AUTENTICACIÓN PORTAL CLIENTES
+// ============================================
+
+// Sesiones de cliente para control de dispositivos y tokens
+model cliente_sesiones {
+  id_sesion        Int       @id @default(autoincrement())
+  id_cliente       Int
+  cliente          cliente   @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
+
+  token_hash       String    @unique       // Hash del refresh token
+  ip_address       String?
+  user_agent       String?   @db.Text
+  dispositivo      String?                 // Identificador del dispositivo
+
+  fecha_creacion   DateTime  @default(now())
+  fecha_expiracion DateTime
+  ultima_actividad DateTime  @default(now())
+  revocada         Boolean   @default(false)
+  fecha_revocacion DateTime?
+
+  @@index([id_cliente])
+  @@index([token_hash])
+  @@index([fecha_expiracion])
+}
+
+// Log de actividad del cliente para auditoría y seguridad
+model cliente_log {
+  id_log         Int       @id @default(autoincrement())
+  id_cliente     Int?
+  cliente        cliente?  @relation(fields: [id_cliente], references: [id_cliente], onDelete: SetNull)
+
+  accion         String                  // LOGIN_SUCCESS, LOGIN_FAILED, PASSWORD_RESET, LOGOUT, etc.
+  ip_address     String?
+  user_agent     String?   @db.Text
+  detalles       String?   @db.Text      // JSON con información adicional
+
+  fecha_creacion DateTime  @default(now())
+
+  @@index([id_cliente])
+  @@index([accion])
+  @@index([fecha_creacion])
 }
