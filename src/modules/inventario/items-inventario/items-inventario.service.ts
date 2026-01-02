@@ -9,6 +9,8 @@ import {
   ResultadoInspeccion,
   CompletarReparacionDto,
   ResultadoReparacion,
+  AgregarSeriesManualDto,
+  QueryInventarioSinSeriesDto,
 } from './dto';
 import { PaginatedResult } from 'src/common/dto';
 import axios from 'axios';
@@ -2283,6 +2285,272 @@ export class ItemsInventarioService {
         .map(([bodega, cantidad]) => ({ bodega, cantidad }))
         .sort((a, b) => b.cantidad - a.cantidad),
       por_recomendacion: porRecomendacion,
+    };
+  }
+
+  // ============================================
+  // GESTIÓN MANUAL DE SERIES
+  // ============================================
+
+  /**
+   * Obtiene inventario con series incompletas
+   * (cantidad_disponible > series registradas con estado DISPONIBLE)
+   */
+  async findInventarioSinSeriesCompletas(
+    queryDto: QueryInventarioSinSeriesDto,
+  ): Promise<PaginatedResult<any>> {
+    const { page = 1, limit = 10, search, id_bodega, id_categoria } = queryDto;
+    const skip = (page - 1) * limit;
+
+    // Construir where base
+    const whereClause: any = {
+      estado: 'ACTIVO',
+      cantidad_disponible: { gt: 0 },
+    };
+
+    if (id_bodega) {
+      whereClause.id_bodega = +id_bodega;
+    }
+
+    if (id_categoria) {
+      whereClause.catalogo = {
+        id_categoria: +id_categoria,
+      };
+    }
+
+    if (search) {
+      whereClause.catalogo = {
+        ...whereClause.catalogo,
+        OR: [
+          { nombre: { contains: search, mode: 'insensitive' } },
+          { codigo: { contains: search, mode: 'insensitive' } },
+        ],
+      };
+    }
+
+    // Obtener inventarios con cantidad disponible > 0
+    const inventarios = await this.prisma.inventario.findMany({
+      where: whereClause,
+      include: {
+        catalogo: {
+          include: {
+            categoria: true,
+            marca: { select: { id_marca: true, nombre: true } },
+            modelo: { select: { id_modelo: true, nombre: true } },
+          },
+        },
+        bodega: {
+          select: {
+            id_bodega: true,
+            nombre: true,
+            tipo: true,
+          },
+        },
+        series: {
+          where: { estado: 'DISPONIBLE' },
+          select: { id_serie: true },
+        },
+      },
+      orderBy: { catalogo: { nombre: 'asc' } },
+    });
+
+    // Filtrar los que tienen series incompletas
+    const inventariosConSeriesFaltantes = inventarios
+      .map((inv) => {
+        const seriesRegistradas = inv.series.length;
+        const seriesFaltantes = inv.cantidad_disponible - seriesRegistradas;
+        return {
+          id_inventario: inv.id_inventario,
+          id_catalogo: inv.id_catalogo,
+          id_bodega: inv.id_bodega,
+          cantidad_disponible: inv.cantidad_disponible,
+          series_registradas: seriesRegistradas,
+          series_faltantes: seriesFaltantes,
+          catalogo: {
+            id_catalogo: inv.catalogo.id_catalogo,
+            codigo_producto: inv.catalogo.codigo,
+            nombre: inv.catalogo.nombre,
+            marca: inv.catalogo.marca,
+            modelo: inv.catalogo.modelo,
+            categoria: inv.catalogo.categoria,
+          },
+          bodega: inv.bodega,
+        };
+      })
+      .filter((inv) => inv.series_faltantes > 0);
+
+    // Aplicar paginación
+    const total = inventariosConSeriesFaltantes.length;
+    const data = inventariosConSeriesFaltantes.slice(skip, skip + limit);
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+      },
+    };
+  }
+
+  /**
+   * Verifica si un número de serie ya existe en el sistema
+   */
+  async verificarSerieExiste(numeroSerie: string): Promise<{
+    existe: boolean;
+    numero_serie: string;
+    producto?: string;
+    bodega?: string;
+  }> {
+    const serie = await this.prisma.inventario_series.findUnique({
+      where: { numero_serie: numeroSerie },
+      include: {
+        inventario: {
+          include: {
+            catalogo: { select: { nombre: true } },
+            bodega: { select: { nombre: true } },
+          },
+        },
+      },
+    });
+
+    if (!serie) {
+      return {
+        existe: false,
+        numero_serie: numeroSerie,
+      };
+    }
+
+    return {
+      existe: true,
+      numero_serie: numeroSerie,
+      producto: serie.inventario?.catalogo?.nombre,
+      bodega: serie.inventario?.bodega?.nombre,
+    };
+  }
+
+  /**
+   * Verifica múltiples números de serie
+   */
+  async verificarSeriesMultiples(
+    series: string[],
+  ): Promise<Array<{ numero_serie: string; existe: boolean; producto?: string; bodega?: string }>> {
+    const resultados = await Promise.all(
+      series.map((s) => this.verificarSerieExiste(s)),
+    );
+    return resultados;
+  }
+
+  /**
+   * Agrega series manualmente a un inventario existente
+   */
+  async agregarSeriesManual(
+    dto: AgregarSeriesManualDto,
+    userId: number,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    series_creadas: number;
+    series: any[];
+  }> {
+    const { id_inventario, series } = dto;
+
+    // Verificar que el inventario existe
+    const inventario = await this.prisma.inventario.findUnique({
+      where: { id_inventario },
+      include: {
+        catalogo: { select: { nombre: true, codigo: true } },
+        bodega: { select: { nombre: true } },
+      },
+    });
+
+    if (!inventario) {
+      throw new NotFoundException(`Inventario con ID ${id_inventario} no encontrado`);
+    }
+
+    // Contar series DISPONIBLES actuales
+    const seriesActuales = await this.prisma.inventario_series.count({
+      where: {
+        id_inventario,
+        estado: 'DISPONIBLE',
+      },
+    });
+
+    const seriesFaltantes = inventario.cantidad_disponible - seriesActuales;
+
+    // Validar que no se excedan las series faltantes
+    if (series.length > seriesFaltantes) {
+      throw new BadRequestException(
+        `Solo puedes agregar ${seriesFaltantes} series. Intentas agregar ${series.length}.`,
+      );
+    }
+
+    // Verificar que ningún número de serie exista ya
+    const numerosSerieAVerificar = series.map((s) => s.numero_serie);
+    const seriesExistentes = await this.prisma.inventario_series.findMany({
+      where: {
+        numero_serie: { in: numerosSerieAVerificar },
+      },
+      select: { numero_serie: true },
+    });
+
+    if (seriesExistentes.length > 0) {
+      const duplicados = seriesExistentes.map((s) => s.numero_serie).join(', ');
+      throw new BadRequestException(
+        `Los siguientes números de serie ya existen: ${duplicados}`,
+      );
+    }
+
+    // Crear las series en una transacción
+    const seriesCreadas = await this.prisma.$transaction(async (tx) => {
+      const nuevasSeries: any[] = [];
+
+      for (const serieData of series) {
+        const nuevaSerie = await tx.inventario_series.create({
+          data: {
+            id_inventario,
+            numero_serie: serieData.numero_serie,
+            mac_address: serieData.mac_address || null,
+            costo_adquisicion: serieData.costo_adquisicion || null,
+            estado: estado_inventario.DISPONIBLE,
+            fecha_ingreso: new Date(),
+            observaciones: serieData.observaciones || 'Ingreso manual de serie',
+          },
+        });
+
+        // Registrar en historial (estado_anterior = DISPONIBLE ya que es creación inicial)
+        await tx.historial_series.create({
+          data: {
+            id_serie: nuevaSerie.id_serie,
+            estado_anterior: estado_inventario.DISPONIBLE,
+            estado_nuevo: estado_inventario.DISPONIBLE,
+            id_bodega_anterior: null,
+            id_bodega_nueva: inventario.id_bodega,
+            id_usuario: userId,
+            observaciones: 'REGISTRO_MANUAL: Serie ingresada manualmente al inventario existente',
+          },
+        });
+
+        nuevasSeries.push(nuevaSerie);
+      }
+
+      return nuevasSeries;
+    });
+
+    // Registrar log de acción
+    await this.prisma.logAction(
+      'AGREGAR_SERIES_MANUAL',
+      userId,
+      `Se agregaron ${seriesCreadas.length} series manualmente al inventario ${inventario.catalogo?.codigo} - ${inventario.catalogo?.nombre} en bodega ${inventario.bodega?.nombre}`,
+    );
+
+    return {
+      success: true,
+      message: `Se agregaron ${seriesCreadas.length} series correctamente`,
+      series_creadas: seriesCreadas.length,
+      series: seriesCreadas,
     };
   }
 }

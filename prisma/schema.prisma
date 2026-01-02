@@ -404,6 +404,32 @@ model categorias {
   @@index([id_categoria_padre])
 }
 
+model marcas {
+  id_marca                   Int        @id @default(autoincrement())
+  nombre                     String
+  descripcion                String?
+  logo                       String?    @db.Text
+  estado                     estado     @default(ACTIVO)
+  fecha_creacion             DateTime   @default(now())
+  fecha_ultima_actualizacion DateTime   @default(now()) @updatedAt
+  catalogo                   catalogo[]
+  modelos                    modelos[]
+}
+
+model modelos {
+  id_modelo                  Int        @id @default(autoincrement())
+  nombre                     String
+  descripcion                String?
+  id_marca                   Int
+  marca                      marcas     @relation(fields: [id_marca], references: [id_marca], onDelete: NoAction, onUpdate: NoAction, map: "fk_modelo_marca")
+  estado                     estado     @default(ACTIVO)
+  fecha_creacion             DateTime   @default(now())
+  fecha_ultima_actualizacion DateTime   @default(now()) @updatedAt
+  catalogo                   catalogo[]
+
+  @@index([id_marca])
+}
+
 model catalogo {
   id_catalogo                Int                             @id @default(autoincrement())
   id_categoria               Int
@@ -419,6 +445,10 @@ model catalogo {
   stock_seguridad            Int?                            // Buffer de seguridad
   punto_reorden              Int?                            // ROP = (Demanda * Lead Time) + SS
   vida_util_meses            Int?                            // Vida útil del producto en meses
+  id_marca                   Int?
+  marca                      marcas?                         @relation(fields: [id_marca], references: [id_marca], onDelete: NoAction, onUpdate: NoAction, map: "fk_catalogo_marca")
+  id_modelo                  Int?
+  modelo                     modelos?                        @relation(fields: [id_modelo], references: [id_modelo], onDelete: NoAction, onUpdate: NoAction, map: "fk_catalogo_modelo")
   estado                     estado                          @default(ACTIVO)
   fecha_creacion             DateTime                        @default(now())
   fecha_ultima_actualizacion DateTime                        @default(now()) @updatedAt
@@ -1400,6 +1430,7 @@ model historial_series {
 enum tipo_movimiento {
   ENTRADA_COMPRA
   ENTRADA_IMPORTACION
+  ENTRADA_CARGA_EXCEL
   SALIDA_OT
   TRANSFERENCIA
   AJUSTE_INVENTARIO

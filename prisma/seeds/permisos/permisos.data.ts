@@ -266,6 +266,24 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     requiere_auditoria: true,
   }),
 
+  // Marcas
+  crearPermiso('administracion', 'marcas', 'VER', 'Ver Marcas', 'Ver listado y detalles de marcas'),
+  crearPermiso('administracion', 'marcas', 'CREAR', 'Crear Marcas', 'Crear nuevas marcas', { requiere_auditoria: true }),
+  crearPermiso('administracion', 'marcas', 'EDITAR', 'Editar Marcas', 'Modificar marcas existentes', { requiere_auditoria: true }),
+  crearPermiso('administracion', 'marcas', 'ELIMINAR', 'Eliminar Marcas', 'Eliminar marcas', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+
+  // Modelos
+  crearPermiso('administracion', 'modelos', 'VER', 'Ver Modelos', 'Ver listado y detalles de modelos'),
+  crearPermiso('administracion', 'modelos', 'CREAR', 'Crear Modelos', 'Crear nuevos modelos', { requiere_auditoria: true }),
+  crearPermiso('administracion', 'modelos', 'EDITAR', 'Editar Modelos', 'Modificar modelos existentes', { requiere_auditoria: true }),
+  crearPermiso('administracion', 'modelos', 'ELIMINAR', 'Eliminar Modelos', 'Eliminar modelos', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+
   // =============================================================
   // MODULO: ATENCION AL CLIENTE
   // =============================================================
@@ -612,8 +630,19 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
 
   // Items de Inventario
   crearPermiso('inventario', 'items', 'VER', 'Ver Inventario', 'Ver existencias y distribucion de inventario'),
+  crearPermiso('inventario', 'items', 'CREAR', 'Crear Items Inventario', 'Crear nuevos registros de inventario', {
+    requiere_auditoria: true,
+  }),
   crearPermisoCustom('inventario', 'items', 'ver_alertas', 'Ver Alertas de Stock', 'Ver alertas de productos con stock bajo'),
   crearPermiso('inventario', 'items', 'EXPORTAR', 'Exportar Inventario', 'Exportar existencias a PDF y Excel'),
+  crearPermisoCustom(
+    'inventario',
+    'items',
+    'cargar_excel',
+    'Cargar Inventario desde Excel',
+    'Cargar inventario masivamente desde archivos Excel',
+    { requiere_auditoria: true },
+  ),
 
   // Series
   crearPermiso('inventario', 'series', 'VER', 'Ver Series', 'Buscar y ver numeros de serie de productos'),

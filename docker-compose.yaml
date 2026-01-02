@@ -1,0 +1,49 @@
+services:
+  fac-app:
+    container_name: ${DB_HOST}-app
+    depends_on:
+      fac-db:
+        condition: service_healthy
+    image: docker.io/reyixc95/ixc-erp:latest
+    restart: always
+    ports:
+      - "5470:${PORT}"
+    env_file: .env
+    networks:
+      - network-system 
+    command: >
+      sh -c "
+        echo 'Esperando DB en ${DB_HOST:-fac-db}:${DB_PORT:-5432}...' &&
+        until pg_isready -h ${DB_HOST:-fac-db} -p ${DB_PORT:-5432} -U ${DB_USERNAME}; do sleep 1; done &&
+        echo 'DB lista. Ejecutando migraciones Prisma...' &&
+        npx prisma migrate deploy &&
+        echo 'Ejecutando seed de permisos...' &&
+        npm run seed:prod &&
+        echo 'Iniciando aplicación...' &&
+        npm run start:prod
+      "
+
+  fac-db:
+    image: postgres:16.10-alpine
+    container_name: ${DB_HOST}
+    restart: always
+    ports:
+      - 5460:5432
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USERNAME}
+      TZ: 'America/El_Salvador'
+      PGTZ: 'America/El_Salvador'
+    networks:
+      - network-system
+    volumes:
+      - ./data_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME} -h 127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+networks:
+  network-system: 

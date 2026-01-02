@@ -1,6 +1,14 @@
 import { Controller, Get, Post, Patch, Param, Query, Body, ParseIntPipe, Request } from '@nestjs/common';
 import { ItemsInventarioService } from './items-inventario.service';
-import { QuerySeriesDisponiblesDto, RealizarInspeccionDto, CambiarEstadoSerieDto, CompletarReparacionDto } from './dto';
+import {
+  QuerySeriesDisponiblesDto,
+  RealizarInspeccionDto,
+  CambiarEstadoSerieDto,
+  CompletarReparacionDto,
+  AgregarSeriesManualDto,
+  QueryInventarioSinSeriesDto,
+  VerificarSeriesDto,
+} from './dto';
 import {
   ApiTags,
   ApiOperation,
@@ -186,5 +194,80 @@ export class SeriesController {
       dto.estado,
       dto.observaciones,
     );
+  }
+
+  // ============================================
+  // ENDPOINTS DE GESTIÓN MANUAL DE SERIES
+  // ============================================
+
+  @RequirePermissions('inventario.series:ver')
+  @Get('gestion/sin-series')
+  @ApiOperation({
+    summary: 'Obtener inventario con series incompletas',
+    description:
+      'Retorna una lista paginada de items del inventario que tienen cantidad disponible mayor a las series registradas.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista paginada de inventario con series faltantes.',
+  })
+  findInventarioSinSeries(@Query() queryDto: QueryInventarioSinSeriesDto) {
+    return this.itemsInventarioService.findInventarioSinSeriesCompletas(queryDto);
+  }
+
+  @RequirePermissions('inventario.series:ver')
+  @Get('gestion/verificar/:numeroSerie')
+  @ApiOperation({
+    summary: 'Verificar si un número de serie existe',
+    description: 'Verifica si un número de serie ya está registrado en el sistema.',
+  })
+  @ApiParam({ name: 'numeroSerie', description: 'Número de serie a verificar' })
+  @ApiResponse({
+    status: 200,
+    description: 'Resultado de la verificación.',
+  })
+  verificarSerieExiste(@Param('numeroSerie') numeroSerie: string) {
+    return this.itemsInventarioService.verificarSerieExiste(numeroSerie);
+  }
+
+  @RequirePermissions('inventario.series:ver')
+  @Post('gestion/verificar-multiples')
+  @ApiOperation({
+    summary: 'Verificar múltiples números de serie',
+    description: 'Verifica si una lista de números de serie ya están registrados.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de resultados de verificación.',
+  })
+  verificarSeriesMultiples(@Body() dto: VerificarSeriesDto) {
+    return this.itemsInventarioService.verificarSeriesMultiples(dto.series);
+  }
+
+  @RequirePermissions('inventario.series:crear')
+  @Post('gestion/agregar-manual')
+  @ApiOperation({
+    summary: 'Agregar series manualmente',
+    description:
+      'Agrega números de serie manualmente a un inventario existente. Útil para registrar series de productos ya existentes en bodega.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Series agregadas exitosamente.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Error de validación o series duplicadas.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Inventario no encontrado.',
+  })
+  agregarSeriesManual(
+    @Body() dto: AgregarSeriesManualDto,
+    @Request() req: any,
+  ) {
+    const userId = req.user?.id_usuario || req.user?.sub;
+    return this.itemsInventarioService.agregarSeriesManual(dto, userId);
   }
 }

@@ -97,6 +97,18 @@ export class CatalogoService {
               nombre: true,
             },
           },
+          marca: {
+            select: {
+              id_marca: true,
+              nombre: true,
+            },
+          },
+          modelo: {
+            select: {
+              id_modelo: true,
+              nombre: true,
+            },
+          },
         },
       }),
       this.prisma.catalogo.count({ where }),
@@ -118,6 +130,26 @@ export class CatalogoService {
   async findOne(id: number): Promise<catalogo> {
     const catalogo = await this.prisma.catalogo.findUnique({
       where: { id_catalogo: id },
+      include: {
+        categoria: {
+          select: {
+            id_categoria: true,
+            nombre: true,
+          },
+        },
+        marca: {
+          select: {
+            id_marca: true,
+            nombre: true,
+          },
+        },
+        modelo: {
+          select: {
+            id_modelo: true,
+            nombre: true,
+          },
+        },
+      },
     });
     if (!catalogo) {
       throw new NotFoundException(`Catalogo with ID ${id} not found`);

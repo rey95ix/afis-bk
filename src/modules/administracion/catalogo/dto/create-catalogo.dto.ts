@@ -34,4 +34,14 @@ export class CreateCatalogoDto {
   @IsOptional()
   @IsInt()
   cantidad_maxima?: number;
+
+  @ApiProperty({ description: 'ID de la marca', required: false })
+  @IsOptional()
+  @IsInt()
+  id_marca?: number;
+
+  @ApiProperty({ description: 'ID del modelo', required: false })
+  @IsOptional()
+  @IsInt()
+  id_modelo?: number;
 }

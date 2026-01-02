@@ -32,6 +32,8 @@ import { SalidasTemporalesOtController } from './salidas-temporales-ot/salidas-t
 import { SalidasTemporalesOtService } from './salidas-temporales-ot/salidas-temporales-ot.service';
 import { MetricasInventarioController } from './metricas-inventario/metricas-inventario.controller';
 import { MetricasInventarioService } from './metricas-inventario/metricas-inventario.service';
+import { CargaInventarioController } from './carga-inventario/carga-inventario.controller';
+import { CargaInventarioService } from './carga-inventario/carga-inventario.service';
 import { MinioModule } from '../minio/minio.module';
 
 @Module({
@@ -57,6 +59,7 @@ import { MinioModule } from '../minio/minio.module';
     AuditoriasInventarioController,
     SalidasTemporalesOtController,
     MetricasInventarioController,
+    CargaInventarioController,
   ],
   providers: [
     SucursalesService,
@@ -73,6 +76,7 @@ import { MinioModule } from '../minio/minio.module';
     AuditoriasInventarioService,
     SalidasTemporalesOtService,
     MetricasInventarioService,
+    CargaInventarioService,
   ],
   exports: [MetricasInventarioService],
 })
