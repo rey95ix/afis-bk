@@ -92,6 +92,7 @@ export class CargaInventarioService {
       filas_creadas: 0,
       filas_actualizadas: 0,
       filas_error: 0,
+      filas_saltadas: 0,
       marcas_creadas: 0,
       modelos_creados: 0,
       catalogos_creados: 0,
@@ -124,8 +125,8 @@ export class CargaInventarioService {
 
         if (itemResultado.estado === 'CREADO') {
           resultado.filas_creadas++;
-        } else if (itemResultado.estado === 'ACTUALIZADO') {
-          resultado.filas_actualizadas++;
+        } else if (itemResultado.estado === 'SALTADO') {
+          resultado.filas_saltadas++;
         }
 
         if (itemResultado.marca_creada) resultado.marcas_creadas++;
@@ -150,7 +151,7 @@ export class CargaInventarioService {
     await this.prisma.log.create({
       data: {
         accion: 'CARGA_INVENTARIO_EXCEL',
-        descripcion: `Carga masiva desde Excel: ${resultado.filas_procesadas} procesadas, ${resultado.filas_creadas} creadas, ${resultado.filas_actualizadas} actualizadas, ${resultado.filas_error} errores`,
+        descripcion: `Carga masiva desde Excel: ${resultado.filas_procesadas} procesadas, ${resultado.filas_creadas} creadas, ${resultado.filas_saltadas} saltadas, ${resultado.filas_error} errores`,
         id_usuario: userId,
       },
     });
@@ -209,31 +210,32 @@ export class CargaInventarioService {
       },
     });
 
-    let esCreado = false;
-
+    // Si ya existe, saltar (no actualizar)
     if (inventarioExistente) {
-      // ACTUALIZAR cantidad
-      await prisma.inventario.update({
-        where: { id_inventario: inventarioExistente.id_inventario },
-        data: {
-          cantidad_disponible: {
-            increment: item.cantidad,
-          },
-        },
-      });
-    } else {
-      // CREAR nuevo registro
-      await prisma.inventario.create({
-        data: {
-          id_catalogo: catalogo.id_catalogo,
-          id_bodega: idBodega,
-          id_estante: idEstante,
-          cantidad_disponible: item.cantidad,
-          cantidad_reservada: 0,
-        },
-      });
-      esCreado = true;
+      return {
+        fila: item.fila,
+        marca: nombreMarca,
+        modelo: nombreModelo,
+        descripcion: descripcion,
+        cantidad: item.cantidad,
+        estado: 'SALTADO',
+        mensaje: 'El registro ya existe en el inventario',
+        marca_creada: marcaCreada,
+        modelo_creado: modeloCreado,
+        catalogo_creado: catalogoCreado,
+      };
     }
+
+    // CREAR nuevo registro
+    await prisma.inventario.create({
+      data: {
+        id_catalogo: catalogo.id_catalogo,
+        id_bodega: idBodega,
+        id_estante: idEstante,
+        cantidad_disponible: item.cantidad,
+        cantidad_reservada: 0,
+      },
+    });
 
     // 7. Registrar movimiento de inventario
     await prisma.movimientos_inventario.create({
@@ -253,7 +255,7 @@ export class CargaInventarioService {
       modelo: nombreModelo,
       descripcion: descripcion,
       cantidad: item.cantidad,
-      estado: esCreado ? 'CREADO' : 'ACTUALIZADO',
+      estado: 'CREADO',
       marca_creada: marcaCreada,
       modelo_creado: modeloCreado,
       catalogo_creado: catalogoCreado,
@@ -275,8 +277,7 @@ export class CargaInventarioService {
 
     // Asumimos fila 1 = encabezados, datos desde fila 2 
     worksheet.eachRow((row, rowNumber) => {
-      if (rowNumber === 1) return; // Saltar encabezados
-      console.log(row.values);
+      if (rowNumber === 1) return; // Saltar encabezados 
       const marca = this.getCellText(row.getCell(1));
       const modelo = this.getCellText(row.getCell(2));
       const descripcion = this.getCellText(row.getCell(3));

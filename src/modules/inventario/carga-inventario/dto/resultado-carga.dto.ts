@@ -18,9 +18,9 @@ export class ItemResultadoDto {
 
   @ApiProperty({
     description: 'Estado del procesamiento',
-    enum: ['CREADO', 'ACTUALIZADO', 'ERROR'],
+    enum: ['CREADO', 'ACTUALIZADO', 'SALTADO', 'ERROR'],
   })
-  estado: 'CREADO' | 'ACTUALIZADO' | 'ERROR';
+  estado: 'CREADO' | 'ACTUALIZADO' | 'SALTADO' | 'ERROR';
 
   @ApiProperty({ description: 'Mensaje de error o información', required: false })
   mensaje?: string;
@@ -56,6 +56,9 @@ export class ResultadoCargaDto {
 
   @ApiProperty({ description: 'Filas con error' })
   filas_error: number;
+
+  @ApiProperty({ description: 'Registros saltados por ya existir' })
+  filas_saltadas: number;
 
   @ApiProperty({ description: 'Marcas nuevas creadas' })
   marcas_creadas: number;

@@ -1,6 +1,6 @@
 // src/modules/administracion/catalogo/dto/create-catalogo.dto.ts
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsInt } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsNumber } from 'class-validator';
 
 export class CreateCatalogoDto {
   @ApiProperty({ description: 'ID de la categoría' })
@@ -44,4 +44,29 @@ export class CreateCatalogoDto {
   @IsOptional()
   @IsInt()
   id_modelo?: number;
+
+  @ApiProperty({ description: 'Días que tarda el proveedor en entregar', required: false })
+  @IsOptional()
+  @IsInt()
+  lead_time_dias?: number;
+
+  @ApiProperty({ description: 'Consumo promedio diario del producto', required: false })
+  @IsOptional()
+  @IsNumber()
+  demanda_promedio_diaria?: number;
+
+  @ApiProperty({ description: 'Stock de seguridad buffer', required: false })
+  @IsOptional()
+  @IsInt()
+  stock_seguridad?: number;
+
+  @ApiProperty({ description: 'Punto de reorden calculado (ROP)', required: false })
+  @IsOptional()
+  @IsInt()
+  punto_reorden?: number;
+
+  @ApiProperty({ description: 'Vida útil del producto en meses', required: false })
+  @IsOptional()
+  @IsInt()
+  vida_util_meses?: number;
 }
