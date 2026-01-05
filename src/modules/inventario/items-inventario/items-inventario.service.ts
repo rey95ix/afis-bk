@@ -85,6 +85,8 @@ export class ItemsInventarioService {
         catalogo: {
           include: {
             categoria: true,
+            marca: { select: { id_marca: true, nombre: true } },
+            modelo: { select: { id_modelo: true, nombre: true } },
           },
         },
         bodega: {
@@ -154,6 +156,8 @@ export class ItemsInventarioService {
         catalogo: {
           include: {
             categoria: true,
+            marca: { select: { id_marca: true, nombre: true } },
+            modelo: { select: { id_modelo: true, nombre: true } },
           },
         },
         bodega: {
