@@ -79,6 +79,28 @@ export class TemplateController {
   }
 
   @RequirePermissions('atencion_cliente.whatsapp_chat:ver')
+  @Get('sync')
+  @ApiOperation({
+    summary: 'Sincronizar plantillas desde Meta',
+    description: 'Obtiene todas las plantillas de Meta WhatsApp Business API y las sincroniza con la base de datos local.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resultado de la sincronización',
+    schema: {
+      type: 'object',
+      properties: {
+        created: { type: 'number', description: 'Plantillas creadas' },
+        updated: { type: 'number', description: 'Plantillas actualizadas' },
+        errors: { type: 'array', items: { type: 'string' }, description: 'Errores encontrados' },
+      },
+    },
+  })
+  syncFromMeta() {
+    return this.templateService.syncFromMeta();
+  }
+
+  @RequirePermissions('atencion_cliente.whatsapp_chat:ver')
   @Get(':id')
   @ApiOperation({
     summary: 'Obtener una plantilla',
@@ -179,28 +201,6 @@ export class TemplateController {
   @ApiResponse({ status: 404, description: 'Plantilla no encontrada' })
   deleteFromMeta(@Param('id', ParseIntPipe) id: number) {
     return this.templateService.deleteFromMeta(id);
-  }
-
-  @RequirePermissions('atencion_cliente.whatsapp_chat:ver')
-  @Get('sync')
-  @ApiOperation({
-    summary: 'Sincronizar plantillas desde Meta',
-    description: 'Obtiene todas las plantillas de Meta WhatsApp Business API y las sincroniza con la base de datos local.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Resultado de la sincronización',
-    schema: {
-      type: 'object',
-      properties: {
-        created: { type: 'number', description: 'Plantillas creadas' },
-        updated: { type: 'number', description: 'Plantillas actualizadas' },
-        errors: { type: 'array', items: { type: 'string' }, description: 'Errores encontrados' },
-      },
-    },
-  })
-  syncFromMeta() {
-    return this.templateService.syncFromMeta();
   }
 
   @RequirePermissions('atencion_cliente.whatsapp_chat:ver')
