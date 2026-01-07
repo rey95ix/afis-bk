@@ -285,4 +285,60 @@ export class ChatController {
   markAsRead(@Param('id', ParseIntPipe) id: number) {
     return this.chatService.markAsRead(id);
   }
+
+  @RequirePermissions('atencion_cliente.whatsapp_chat:editar')
+  @Post(':id/archive')
+  @ApiOperation({
+    summary: 'Archivar un chat',
+    description:
+      'Archiva un chat de WhatsApp para ocultarlo del listado principal. El chat puede ser desarchivado posteriormente.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del chat',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Chat archivado exitosamente',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'El chat ya está archivado',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Chat no encontrado',
+  })
+  archive(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    return this.chatService.archive(id, req.user.id_usuario);
+  }
+
+  @RequirePermissions('atencion_cliente.whatsapp_chat:editar')
+  @Post(':id/unarchive')
+  @ApiOperation({
+    summary: 'Desarchivar un chat',
+    description:
+      'Desarchiva un chat de WhatsApp para que vuelva a aparecer en el listado principal.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del chat',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Chat desarchivado exitosamente',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'El chat no está archivado',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Chat no encontrado',
+  })
+  unarchive(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    return this.chatService.unarchive(id, req.user.id_usuario);
+  }
 }

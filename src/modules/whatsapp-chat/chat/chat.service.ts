@@ -139,15 +139,23 @@ export class ChatService {
       estado,
       id_usuario_asignado,
       sin_asignar,
+      incluir_sin_asignar,
       id_cliente,
       tags,
       fecha_desde,
       fecha_hasta,
       sort_by = 'ultimo_mensaje_at',
       sort_order = 'desc',
+      incluir_archivados = false,
     } = queryDto;
 
     const where: any = {};
+    const andConditions: any[] = [];
+
+    // Excluir archivados por defecto
+    if (!incluir_archivados) {
+      where.archivado = false;
+    }
 
     // Filtro por estado
     if (estado) {
@@ -157,6 +165,14 @@ export class ChatService {
     // Filtro por usuario asignado
     if (sin_asignar) {
       where.id_usuario_asignado = null;
+    } else if (id_usuario_asignado && incluir_sin_asignar) {
+      // Mostrar chats del usuario O sin asignar
+      andConditions.push({
+        OR: [
+          { id_usuario_asignado: id_usuario_asignado },
+          { id_usuario_asignado: null },
+        ],
+      });
     } else if (id_usuario_asignado) {
       where.id_usuario_asignado = id_usuario_asignado;
     }
@@ -168,15 +184,22 @@ export class ChatService {
 
     // Búsqueda por nombre o teléfono
     if (search) {
-      where.OR = [
-        { telefono_cliente: { contains: search, mode: 'insensitive' } },
-        { nombre_cliente: { contains: search, mode: 'insensitive' } },
-        {
-          cliente: {
-            titular: { contains: search, mode: 'insensitive' },
+      andConditions.push({
+        OR: [
+          { telefono_cliente: { contains: search, mode: 'insensitive' } },
+          { nombre_cliente: { contains: search, mode: 'insensitive' } },
+          {
+            cliente: {
+              titular: { contains: search, mode: 'insensitive' },
+            },
           },
-        },
-      ];
+        ],
+      });
+    }
+
+    // Agregar condiciones AND si existen
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     // Filtro por tags
@@ -524,18 +547,16 @@ export class ChatService {
   }> {
     const chat = await this.prisma.whatsapp_chat.findUnique({
       where: { id_chat: chatId },
-      select: { ultima_interaccion_cliente: true, fecha_creacion: true },
+      select: { ultima_interaccion_cliente: true },
     });
 
     if (!chat) {
       throw new NotFoundException(`Chat con ID ${chatId} no encontrado`);
     }
 
-    // Si nunca hubo interacción del cliente, usar fecha de creación (primer mensaje entrante)
-    const lastClientInteraction = chat.ultima_interaccion_cliente || chat.fecha_creacion;
-
-    if (!lastClientInteraction) {
-      // Chat sin mensajes del cliente - requiere plantilla
+    // Si nunca hubo interacción del cliente, requiere plantilla
+    // NO usar fecha_creacion como fallback - solo cuenta cuando el CLIENTE envía mensaje
+    if (!chat.ultima_interaccion_cliente) {
       return {
         canSend: false,
         hoursRemaining: null,
@@ -545,7 +566,7 @@ export class ChatService {
     }
 
     const now = new Date();
-    const windowEnd = new Date(lastClientInteraction.getTime() + 24 * 60 * 60 * 1000);
+    const windowEnd = new Date(chat.ultima_interaccion_cliente.getTime() + 24 * 60 * 60 * 1000);
     const hoursRemaining = (windowEnd.getTime() - now.getTime()) / (1000 * 60 * 60);
 
     if (hoursRemaining <= 0) {
@@ -628,15 +649,123 @@ export class ChatService {
   }
 
   /**
+   * Archivar un chat
+   */
+  async archive(id: number, userId: number) {
+    const chat = await this.prisma.whatsapp_chat.findUnique({
+      where: { id_chat: id },
+    });
+
+    if (!chat) {
+      throw new NotFoundException(`Chat con ID ${id} no encontrado`);
+    }
+
+    if (chat.archivado) {
+      throw new BadRequestException('El chat ya está archivado');
+    }
+
+    const updatedChat = await this.prisma.whatsapp_chat.update({
+      where: { id_chat: id },
+      data: {
+        archivado: true,
+        fecha_archivado: new Date(),
+      },
+      include: {
+        cliente: {
+          select: {
+            id_cliente: true,
+            titular: true,
+            telefono1: true,
+          },
+        },
+        usuario_asignado: {
+          select: {
+            id_usuario: true,
+            nombres: true,
+            apellidos: true,
+          },
+        },
+      },
+    });
+
+    await this.prisma.logAction(
+      'ARCHIVAR_WHATSAPP_CHAT',
+      userId,
+      `Chat WhatsApp #${id} archivado`,
+    );
+
+    // Emitir actualización via WebSocket
+    this.chatGateway.emitChatUpdated(updatedChat);
+    const stats = await this.getStats();
+    this.chatGateway.emitStatsUpdated(stats);
+
+    return updatedChat;
+  }
+
+  /**
+   * Desarchivar un chat
+   */
+  async unarchive(id: number, userId: number) {
+    const chat = await this.prisma.whatsapp_chat.findUnique({
+      where: { id_chat: id },
+    });
+
+    if (!chat) {
+      throw new NotFoundException(`Chat con ID ${id} no encontrado`);
+    }
+
+    if (!chat.archivado) {
+      throw new BadRequestException('El chat no está archivado');
+    }
+
+    const updatedChat = await this.prisma.whatsapp_chat.update({
+      where: { id_chat: id },
+      data: {
+        archivado: false,
+        fecha_archivado: null,
+      },
+      include: {
+        cliente: {
+          select: {
+            id_cliente: true,
+            titular: true,
+            telefono1: true,
+          },
+        },
+        usuario_asignado: {
+          select: {
+            id_usuario: true,
+            nombres: true,
+            apellidos: true,
+          },
+        },
+      },
+    });
+
+    await this.prisma.logAction(
+      'DESARCHIVAR_WHATSAPP_CHAT',
+      userId,
+      `Chat WhatsApp #${id} desarchivado`,
+    );
+
+    // Emitir actualización via WebSocket
+    this.chatGateway.emitChatUpdated(updatedChat);
+    const stats = await this.getStats();
+    this.chatGateway.emitStatsUpdated(stats);
+
+    return updatedChat;
+  }
+
+  /**
    * Obtener estadísticas de chats
    */
   async getStats(userId?: number) {
-    const where: any = {};
+    const where: any = { archivado: false };
     if (userId) {
       where.id_usuario_asignado = userId;
     }
 
-    const [total, abiertos, pendientes, iaManejando, cerradosHoy] =
+    const [total, abiertos, pendientes, iaManejando, cerradosHoy, archivados] =
       await Promise.all([
         this.prisma.whatsapp_chat.count({ where }),
         this.prisma.whatsapp_chat.count({
@@ -657,6 +786,11 @@ export class ChatService {
             },
           },
         }),
+        this.prisma.whatsapp_chat.count({
+          where: userId
+            ? { archivado: true, id_usuario_asignado: userId }
+            : { archivado: true },
+        }),
       ]);
 
     return {
@@ -665,6 +799,7 @@ export class ChatService {
       pendientes,
       ia_manejando: iaManejando,
       cerrados_hoy: cerradosHoy,
+      archivados,
     };
   }
 }

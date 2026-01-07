@@ -751,6 +751,129 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     'Ver Dashboard de Atencion',
     'Acceder al dashboard de atencion al cliente',
   ),
+
+  // =============================================================
+  // MODULO: WHATSAPP CHAT (Atencion al Cliente)
+  // =============================================================
+
+  // Chat de WhatsApp
+  crearPermiso(
+    'atencion_cliente',
+    'whatsapp_chat',
+    'VER',
+    'Ver WhatsApp Chat',
+    'Ver conversaciones y mensajes de WhatsApp',
+  ),
+  crearPermiso('atencion_cliente', 'whatsapp_chat', 'CREAR', 'Crear Chat WhatsApp', 'Iniciar nuevas conversaciones y enviar mensajes', {
+    requiere_auditoria: true,
+  }),
+  crearPermiso('atencion_cliente', 'whatsapp_chat', 'EDITAR', 'Editar Chat WhatsApp', 'Modificar chats, cerrar, archivar conversaciones', {
+    requiere_auditoria: true,
+  }),
+  crearPermiso('atencion_cliente', 'whatsapp_chat', 'ELIMINAR', 'Eliminar Chat WhatsApp', 'Eliminar plantillas y conversaciones', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom(
+    'atencion_cliente',
+    'whatsapp_chat',
+    'asignar',
+    'Asignar Chat WhatsApp',
+    'Asignar y desasignar chats a agentes',
+    { requiere_auditoria: true },
+  ),
+
+  // IA de WhatsApp
+  crearPermiso(
+    'atencion_cliente',
+    'whatsapp_ia',
+    'VER',
+    'Ver Configuracion IA WhatsApp',
+    'Ver configuraciones y reglas de IA para WhatsApp',
+  ),
+  crearPermisoCustom(
+    'atencion_cliente',
+    'whatsapp_ia',
+    'configurar',
+    'Configurar IA WhatsApp',
+    'Crear, editar y eliminar configuraciones de IA para WhatsApp',
+    { es_critico: true, requiere_auditoria: true },
+  ),
+
+  // =============================================================
+  // PERMISOS ADICIONALES DE INVENTARIO
+  // =============================================================
+
+  // Inspecciones de Series
+  crearPermiso(
+    'inventario',
+    'inspecciones',
+    'VER',
+    'Ver Inspecciones',
+    'Ver conteos y estado de series en inspeccion',
+  ),
+  crearPermiso('inventario', 'inspecciones', 'CREAR', 'Crear Inspecciones', 'Registrar inspecciones de equipos devueltos', {
+    requiere_auditoria: true,
+  }),
+
+  // Reparaciones de Series
+  crearPermiso('inventario', 'reparaciones', 'CREAR', 'Completar Reparaciones', 'Registrar resultado de reparaciones de equipos', {
+    requiere_auditoria: true,
+  }),
+
+  // Series - Permisos granulares adicionales
+  crearPermiso('inventario', 'series', 'CREAR', 'Crear Series', 'Agregar numeros de serie manualmente al inventario', {
+    requiere_auditoria: true,
+  }),
+  crearPermiso('inventario', 'series', 'EDITAR', 'Editar Series', 'Cambiar estado de series directamente', {
+    requiere_auditoria: true,
+  }),
+
+  // Ordenes de Salida - Permisos de workflow adicionales
+  crearPermisoCustom(
+    'inventario',
+    'ordenes_salida',
+    'enviar_autorizacion',
+    'Enviar Orden a Autorizacion',
+    'Enviar ordenes de salida para su autorizacion',
+    { requiere_auditoria: true },
+  ),
+  crearPermisoCustom(
+    'inventario',
+    'ordenes_salida',
+    'rechazar',
+    'Rechazar Ordenes de Salida',
+    'Rechazar ordenes de salida pendientes de autorizacion',
+    { requiere_auditoria: true },
+  ),
+  crearPermisoCustom(
+    'inventario',
+    'ordenes_salida',
+    'cancelar',
+    'Cancelar Ordenes de Salida',
+    'Cancelar ordenes de salida no procesadas',
+    { requiere_auditoria: true },
+  ),
+
+  // Auditorias - Permiso adicional
+  crearPermisoCustom(
+    'inventario',
+    'auditorias',
+    'finalizar_directo',
+    'Finalizar Auditoria Directamente',
+    'Finalizar auditorias sin generar ajustes automaticos',
+    { es_critico: true, requiere_auditoria: true },
+  ),
+
+  // Catalogo de Inventario - Permiso de edicion
+  crearPermiso(
+    'inventario',
+    'catalogo',
+    'EDITAR',
+    'Editar Catalogo Inventario',
+    'Modificar parametros ROP y configuraciones de catalogo de inventario',
+    { requiere_auditoria: true },
+  ),
 ];
 
 /**

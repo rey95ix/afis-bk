@@ -37,6 +37,11 @@ export class QueryChatDto {
   @Transform(({ value }) => value === 'true' || value === true)
   sin_asignar?: boolean;
 
+  @ApiPropertyOptional({ description: 'Incluir chats sin asignar junto con los del usuario (para filtro combinado)' })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  incluir_sin_asignar?: boolean;
+
   @ApiPropertyOptional({ description: 'Filtrar por cliente' })
   @IsOptional()
   @Type(() => Number)
@@ -72,4 +77,9 @@ export class QueryChatDto {
   @IsOptional()
   @IsString()
   sort_order?: 'asc' | 'desc' = 'desc';
+
+  @ApiPropertyOptional({ description: 'Incluir chats archivados (por defecto false)' })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  incluir_archivados?: boolean = false;
 }

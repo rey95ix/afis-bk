@@ -122,6 +122,8 @@ model usuarios {
   whatsapp_mensajes_enviados     whatsapp_message[]              @relation("whatsapp_message_usuario")
   whatsapp_asignaciones_usuario  whatsapp_chat_assignment[]      @relation("whatsapp_assignment_usuario")
   whatsapp_asignaciones_por      whatsapp_chat_assignment[]      @relation("whatsapp_assignment_asignado_por")
+  // Relación con empleados de RRHH (cuando el empleado es contratado)
+  empleado_vinculado             rh_empleado[]                   @relation("empleado_usuario")
 }
 
 model cliente {
@@ -277,6 +279,8 @@ model departamentos {
   fecha_ultima_actualizacion DateTime                  @default(now()) @updatedAt
   clienteDirecciones         clienteDirecciones[]
   clienteDatosFacturacion    clienteDatosFacturacion[]
+  // Relación con empleados de RRHH
+  empleados                  rh_empleado[]
 }
 
 model municipios {
@@ -293,6 +297,8 @@ model municipios {
   colonias                   colonias[]
   clienteDatosFacturacion    clienteDatosFacturacion[]
   proveedores                proveedores[]
+  // Relación con empleados de RRHH
+  empleados                  rh_empleado[]
 
   @@index([id_departamento], name: "fk_municipio_departamento_id")
 }
@@ -2885,6 +2891,8 @@ model cat_estado_civil {
   fecha_creacion             DateTime  @default(now())
   fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
   clientes                   cliente[]
+  // Relación con empleados de RRHH
+  empleados                  rh_empleado[]
 }
 
 model cat_estado_vivienda {
@@ -2969,6 +2977,8 @@ model whatsapp_chat {
   fecha_creacion             DateTime  @default(now())
   fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
   fecha_cierre               DateTime?
+  archivado                  Boolean   @default(false)
+  fecha_archivado            DateTime?
 
   // Relaciones
   cliente                    cliente?  @relation(fields: [id_cliente], references: [id_cliente], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_chat_cliente")
@@ -2983,6 +2993,7 @@ model whatsapp_chat {
   @@index([telefono_cliente])
   @@index([ultimo_mensaje_at])
   @@index([ultima_interaccion_cliente])
+  @@index([archivado])
 }
 
 // Mensaje de WhatsApp
@@ -3193,4 +3204,481 @@ model cliente_log {
   @@index([id_cliente])
   @@index([accion])
   @@index([fecha_creacion])
+}
+
+// ============= MÓDULO DE RECURSOS HUMANOS =============
+
+// Estado del empleado en el proceso de contratación
+enum estado_empleado {
+  SOLICITANTE      // Solicitud recibida
+  EN_PROCESO       // En proceso de selección
+  CONTRATADO       // Empleado activo
+  RECHAZADO        // Solicitud rechazada
+  INACTIVO         // Empleado dado de baja
+}
+
+// ============= CATÁLOGOS DE RECURSOS HUMANOS =============
+
+model cat_sexo {
+  id_sexo                    Int           @id @default(autoincrement())
+  codigo                     String        @unique
+  nombre                     String
+  activo                     Boolean       @default(true)
+  fecha_creacion             DateTime      @default(now())
+  fecha_ultima_actualizacion DateTime      @default(now()) @updatedAt
+  empleados                  rh_empleado[]
+}
+
+model cat_tipo_sangre {
+  id_tipo_sangre             Int           @id @default(autoincrement())
+  codigo                     String        @unique
+  nombre                     String
+  activo                     Boolean       @default(true)
+  fecha_creacion             DateTime      @default(now())
+  fecha_ultima_actualizacion DateTime      @default(now()) @updatedAt
+  empleados                  rh_empleado[]
+}
+
+model cat_nacionalidad {
+  id_nacionalidad            Int           @id @default(autoincrement())
+  codigo                     String        @unique
+  nombre                     String
+  activo                     Boolean       @default(true)
+  fecha_creacion             DateTime      @default(now())
+  fecha_ultima_actualizacion DateTime      @default(now()) @updatedAt
+  empleados                  rh_empleado[]
+}
+
+model cat_afp {
+  id_afp                     Int                     @id @default(autoincrement())
+  codigo                     String                  @unique
+  nombre                     String
+  activo                     Boolean                 @default(true)
+  fecha_creacion             DateTime                @default(now())
+  fecha_ultima_actualizacion DateTime                @default(now()) @updatedAt
+  documentos                 rh_empleado_documento[]
+}
+
+model cat_banco {
+  id_banco                   Int                     @id @default(autoincrement())
+  codigo                     String                  @unique
+  nombre                     String
+  activo                     Boolean                 @default(true)
+  fecha_creacion             DateTime                @default(now())
+  fecha_ultima_actualizacion DateTime                @default(now()) @updatedAt
+  documentos                 rh_empleado_documento[]
+}
+
+model cat_tipo_cuenta_banco {
+  id_tipo_cuenta             Int                     @id @default(autoincrement())
+  codigo                     String                  @unique
+  nombre                     String
+  activo                     Boolean                 @default(true)
+  fecha_creacion             DateTime                @default(now())
+  fecha_ultima_actualizacion DateTime                @default(now()) @updatedAt
+  documentos                 rh_empleado_documento[]
+}
+
+model cat_parentesco {
+  id_parentesco              Int                               @id @default(autoincrement())
+  codigo                     String                            @unique
+  nombre                     String
+  activo                     Boolean                           @default(true)
+  fecha_creacion             DateTime                          @default(now())
+  fecha_ultima_actualizacion DateTime                          @default(now()) @updatedAt
+  contactos_emergencia       rh_empleado_contacto_emergencia[]
+  dependientes               rh_empleado_dependiente[]
+}
+
+model cat_grado_academico {
+  id_grado_academico         Int                     @id @default(autoincrement())
+  codigo                     String                  @unique
+  nombre                     String
+  activo                     Boolean                 @default(true)
+  fecha_creacion             DateTime                @default(now())
+  fecha_ultima_actualizacion DateTime                @default(now()) @updatedAt
+  formaciones                rh_empleado_formacion[]
+}
+
+model cat_situacion_academica {
+  id_situacion_academica     Int                     @id @default(autoincrement())
+  codigo                     String                  @unique
+  nombre                     String
+  activo                     Boolean                 @default(true)
+  fecha_creacion             DateTime                @default(now())
+  fecha_ultima_actualizacion DateTime                @default(now()) @updatedAt
+  formaciones                rh_empleado_formacion[]
+}
+
+model cat_tipo_postgrado {
+  id_tipo_postgrado          Int                     @id @default(autoincrement())
+  codigo                     String                  @unique
+  nombre                     String
+  activo                     Boolean                 @default(true)
+  fecha_creacion             DateTime                @default(now())
+  fecha_ultima_actualizacion DateTime                @default(now()) @updatedAt
+  formaciones                rh_empleado_formacion[]
+}
+
+model cat_nivel_conocimiento {
+  id_nivel_conocimiento      Int                                    @id @default(autoincrement())
+  codigo                     String                                 @unique
+  nombre                     String
+  orden                      Int                                    @default(0)
+  activo                     Boolean                                @default(true)
+  fecha_creacion             DateTime                               @default(now())
+  fecha_ultima_actualizacion DateTime                               @default(now()) @updatedAt
+  idiomas_lectura            rh_empleado_idioma[]                   @relation("nivel_lectura")
+  idiomas_redaccion          rh_empleado_idioma[]                   @relation("nivel_redaccion")
+  idiomas_conversacion       rh_empleado_idioma[]                   @relation("nivel_conversacion")
+  conocimientos_informaticos rh_empleado_conocimiento_informatico[]
+}
+
+model cat_tipo_conocimiento_informatica {
+  id_tipo_conocimiento       Int                                    @id @default(autoincrement())
+  codigo                     String                                 @unique
+  nombre                     String
+  activo                     Boolean                                @default(true)
+  fecha_creacion             DateTime                               @default(now())
+  fecha_ultima_actualizacion DateTime                               @default(now()) @updatedAt
+  conocimientos              rh_empleado_conocimiento_informatico[]
+}
+
+model cat_idioma {
+  id_idioma                  Int                  @id @default(autoincrement())
+  codigo                     String               @unique
+  nombre                     String
+  activo                     Boolean              @default(true)
+  fecha_creacion             DateTime             @default(now())
+  fecha_ultima_actualizacion DateTime             @default(now()) @updatedAt
+  empleados_idiomas          rh_empleado_idioma[]
+}
+
+model cat_sector_empresa {
+  id_sector_empresa          Int                               @id @default(autoincrement())
+  codigo                     String                            @unique
+  nombre                     String
+  activo                     Boolean                           @default(true)
+  fecha_creacion             DateTime                          @default(now())
+  fecha_ultima_actualizacion DateTime                          @default(now()) @updatedAt
+  experiencias               rh_empleado_experiencia_laboral[]
+}
+
+model cat_motivo_retiro {
+  id_motivo_retiro           Int                               @id @default(autoincrement())
+  codigo                     String                            @unique
+  nombre                     String
+  activo                     Boolean                           @default(true)
+  fecha_creacion             DateTime                          @default(now())
+  fecha_ultima_actualizacion DateTime                          @default(now()) @updatedAt
+  experiencias               rh_empleado_experiencia_laboral[]
+}
+
+model cat_cargo {
+  id_cargo                   Int           @id @default(autoincrement())
+  codigo                     String        @unique
+  nombre                     String
+  descripcion                String?
+  activo                     Boolean       @default(true)
+  fecha_creacion             DateTime      @default(now())
+  fecha_ultima_actualizacion DateTime      @default(now()) @updatedAt
+  empleados                  rh_empleado[]
+}
+
+// ============= MODELOS PRINCIPALES DE RECURSOS HUMANOS =============
+
+// Modelo principal del empleado/solicitante
+model rh_empleado {
+  id_empleado Int    @id @default(autoincrement())
+  codigo      String @unique // EMP-YYYYMM-#####
+
+  // Cargo postulado
+  cargo_postulado String?
+
+  // Datos personales
+  nombres          String
+  apellidos        String
+  id_sexo          Int?
+  sexo             cat_sexo?         @relation(fields: [id_sexo], references: [id_sexo], onDelete: NoAction, onUpdate: NoAction, map: "fk_empleado_sexo")
+  fecha_nacimiento DateTime
+  lugar_nacimiento String?
+  id_nacionalidad  Int?
+  nacionalidad     cat_nacionalidad? @relation(fields: [id_nacionalidad], references: [id_nacionalidad], onDelete: NoAction, onUpdate: NoAction, map: "fk_empleado_nacionalidad")
+  id_estado_civil  Int?
+  estado_civil     cat_estado_civil? @relation(fields: [id_estado_civil], references: [id_estado_civil], onDelete: NoAction, onUpdate: NoAction, map: "fk_empleado_estado_civil")
+  id_tipo_sangre   Int?
+  tipo_sangre      cat_tipo_sangre?  @relation(fields: [id_tipo_sangre], references: [id_tipo_sangre], onDelete: NoAction, onUpdate: NoAction, map: "fk_empleado_tipo_sangre")
+
+  // Ubicación
+  id_departamento Int?
+  departamento    departamentos? @relation(fields: [id_departamento], references: [id_departamento], onDelete: NoAction, onUpdate: NoAction, map: "fk_empleado_departamento")
+  id_municipio    Int?
+  municipio       municipios?    @relation(fields: [id_municipio], references: [id_municipio], onDelete: NoAction, onUpdate: NoAction, map: "fk_empleado_municipio")
+  direccion       String?        @db.Text
+
+  // Contacto
+  email            String?
+  telefono_fijo    String?
+  telefono_celular String?
+
+  // Pretensiones
+  pretension_salarial Decimal? @db.Decimal(10, 2)
+
+  // Foto del empleado
+  foto String? @db.Text // URL en MinIO
+
+  // Estado del empleado
+  estado estado_empleado @default(SOLICITANTE)
+
+  // === CAMPOS DE CONTRATACIÓN (se llenan cuando estado = CONTRATADO) ===
+  id_usuario             Int?      // FK → usuarios (cuenta de acceso al sistema)
+  usuario                usuarios? @relation("empleado_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_empleado_usuario")
+  fecha_contratacion     DateTime?
+  salario_acordado       Decimal?  @db.Decimal(10, 2)
+  id_cargo               Int?
+  cargo                  cat_cargo? @relation(fields: [id_cargo], references: [id_cargo], onDelete: NoAction, onUpdate: NoAction, map: "fk_empleado_cargo")
+  observaciones_contrato String?   @db.Text
+
+  // Auditoría
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  // Relaciones
+  documento                  rh_empleado_documento?
+  contactos_emergencia       rh_empleado_contacto_emergencia[]
+  dependientes               rh_empleado_dependiente[]
+  formaciones                rh_empleado_formacion[]
+  capacitaciones             rh_empleado_capacitacion[]
+  idiomas                    rh_empleado_idioma[]
+  conocimientos_informaticos rh_empleado_conocimiento_informatico[]
+  experiencias_laborales     rh_empleado_experiencia_laboral[]
+  referencias                rh_empleado_referencia[]
+  archivos                   rh_empleado_archivo[]
+
+  @@index([estado])
+  @@index([id_departamento])
+  @@index([id_municipio])
+  @@index([fecha_creacion])
+}
+
+// Documentos personales del empleado (relación 1:1)
+model rh_empleado_documento {
+  id_documento Int         @id @default(autoincrement())
+  id_empleado  Int         @unique
+  empleado     rh_empleado @relation(fields: [id_empleado], references: [id_empleado], onDelete: Cascade, onUpdate: NoAction, map: "fk_documento_empleado")
+
+  // Documentos de identificación
+  numero_dui  String?
+  numero_nit  String?
+  numero_isss String?
+  numero_nup  String?
+
+  // AFP
+  id_afp Int?
+  afp    cat_afp? @relation(fields: [id_afp], references: [id_afp], onDelete: NoAction, onUpdate: NoAction, map: "fk_documento_afp")
+
+  // Cuenta bancaria
+  numero_cuenta_banco String?
+  id_banco            Int?
+  banco               cat_banco?            @relation(fields: [id_banco], references: [id_banco], onDelete: NoAction, onUpdate: NoAction, map: "fk_documento_banco")
+  id_tipo_cuenta      Int?
+  tipo_cuenta         cat_tipo_cuenta_banco? @relation(fields: [id_tipo_cuenta], references: [id_tipo_cuenta], onDelete: NoAction, onUpdate: NoAction, map: "fk_documento_tipo_cuenta")
+
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  @@index([numero_dui])
+  @@index([numero_nit])
+}
+
+// Contactos de emergencia del empleado
+model rh_empleado_contacto_emergencia {
+  id_contacto Int         @id @default(autoincrement())
+  id_empleado Int
+  empleado    rh_empleado @relation(fields: [id_empleado], references: [id_empleado], onDelete: Cascade, onUpdate: NoAction, map: "fk_contacto_empleado")
+
+  nombre        String
+  prioridad     Int             @default(1) // 1 = primario, 2 = secundario
+  id_parentesco Int?
+  parentesco    cat_parentesco? @relation(fields: [id_parentesco], references: [id_parentesco], onDelete: NoAction, onUpdate: NoAction, map: "fk_contacto_parentesco")
+  telefono_dia  String
+  telefono_noche String?
+
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  @@index([id_empleado])
+}
+
+// Personas que dependen económicamente del empleado
+model rh_empleado_dependiente {
+  id_dependiente Int         @id @default(autoincrement())
+  id_empleado    Int
+  empleado       rh_empleado @relation(fields: [id_empleado], references: [id_empleado], onDelete: Cascade, onUpdate: NoAction, map: "fk_dependiente_empleado")
+
+  nombre           String
+  id_parentesco    Int?
+  parentesco       cat_parentesco? @relation(fields: [id_parentesco], references: [id_parentesco], onDelete: NoAction, onUpdate: NoAction, map: "fk_dependiente_parentesco")
+  fecha_nacimiento DateTime?
+  direccion        String?
+
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  @@index([id_empleado])
+}
+
+// Formación académica del empleado
+model rh_empleado_formacion {
+  id_formacion Int         @id @default(autoincrement())
+  id_empleado  Int
+  empleado     rh_empleado @relation(fields: [id_empleado], references: [id_empleado], onDelete: Cascade, onUpdate: NoAction, map: "fk_formacion_empleado")
+
+  // Grado académico
+  id_grado_academico Int?
+  grado_academico    cat_grado_academico? @relation(fields: [id_grado_academico], references: [id_grado_academico], onDelete: NoAction, onUpdate: NoAction, map: "fk_formacion_grado")
+
+  id_situacion_academica Int?
+  situacion_academica    cat_situacion_academica? @relation(fields: [id_situacion_academica], references: [id_situacion_academica], onDelete: NoAction, onUpdate: NoAction, map: "fk_formacion_situacion")
+
+  profesion        String?
+  institucion      String
+  anio_culminacion Int?
+
+  // Para post-grados
+  es_postgrado      Boolean             @default(false)
+  id_tipo_postgrado Int?
+  tipo_postgrado    cat_tipo_postgrado? @relation(fields: [id_tipo_postgrado], references: [id_tipo_postgrado], onDelete: NoAction, onUpdate: NoAction, map: "fk_formacion_tipo_postgrado")
+
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  @@index([id_empleado])
+}
+
+// Capacitaciones del empleado
+model rh_empleado_capacitacion {
+  id_capacitacion Int         @id @default(autoincrement())
+  id_empleado     Int
+  empleado        rh_empleado @relation(fields: [id_empleado], references: [id_empleado], onDelete: Cascade, onUpdate: NoAction, map: "fk_capacitacion_empleado")
+
+  evento      String
+  institucion String
+  lugar       String?
+  anio        Int
+
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  @@index([id_empleado])
+}
+
+// Idiomas del empleado
+model rh_empleado_idioma {
+  id_empleado_idioma Int         @id @default(autoincrement())
+  id_empleado        Int
+  empleado           rh_empleado @relation(fields: [id_empleado], references: [id_empleado], onDelete: Cascade, onUpdate: NoAction, map: "fk_idioma_empleado")
+
+  id_idioma Int
+  idioma    cat_idioma @relation(fields: [id_idioma], references: [id_idioma], onDelete: NoAction, onUpdate: NoAction, map: "fk_idioma_idioma")
+
+  id_nivel_lectura Int?
+  nivel_lectura    cat_nivel_conocimiento? @relation("nivel_lectura", fields: [id_nivel_lectura], references: [id_nivel_conocimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_idioma_nivel_lectura")
+
+  id_nivel_redaccion Int?
+  nivel_redaccion    cat_nivel_conocimiento? @relation("nivel_redaccion", fields: [id_nivel_redaccion], references: [id_nivel_conocimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_idioma_nivel_redaccion")
+
+  id_nivel_conversacion Int?
+  nivel_conversacion    cat_nivel_conocimiento? @relation("nivel_conversacion", fields: [id_nivel_conversacion], references: [id_nivel_conocimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_idioma_nivel_conversacion")
+
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  @@unique([id_empleado, id_idioma])
+  @@index([id_empleado])
+}
+
+// Conocimientos informáticos del empleado
+model rh_empleado_conocimiento_informatico {
+  id_conocimiento Int         @id @default(autoincrement())
+  id_empleado     Int
+  empleado        rh_empleado @relation(fields: [id_empleado], references: [id_empleado], onDelete: Cascade, onUpdate: NoAction, map: "fk_conocimiento_empleado")
+
+  id_tipo_conocimiento Int
+  tipo_conocimiento    cat_tipo_conocimiento_informatica @relation(fields: [id_tipo_conocimiento], references: [id_tipo_conocimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_conocimiento_tipo")
+
+  nombre_programa String // Ej: "Microsoft Word", "Excel", "MySQL"
+
+  id_nivel Int?
+  nivel    cat_nivel_conocimiento? @relation(fields: [id_nivel], references: [id_nivel_conocimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_conocimiento_nivel")
+
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  @@index([id_empleado])
+}
+
+// Experiencia laboral del empleado
+model rh_empleado_experiencia_laboral {
+  id_experiencia Int         @id @default(autoincrement())
+  id_empleado    Int
+  empleado       rh_empleado @relation(fields: [id_empleado], references: [id_empleado], onDelete: Cascade, onUpdate: NoAction, map: "fk_experiencia_empleado")
+
+  empresa             String
+  id_sector           Int?
+  sector              cat_sector_empresa? @relation(fields: [id_sector], references: [id_sector_empresa], onDelete: NoAction, onUpdate: NoAction, map: "fk_experiencia_sector")
+  numero_trabajadores Int?
+  cargo               String
+  nombre_jefe         String?
+  telefono_jefe       String?
+  ingreso_mensual     Decimal?            @db.Decimal(10, 2)
+
+  id_motivo_retiro   Int?
+  motivo_retiro      cat_motivo_retiro? @relation(fields: [id_motivo_retiro], references: [id_motivo_retiro], onDelete: NoAction, onUpdate: NoAction, map: "fk_experiencia_motivo_retiro")
+  motivo_retiro_otro String? // Si selecciona "OTRO"
+
+  fecha_inicio       DateTime
+  fecha_retiro       DateTime?
+  principales_logros String?   @db.Text
+
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  @@index([id_empleado])
+}
+
+// Referencias personales del empleado
+model rh_empleado_referencia {
+  id_referencia Int         @id @default(autoincrement())
+  id_empleado   Int
+  empleado      rh_empleado @relation(fields: [id_empleado], references: [id_empleado], onDelete: Cascade, onUpdate: NoAction, map: "fk_referencia_empleado")
+
+  nombre   String
+  telefono String
+
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  @@index([id_empleado])
+}
+
+// Archivos/documentos adjuntos del empleado
+model rh_empleado_archivo {
+  id_archivo  Int         @id @default(autoincrement())
+  id_empleado Int
+  empleado    rh_empleado @relation(fields: [id_empleado], references: [id_empleado], onDelete: Cascade, onUpdate: NoAction, map: "fk_archivo_empleado")
+
+  tipo_archivo   String // DUI_FRENTE, DUI_TRASERA, CV, TITULO, CERTIFICADO, FOTO, CONSTANCIA, OTRO
+  nombre_archivo String
+  ruta_archivo   String @db.Text // URL en MinIO
+  mimetype       String
+  size           Int
+  descripcion    String?
+
+  estado                     estado   @default(ACTIVO)
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+
+  @@index([id_empleado])
+  @@index([tipo_archivo])
 }

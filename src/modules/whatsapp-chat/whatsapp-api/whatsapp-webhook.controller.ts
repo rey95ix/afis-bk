@@ -154,15 +154,16 @@ export class WhatsAppWebhookController {
         nombre,
       );
 
-      // Si es un chat nuevo, intentar asignar automáticamente
-      if (isNew) {
-        const autoAssignResult = await this.assignmentService.autoAssignChat(chat.id_chat);
-        if (autoAssignResult.assigned) {
-          this.logger.log(`New chat #${chat.id_chat} auto-assigned: ${autoAssignResult.reason}`);
-        } else {
-          this.logger.log(`New chat #${chat.id_chat} not auto-assigned: ${autoAssignResult.reason}`);
-        }
-      }
+      // Auto-asignación desactivada - los chats nuevos quedan sin asignar
+      // para que cualquier agente pueda tomarlos
+      // if (isNew) {
+      //   const autoAssignResult = await this.assignmentService.autoAssignChat(chat.id_chat);
+      //   if (autoAssignResult.assigned) {
+      //     this.logger.log(`New chat #${chat.id_chat} auto-assigned: ${autoAssignResult.reason}`);
+      //   } else {
+      //     this.logger.log(`New chat #${chat.id_chat} not auto-assigned: ${autoAssignResult.reason}`);
+      //   }
+      // }
 
       // Extraer contenido según el tipo de mensaje
       let contenido = '';
@@ -366,11 +367,12 @@ export class WhatsAppWebhookController {
         );
         this.logger.log(`Chat ${chatId} escalated to human`);
 
-        // Intentar asignar automáticamente al escalar
-        const autoAssignResult = await this.assignmentService.autoAssignChat(chatId);
-        if (autoAssignResult.assigned) {
-          this.logger.log(`Escalated chat #${chatId} auto-assigned: ${autoAssignResult.reason}`);
-        }
+        // Auto-asignación desactivada al escalar - el chat queda sin asignar
+        // para que cualquier agente pueda tomarlo
+        // const autoAssignResult = await this.assignmentService.autoAssignChat(chatId);
+        // if (autoAssignResult.assigned) {
+        //   this.logger.log(`Escalated chat #${chatId} auto-assigned: ${autoAssignResult.reason}`);
+        // }
       }
     } catch (error) {
       this.logger.error(`Error processing with IA: ${error.message}`);
