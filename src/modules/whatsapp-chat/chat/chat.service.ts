@@ -6,7 +6,7 @@ import {
   Inject,
   forwardRef,
 } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { CreateChatDto, UpdateChatDto, QueryChatDto } from './dto';
 import { WhatsAppChatGateway } from '../whatsapp-chat.gateway';
 

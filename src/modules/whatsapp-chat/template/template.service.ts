@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTemplateDto } from './dto/create-template.dto';
 import { UpdateTemplateDto } from './dto/update-template.dto';
 import { SendTemplateDto, SendTemplateByNameDto } from './dto/send-template.dto';

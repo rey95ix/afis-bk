@@ -38,10 +38,10 @@ import { MetaTemplateService } from './template/meta-template.service';
 import { WhatsAppChatGateway } from './whatsapp-chat.gateway';
 
 // Prisma
-import { PrismaModule } from '../../prisma/prisma.module';
+import { PrismaModule } from '../prisma/prisma.module';
 
 // MinIO
-import { MinioModule } from '../../minio/minio.module';
+import { MinioModule } from '../minio/minio.module';
 
 @Module({
   imports: [ConfigModule, PrismaModule, MinioModule],

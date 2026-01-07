@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { IaRuleService } from './ia-rule.service';
 
 export interface RuleCondition {

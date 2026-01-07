@@ -1,7 +1,7 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SendWhatsAppMessageDto } from './dto';
-import { MinioService } from '../../../minio/minio.service';
+import { MinioService } from '../../minio/minio.service';
 
 interface WhatsAppApiResponse {
   messaging_product: string;

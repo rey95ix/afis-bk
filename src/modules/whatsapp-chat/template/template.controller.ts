@@ -22,9 +22,9 @@ import { CreateTemplateDto } from './dto/create-template.dto';
 import { UpdateTemplateDto } from './dto/update-template.dto';
 import { CreateMetaTemplateDto } from './dto/create-meta-template.dto';
 import { UpdateMetaTemplateDto } from './dto/update-meta-template.dto';
-import { Auth } from '../../../auth/decorators';
-import { RequirePermissions } from '../../../auth/decorators/require-permissions.decorator';
-import { HEADER_API_BEARER_AUTH } from '../../../../common/const';
+import { Auth } from '../../auth/decorators';
+import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
+import { HEADER_API_BEARER_AUTH } from '../../../common/const';
 
 @ApiTags('WhatsApp Templates')
 @Controller('api/atencion-al-cliente/whatsapp-chat/templates')

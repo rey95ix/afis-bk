@@ -5,12 +5,12 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { SendMessageDto, QueryMessageDto } from './dto';
 import { direccion_mensaje, estado_mensaje_whatsapp } from '@prisma/client';
 import { ChatService } from '../chat/chat.service';
 import { WhatsAppApiService } from '../whatsapp-api/whatsapp-api.service';
-import { MinioService } from '../../../minio/minio.service';
+import { MinioService } from '../../minio/minio.service';
 import { WhatsAppChatGateway } from '../whatsapp-chat.gateway';
 import { AssignmentService } from '../assignment/assignment.service';
 import { TemplateService } from '../template/template.service';
