@@ -782,6 +782,14 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     'Asignar y desasignar chats a agentes',
     { requiere_auditoria: true },
   ),
+  crearPermisoCustom(
+    'atencion_cliente',
+    'whatsapp_chat',
+    'gestionar_etiquetas',
+    'Gestionar Etiquetas WhatsApp',
+    'Crear, editar y eliminar etiquetas para categorizar chats',
+    { requiere_auditoria: true },
+  ),
 
   // IA de WhatsApp
   crearPermiso(

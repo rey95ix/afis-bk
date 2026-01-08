@@ -55,6 +55,22 @@ export class QueryChatDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.split(',') : value))
   tags?: string[];
 
+  @ApiPropertyOptional({
+    description: 'Filtrar por IDs de etiquetas',
+    type: [Number],
+    example: [1, 2, 3],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return value.split(',').map(Number).filter((n) => !isNaN(n));
+    }
+    return value;
+  })
+  id_etiquetas?: number[];
+
   @ApiPropertyOptional({ description: 'Fecha desde (ISO string)' })
   @IsOptional()
   @IsDateString()

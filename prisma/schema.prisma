@@ -122,6 +122,8 @@ model usuarios {
   whatsapp_mensajes_enviados     whatsapp_message[]              @relation("whatsapp_message_usuario")
   whatsapp_asignaciones_usuario  whatsapp_chat_assignment[]      @relation("whatsapp_assignment_usuario")
   whatsapp_asignaciones_por      whatsapp_chat_assignment[]      @relation("whatsapp_assignment_asignado_por")
+  whatsapp_etiquetas_creadas     whatsapp_chat_etiqueta[]        @relation("etiqueta_creador")
+  whatsapp_etiquetas_asignadas   whatsapp_chat_etiqueta_chat[]   @relation("etiqueta_asignacion")
   // Relación con empleados de RRHH (cuando el empleado es contratado)
   empleado_vinculado             rh_empleado[]                   @relation("empleado_usuario")
 }
@@ -2986,6 +2988,7 @@ model whatsapp_chat {
   mensajes                   whatsapp_message[]
   asignaciones               whatsapp_chat_assignment[]
   metricas                   whatsapp_chat_metrics?
+  etiquetas                  whatsapp_chat_etiqueta_chat[]
 
   @@index([id_cliente])
   @@index([id_usuario_asignado])
@@ -3123,6 +3126,44 @@ model whatsapp_chat_metrics {
   chat                       whatsapp_chat @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_metrics_chat")
 
   @@index([id_chat])
+}
+
+// Etiquetas para chats de WhatsApp (globales, compartidas entre usuarios)
+model whatsapp_chat_etiqueta {
+  id_etiqueta                Int       @id @default(autoincrement())
+  nombre                     String    @unique
+  color                      String    // Hex: #FF5733
+  descripcion                String?   @db.Text
+  orden                      Int       @default(0)
+  activo                     Boolean   @default(true)
+  fecha_creacion             DateTime  @default(now())
+  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+  id_usuario_creador         Int?
+
+  // Relaciones
+  usuario_creador            usuarios? @relation("etiqueta_creador", fields: [id_usuario_creador], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_etiqueta_usuario_creador")
+  chats                      whatsapp_chat_etiqueta_chat[]
+
+  @@index([activo])
+  @@index([nombre])
+}
+
+// Tabla intermedia many-to-many: Chat <-> Etiqueta
+model whatsapp_chat_etiqueta_chat {
+  id                         Int       @id @default(autoincrement())
+  id_chat                    Int
+  id_etiqueta                Int
+  fecha_asignacion           DateTime  @default(now())
+  id_usuario_asigno          Int?
+
+  // Relaciones
+  chat                       whatsapp_chat @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_etiqueta_chat_chat")
+  etiqueta                   whatsapp_chat_etiqueta @relation(fields: [id_etiqueta], references: [id_etiqueta], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_etiqueta_chat_etiqueta")
+  usuario_asigno             usuarios? @relation("etiqueta_asignacion", fields: [id_usuario_asigno], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_etiqueta_chat_usuario")
+
+  @@unique([id_chat, id_etiqueta])
+  @@index([id_chat])
+  @@index([id_etiqueta])
 }
 
 // Plantillas de WhatsApp aprobadas por Meta

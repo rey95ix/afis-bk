@@ -295,20 +295,16 @@ export class AnalyticsService {
    * Obtener tendencias de chats por período
    */
   async getTrends(periodo: 'dia' | 'semana' | 'mes' = 'semana') {
-    let intervalo: string;
     let dias: number;
 
     switch (periodo) {
       case 'dia':
-        intervalo = 'hour';
         dias = 1;
         break;
       case 'semana':
-        intervalo = 'day';
         dias = 7;
         break;
       case 'mes':
-        intervalo = 'day';
         dias = 30;
         break;
     }
@@ -316,17 +312,34 @@ export class AnalyticsService {
     const desde = new Date();
     desde.setDate(desde.getDate() - dias);
 
-    const tendencias = await this.prisma.$queryRaw`
-      SELECT
-        DATE_TRUNC(${intervalo}, fecha_creacion) as periodo,
-        COUNT(*)::int as total_chats,
-        COUNT(*) FILTER (WHERE estado = 'CERRADO')::int as cerrados,
-        COUNT(*) FILTER (WHERE ia_mensajes_count > 0)::int as con_ia
-      FROM whatsapp_chat
-      WHERE fecha_creacion >= ${desde}
-      GROUP BY DATE_TRUNC(${intervalo}, fecha_creacion)
-      ORDER BY periodo
-    `;
+    // Queries separadas porque DATE_TRUNC no acepta parámetros para el intervalo
+    let tendencias;
+
+    if (periodo === 'dia') {
+      tendencias = await this.prisma.$queryRaw`
+        SELECT
+          DATE_TRUNC('hour', fecha_creacion) as periodo,
+          COUNT(*)::int as total_chats,
+          COUNT(*) FILTER (WHERE estado = 'CERRADO')::int as cerrados,
+          COUNT(*) FILTER (WHERE ia_mensajes_count > 0)::int as con_ia
+        FROM whatsapp_chat
+        WHERE fecha_creacion >= ${desde}
+        GROUP BY 1
+        ORDER BY periodo
+      `;
+    } else {
+      tendencias = await this.prisma.$queryRaw`
+        SELECT
+          DATE_TRUNC('day', fecha_creacion) as periodo,
+          COUNT(*)::int as total_chats,
+          COUNT(*) FILTER (WHERE estado = 'CERRADO')::int as cerrados,
+          COUNT(*) FILTER (WHERE ia_mensajes_count > 0)::int as con_ia
+        FROM whatsapp_chat
+        WHERE fecha_creacion >= ${desde}
+        GROUP BY 1
+        ORDER BY periodo
+      `;
+    }
 
     return tendencias;
   }

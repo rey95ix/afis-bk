@@ -142,6 +142,7 @@ export class ChatService {
       incluir_sin_asignar,
       id_cliente,
       tags,
+      id_etiquetas,
       fecha_desde,
       fecha_hasta,
       sort_by = 'ultimo_mensaje_at',
@@ -197,6 +198,17 @@ export class ChatService {
       });
     }
 
+    // Filtro por etiquetas (many-to-many)
+    if (id_etiquetas && id_etiquetas.length > 0) {
+      andConditions.push({
+        etiquetas: {
+          some: {
+            id_etiqueta: { in: id_etiquetas },
+          },
+        },
+      });
+    }
+
     // Agregar condiciones AND si existen
     if (andConditions.length > 0) {
       where.AND = andConditions;
@@ -243,6 +255,17 @@ export class ChatService {
           _count: {
             select: {
               mensajes: true,
+            },
+          },
+          etiquetas: {
+            include: {
+              etiqueta: {
+                select: {
+                  id_etiqueta: true,
+                  nombre: true,
+                  color: true,
+                },
+              },
             },
           },
         },

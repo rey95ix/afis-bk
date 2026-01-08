@@ -34,6 +34,10 @@ import { TemplateController } from './template/template.controller';
 import { TemplateService } from './template/template.service';
 import { MetaTemplateService } from './template/meta-template.service';
 
+// Etiquetas
+import { EtiquetaController } from './etiqueta/etiqueta.controller';
+import { EtiquetaService } from './etiqueta/etiqueta.service';
+
 // WebSocket Gateway
 import { WhatsAppChatGateway } from './whatsapp-chat.gateway';
 
@@ -55,6 +59,7 @@ import { MinioModule } from '../minio/minio.module';
     AgentsController,
     AnalyticsController,
     TemplateController,
+    EtiquetaController,
   ],
   providers: [
     ChatService,
@@ -68,6 +73,7 @@ import { MinioModule } from '../minio/minio.module';
     AnalyticsService,
     TemplateService,
     MetaTemplateService,
+    EtiquetaService,
     WhatsAppChatGateway,
   ],
   exports: [
@@ -82,6 +88,7 @@ import { MinioModule } from '../minio/minio.module';
     AnalyticsService,
     TemplateService,
     MetaTemplateService,
+    EtiquetaService,
     WhatsAppChatGateway,
   ],
 })

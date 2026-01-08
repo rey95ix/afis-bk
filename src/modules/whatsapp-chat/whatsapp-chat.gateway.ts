@@ -93,4 +93,20 @@ export class WhatsAppChatGateway
     this.server.emit('stats-updated', stats);
     this.logger.debug('Emitted stats-updated');
   }
+
+  /**
+   * Emitir actualización de etiquetas (crear/editar/eliminar)
+   */
+  emitEtiquetasUpdated() {
+    this.server.emit('etiquetas-updated');
+    this.logger.debug('Emitted etiquetas-updated');
+  }
+
+  /**
+   * Emitir cambio de etiquetas en un chat específico
+   */
+  emitChatEtiquetasUpdated(chatId: number, etiquetas: any[]) {
+    this.server.emit('chat-etiquetas-updated', { chatId, etiquetas });
+    this.logger.debug(`Emitted chat-etiquetas-updated for chat ${chatId}`);
+  }
 }
