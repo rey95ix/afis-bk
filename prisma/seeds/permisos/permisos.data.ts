@@ -808,6 +808,24 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     { es_critico: true, requiere_auditoria: true },
   ),
 
+  // Plantillas de WhatsApp
+  crearPermiso(
+    'atencion_cliente',
+    'whatsapp_templates',
+    'VER',
+    'Ver Plantillas WhatsApp',
+    'Ver listado y detalles de plantillas de WhatsApp',
+  ),
+
+  // Analytics de WhatsApp
+  crearPermiso(
+    'atencion_cliente',
+    'whatsapp_analytics',
+    'VER',
+    'Ver Analytics WhatsApp',
+    'Ver dashboard de analytics de WhatsApp',
+  ),
+
   // =============================================================
   // PERMISOS ADICIONALES DE INVENTARIO
   // =============================================================
