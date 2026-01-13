@@ -244,21 +244,31 @@ export class TemplateService {
       const headerType = templateComponentes.header.type;
 
       // Header con MEDIA (IMAGE, VIDEO, DOCUMENT)
-      if (headerType === 'IMAGE' && parametros['header_image']) {
-        components.push({
-          type: 'header',
-          parameters: [{ type: 'image', image: { link: parametros['header_image'] } }],
-        });
-      } else if (headerType === 'VIDEO' && parametros['header_video']) {
-        components.push({
-          type: 'header',
-          parameters: [{ type: 'video', video: { link: parametros['header_video'] } }],
-        });
-      } else if (headerType === 'DOCUMENT' && parametros['header_document']) {
-        components.push({
-          type: 'header',
-          parameters: [{ type: 'document', document: { link: parametros['header_document'] } }],
-        });
+      // Prioridad: 1) parámetro dinámico, 2) URL guardada en la plantilla (example)
+      if (headerType === 'IMAGE') {
+        const imageUrl = parametros['header_image'] || templateComponentes.header.example;
+        if (imageUrl) {
+          components.push({
+            type: 'header',
+            parameters: [{ type: 'image', image: { link: imageUrl } }],
+          });
+        }
+      } else if (headerType === 'VIDEO') {
+        const videoUrl = parametros['header_video'] || templateComponentes.header.example;
+        if (videoUrl) {
+          components.push({
+            type: 'header',
+            parameters: [{ type: 'video', video: { link: videoUrl } }],
+          });
+        }
+      } else if (headerType === 'DOCUMENT') {
+        const docUrl = parametros['header_document'] || templateComponentes.header.example;
+        if (docUrl) {
+          components.push({
+            type: 'header',
+            parameters: [{ type: 'document', document: { link: docUrl } }],
+          });
+        }
       }
       // Header con TEXT y variables {{1}}, {{2}}, etc.
       else if (headerType === 'TEXT' || !headerType) {
@@ -388,6 +398,7 @@ export class TemplateService {
         body: JSON.stringify(body),
       });
 
+      console.log('WhatsApp API response status:', body);
       const data = await response.json();
 
       if (!response.ok) {
