@@ -241,17 +241,39 @@ export class TemplateService {
 
     // Header con parámetros
     if (templateComponentes.header) {
-      const headerParams = this.extractParameters(
-        templateComponentes.header.text || '',
-        parametros,
-        'header_',
-      );
+      const headerType = templateComponentes.header.type;
 
-      if (headerParams.length > 0) {
+      // Header con MEDIA (IMAGE, VIDEO, DOCUMENT)
+      if (headerType === 'IMAGE' && parametros['header_image']) {
         components.push({
           type: 'header',
-          parameters: headerParams.map((text) => ({ type: 'text', text })),
+          parameters: [{ type: 'image', image: { link: parametros['header_image'] } }],
         });
+      } else if (headerType === 'VIDEO' && parametros['header_video']) {
+        components.push({
+          type: 'header',
+          parameters: [{ type: 'video', video: { link: parametros['header_video'] } }],
+        });
+      } else if (headerType === 'DOCUMENT' && parametros['header_document']) {
+        components.push({
+          type: 'header',
+          parameters: [{ type: 'document', document: { link: parametros['header_document'] } }],
+        });
+      }
+      // Header con TEXT y variables {{1}}, {{2}}, etc.
+      else if (headerType === 'TEXT' || !headerType) {
+        const headerParams = this.extractParameters(
+          templateComponentes.header.text || '',
+          parametros,
+          'header_',
+        );
+
+        if (headerParams.length > 0) {
+          components.push({
+            type: 'header',
+            parameters: headerParams.map((text) => ({ type: 'text', text })),
+          });
+        }
       }
     }
 
