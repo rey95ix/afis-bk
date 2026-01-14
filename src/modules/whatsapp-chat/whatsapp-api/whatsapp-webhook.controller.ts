@@ -16,11 +16,27 @@ import { ApiTags, ApiOperation, ApiResponse, ApiExcludeEndpoint } from '@nestjs/
 import { WhatsAppApiService } from './whatsapp-api.service';
 import { WebhookPayloadDto } from './dto';
 import { ChatService } from '../chat/chat.service';
-import { MessageService } from '../message/message.service';
+import { MessageService, WhatsAppErrorInfo } from '../message/message.service';
 import { RuleEngineService } from '../ia/rule-engine.service';
 import { OpenAIChatService } from '../ia/openai-chat.service';
 import { WhatsAppChatGateway } from '../whatsapp-chat.gateway';
 import { AssignmentService } from '../assignment/assignment.service';
+
+/**
+ * Mapeo de códigos de error de WhatsApp a mensajes en español
+ */
+const WHATSAPP_ERROR_MESSAGES: Record<number, string> = {
+  131051: 'El número no tiene cuenta de WhatsApp',
+  131047: 'La ventana de 24 horas ha expirado',
+  131026: 'Error de pago en la cuenta de WhatsApp Business',
+  131014: 'Error al cargar el archivo multimedia',
+  131009: 'El número está en la lista de bloqueo',
+  131031: 'La cuenta de WhatsApp Business está en mantenimiento',
+  131053: 'Límite de mensajes alcanzado para este número',
+  131021: 'El receptor no puede recibir mensajes de esta cuenta',
+  131056: 'El número de teléfono tiene formato inválido',
+  130472: 'El usuario ha bloqueado los mensajes de esta cuenta',
+};
 
 @ApiTags('WhatsApp Webhook')
 @Controller('api/atencion-al-cliente/whatsapp-chat/webhook')
@@ -280,6 +296,7 @@ export class WhatsAppWebhookController {
   private async handleStatusUpdate(status: any) {
     const messageId = status.id;
     let estado: 'ENTREGADO' | 'LEIDO' | 'FALLIDO';
+    let errorInfo: WhatsAppErrorInfo | undefined;
 
     switch (status.status) {
       case 'delivered':
@@ -293,19 +310,33 @@ export class WhatsAppWebhookController {
         this.logger.warn(
           `Message ${messageId} failed: ${JSON.stringify(status.errors)}`,
         );
+        // Extraer información del error
+        if (status.errors && status.errors.length > 0) {
+          const firstError = status.errors[0];
+          const errorCode = firstError.code;
+          const errorTitle = firstError.title || 'Error desconocido';
+          const errorMessageEs = WHATSAPP_ERROR_MESSAGES[errorCode] || 'Error al enviar mensaje';
+
+          errorInfo = {
+            code: errorCode,
+            title: errorTitle,
+            message: errorMessageEs,
+          };
+        }
         break;
       default:
         return; // Ignorar otros estados como 'sent'
     }
 
     try {
-      const updatedMessage = await this.messageService.updateStatus(messageId, estado);
+      const updatedMessage = await this.messageService.updateStatus(messageId, estado, errorInfo);
       // Emitir cambio de estado via WebSocket
       if (updatedMessage) {
         this.chatGateway.emitMessageStatus(
           updatedMessage.id_chat,
           messageId,
           estado,
+          errorInfo,
         );
       }
     } catch (error) {

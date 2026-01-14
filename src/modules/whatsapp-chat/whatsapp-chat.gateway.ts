@@ -72,10 +72,19 @@ export class WhatsAppChatGateway
   /**
    * Emitir cambio de estado de mensaje
    */
-  emitMessageStatus(chatId: number, messageId: string, status: string) {
+  emitMessageStatus(
+    chatId: number,
+    messageId: string,
+    status: string,
+    errorInfo?: { code: number; title: string; message: string },
+  ) {
     const room = `chat-${chatId}`;
-    this.server.to(room).emit('message-status', { messageId, status });
-    this.logger.debug(`Emitted message-status to room ${room}: ${status}`);
+    const payload: any = { messageId, status };
+    if (errorInfo) {
+      payload.errorInfo = errorInfo;
+    }
+    this.server.to(room).emit('message-status', payload);
+    this.logger.debug(`Emitted message-status to room ${room}: ${status}${errorInfo ? ` (error: ${errorInfo.code})` : ''}`);
   }
 
   /**

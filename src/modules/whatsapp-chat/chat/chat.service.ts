@@ -7,7 +7,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateChatDto, UpdateChatDto, QueryChatDto } from './dto';
+import { CreateChatDto, UpdateChatDto, QueryChatDto, ClaimChatResponseDto } from './dto';
 import { WhatsAppChatGateway } from '../whatsapp-chat.gateway';
 
 @Injectable()
@@ -431,6 +431,194 @@ export class ChatService {
   }
 
   /**
+   * Reclamar un chat sin asignar para el usuario actual.
+   * Usa bloqueo pesimista para evitar race conditions cuando
+   * múltiples agentes intentan reclamar el mismo chat.
+   */
+  async claimChat(chatId: number, userId: number): Promise<ClaimChatResponseDto> {
+    // Ejecutar en transacción con aislamiento serializable
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        // Bloqueo pesimista con FOR UPDATE NOWAIT
+        // Si otro proceso tiene el bloqueo, falla inmediatamente
+        const chatRows = await tx.$queryRaw<
+          Array<{
+            id_chat: number;
+            id_usuario_asignado: number | null;
+            estado: string;
+          }>
+        >`
+          SELECT id_chat, id_usuario_asignado, estado
+          FROM whatsapp_chat
+          WHERE id_chat = ${chatId}
+          FOR UPDATE NOWAIT
+        `.catch(() => {
+          // Si no puede obtener el bloqueo, otro proceso lo está modificando
+          throw new ConflictException({
+            errorCode: 'ALREADY_ASSIGNED',
+            message: 'El chat está siendo reclamado por otro agente',
+          });
+        });
+
+        if (!chatRows || chatRows.length === 0) {
+          throw new NotFoundException({
+            errorCode: 'CHAT_NOT_FOUND',
+            message: `Chat con ID ${chatId} no encontrado`,
+          });
+        }
+
+        const chat = chatRows[0];
+
+        // Si el chat está cerrado, no se puede reclamar
+        if (chat.estado === 'CERRADO') {
+          throw new ConflictException({
+            errorCode: 'CHAT_CLOSED',
+            message: 'No se puede reclamar un chat cerrado',
+          });
+        }
+
+        // Obtener información del usuario actual
+        const currentUser = await tx.usuarios.findUnique({
+          where: { id_usuario: userId },
+          select: { id_usuario: true, nombres: true, apellidos: true },
+        });
+
+        if (!currentUser) {
+          throw new NotFoundException('Usuario no encontrado');
+        }
+
+        const currentUserName = `${currentUser.nombres} ${currentUser.apellidos}`;
+
+        // Si ya está asignado al mismo usuario, retornar éxito (idempotente)
+        if (chat.id_usuario_asignado === userId) {
+          return {
+            success: true,
+            chatId,
+            assignedToUserId: userId,
+            assignedToUserName: currentUserName,
+            wasAlreadyAssigned: true,
+            chat: undefined as any,
+          };
+        }
+
+        // Si está asignado a otro usuario, rechazar
+        if (chat.id_usuario_asignado !== null) {
+          const assignedUser = await tx.usuarios.findUnique({
+            where: { id_usuario: chat.id_usuario_asignado },
+            select: { nombres: true, apellidos: true },
+          });
+
+          throw new ConflictException({
+            errorCode: 'ALREADY_ASSIGNED',
+            message: `Chat ya asignado a ${assignedUser?.nombres} ${assignedUser?.apellidos}`,
+            currentAssigneeId: chat.id_usuario_asignado,
+            currentAssigneeName: assignedUser
+              ? `${assignedUser.nombres} ${assignedUser.apellidos}`
+              : 'Usuario desconocido',
+          });
+        }
+
+        // Asignar el chat al usuario
+        await tx.whatsapp_chat.update({
+          where: { id_chat: chatId },
+          data: {
+            id_usuario_asignado: userId,
+            estado: 'ABIERTO', // Cambiar de PENDIENTE/IA_MANEJANDO a ABIERTO
+            ia_habilitada: false, // Desactivar IA al reclamar
+          },
+        });
+
+        // Desactivar asignaciones previas (si existieran)
+        await tx.whatsapp_chat_assignment.updateMany({
+          where: { id_chat: chatId, activo: true },
+          data: {
+            activo: false,
+            fecha_desasignacion: new Date(),
+            razon: 'Reasignado por claim',
+          },
+        });
+
+        // Crear nuevo registro de asignación
+        await tx.whatsapp_chat_assignment.create({
+          data: {
+            id_chat: chatId,
+            id_usuario: userId,
+            id_asignado_por: userId, // Auto-asignación
+            razon: 'Auto-asignación por apertura de chat',
+            activo: true,
+          },
+        });
+
+        return {
+          success: true,
+          chatId,
+          assignedToUserId: userId,
+          assignedToUserName: currentUserName,
+          wasAlreadyAssigned: false,
+          chat: undefined as any,
+        };
+      },
+      {
+        isolationLevel: 'Serializable',
+        timeout: 5000, // 5 segundos máximo
+      },
+    );
+
+    // Fuera de la transacción: emitir eventos WebSocket
+    if (!result.wasAlreadyAssigned) {
+      // Obtener chat actualizado con toda la información para el evento
+      const updatedChat = await this.prisma.whatsapp_chat.findUnique({
+        where: { id_chat: chatId },
+        include: {
+          cliente: {
+            select: {
+              id_cliente: true,
+              titular: true,
+              telefono1: true,
+            },
+          },
+          usuario_asignado: {
+            select: {
+              id_usuario: true,
+              nombres: true,
+              apellidos: true,
+            },
+          },
+          etiquetas: {
+            include: {
+              etiqueta: {
+                select: {
+                  id_etiqueta: true,
+                  nombre: true,
+                  color: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Log de la acción
+      await this.prisma.logAction(
+        'CLAIM_WHATSAPP_CHAT',
+        userId,
+        `Chat WhatsApp #${chatId} reclamado por auto-asignación`,
+      );
+
+      // Emitir actualización a todos los agentes conectados
+      this.chatGateway.emitChatUpdated(updatedChat);
+
+      // Emitir estadísticas actualizadas
+      const stats = await this.getStats();
+      this.chatGateway.emitStatsUpdated(stats);
+
+      result.chat = updatedChat;
+    }
+
+    return result;
+  }
+
+  /**
    * Cerrar un chat
    */
   async close(id: number, userId: number, razon?: string) {
@@ -669,6 +857,34 @@ export class ChatService {
       where: { id_chat: chatId },
       data: { mensajes_no_leidos: 0 },
     });
+  }
+
+  /**
+   * Marcar chat como no leído (pone contador en 1)
+   */
+  async markAsUnread(chatId: number) {
+    const chat = await this.prisma.whatsapp_chat.findUnique({
+      where: { id_chat: chatId },
+    });
+
+    if (!chat) {
+      throw new NotFoundException(`Chat con ID ${chatId} no encontrado`);
+    }
+
+    const updatedChat = await this.prisma.whatsapp_chat.update({
+      where: { id_chat: chatId },
+      data: { mensajes_no_leidos: 1 },
+      include: {
+        cliente: { select: { id_cliente: true, titular: true, telefono1: true } },
+        usuario_asignado: { select: { id_usuario: true, nombres: true, apellidos: true } },
+        etiquetas: { include: { etiqueta: { select: { id_etiqueta: true, nombre: true, color: true } } } },
+      },
+    });
+
+    // Emitir actualización via WebSocket
+    this.chatGateway.emitChatUpdated(updatedChat);
+
+    return updatedChat;
   }
 
   /**

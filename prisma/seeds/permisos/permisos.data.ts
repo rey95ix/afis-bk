@@ -826,6 +826,23 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     'Ver dashboard de analytics de WhatsApp',
   ),
 
+  // Validacion de Comprobantes Bancarios de WhatsApp
+  crearPermiso(
+    'atencion_cliente',
+    'whatsapp_validaciones',
+    'VER',
+    'Ver Validaciones de Comprobantes',
+    'Ver bandeja de validaciones de comprobantes bancarios enviados por WhatsApp',
+  ),
+  crearPermiso(
+    'atencion_cliente',
+    'whatsapp_validaciones',
+    'APROBAR',
+    'Aprobar Validaciones de Comprobantes',
+    'Aprobar o rechazar validaciones de comprobantes bancarios',
+    { requiere_auditoria: true },
+  ),
+
   // =============================================================
   // PERMISOS ADICIONALES DE INVENTARIO
   // =============================================================

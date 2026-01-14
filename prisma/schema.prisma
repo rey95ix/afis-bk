@@ -124,6 +124,10 @@ model usuarios {
   whatsapp_asignaciones_por      whatsapp_chat_assignment[]      @relation("whatsapp_assignment_asignado_por")
   whatsapp_etiquetas_creadas     whatsapp_chat_etiqueta[]        @relation("etiqueta_creador")
   whatsapp_etiquetas_asignadas   whatsapp_chat_etiqueta_chat[]   @relation("etiqueta_asignacion")
+  // Validaciones de comprobantes bancarios WhatsApp
+  validaciones_comprobante_envia   whatsapp_validacion_comprobante[] @relation("validacion_comprobante_usuario_envia")
+  validaciones_comprobante_valida  whatsapp_validacion_comprobante[] @relation("validacion_comprobante_usuario_valida")
+  validaciones_comprobante_aplica  whatsapp_validacion_comprobante[] @relation("validacion_comprobante_usuario_aplica")
   // Relación con empleados de RRHH (cuando el empleado es contratado)
   empleado_vinculado             rh_empleado[]                   @relation("empleado_usuario")
 }
@@ -2989,6 +2993,7 @@ model whatsapp_chat {
   asignaciones               whatsapp_chat_assignment[]
   metricas                   whatsapp_chat_metrics?
   etiquetas                  whatsapp_chat_etiqueta_chat[]
+  validaciones_comprobante   whatsapp_validacion_comprobante[]
 
   @@index([id_cliente])
   @@index([id_usuario_asignado])
@@ -3024,6 +3029,7 @@ model whatsapp_message {
   chat                       whatsapp_chat @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_message_chat")
   usuario_envia              usuarios?     @relation("whatsapp_message_usuario", fields: [id_usuario_envia], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_message_usuario")
   regla_ia                   whatsapp_ia_rule? @relation(fields: [id_regla_ia], references: [id_regla], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_message_regla_ia")
+  validaciones_comprobante   whatsapp_validacion_comprobante[]
 
   @@index([id_chat])
   @@index([id_usuario_envia])
@@ -3201,6 +3207,55 @@ model configuracion_whatsapp {
   tiempo_alerta_sin_respuesta Int      @default(5) // Minutos sin respuesta para alertar
   fecha_creacion             DateTime  @default(now())
   fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+}
+
+// Estado de validación de comprobantes bancarios
+enum estado_validacion_comprobante {
+  PENDIENTE
+  APROBADO
+  APLICADO
+  RECHAZADO
+}
+
+// Validación de comprobantes bancarios enviados por WhatsApp
+model whatsapp_validacion_comprobante {
+  id_validacion              Int       @id @default(autoincrement())
+  id_message                 Int
+  id_chat                    Int
+
+  // Datos extraídos por IA
+  monto                      Decimal?  @db.Decimal(12, 2)
+  fecha_transaccion          DateTime? @db.Date
+  numero_referencia          String?   @db.VarChar(100)
+  banco                      String?   @db.VarChar(100)
+  cuenta_origen              String?   @db.VarChar(50)
+  cuenta_destino             String?   @db.VarChar(50)
+  nombre_titular             String?   @db.VarChar(200)
+  confianza                  String?   @db.VarChar(10) // alta, media, baja
+
+  // Estado de validación
+  estado                     estado_validacion_comprobante @default(PENDIENTE)
+  comentario_rechazo         String?   @db.Text
+
+  // Auditoría
+  id_usuario_envia           Int
+  id_usuario_valida          Int?
+  id_usuario_aplica          Int?
+  fecha_creacion             DateTime  @default(now())
+  fecha_validacion           DateTime?
+  fecha_aplicacion           DateTime?
+
+  // Relaciones
+  message                    whatsapp_message @relation(fields: [id_message], references: [id_message], onDelete: Cascade, onUpdate: NoAction, map: "fk_validacion_comprobante_message")
+  chat                       whatsapp_chat @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_validacion_comprobante_chat")
+  usuario_envia              usuarios @relation("validacion_comprobante_usuario_envia", fields: [id_usuario_envia], references: [id_usuario], onDelete: Restrict, onUpdate: NoAction, map: "fk_validacion_comprobante_usuario_envia")
+  usuario_valida             usuarios? @relation("validacion_comprobante_usuario_valida", fields: [id_usuario_valida], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_validacion_comprobante_usuario_valida")
+  usuario_aplica             usuarios? @relation("validacion_comprobante_usuario_aplica", fields: [id_usuario_aplica], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_validacion_comprobante_usuario_aplica")
+
+  @@index([estado])
+  @@index([fecha_creacion])
+  @@index([id_chat])
+  @@index([id_message])
 }
 
 // ============================================

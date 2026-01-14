@@ -16,6 +16,15 @@ import { AssignmentService } from '../assignment/assignment.service';
 import { TemplateService } from '../template/template.service';
 import { SendTemplateDto } from '../template/dto/send-template.dto';
 
+/**
+ * Información de error de WhatsApp para mensajes fallidos
+ */
+export interface WhatsAppErrorInfo {
+  code: number;
+  title: string;
+  message: string;
+}
+
 @Injectable()
 export class MessageService {
   private readonly logger = new Logger(MessageService.name);
@@ -550,6 +559,15 @@ export class MessageService {
               nombre: true,
             },
           },
+          validaciones_comprobante: {
+            select: {
+              id_validacion: true,
+              estado: true,
+              monto: true,
+              confianza: true,
+              fecha_creacion: true,
+            },
+          },
         },
         orderBy: {
           fecha_creacion: sort_order,
@@ -602,11 +620,12 @@ export class MessageService {
   }
 
   /**
-   * Actualizar estado del mensaje (entregado, leído)
+   * Actualizar estado del mensaje (entregado, leído, fallido)
    */
   async updateStatus(
     whatsappMessageId: string,
     status: 'ENTREGADO' | 'LEIDO' | 'FALLIDO',
+    errorInfo?: WhatsAppErrorInfo,
   ) {
     const message = await this.prisma.whatsapp_message.findUnique({
       where: { whatsapp_message_id: whatsappMessageId },
@@ -624,6 +643,15 @@ export class MessageService {
       updateData.fecha_entrega = new Date();
     } else if (status === 'LEIDO') {
       updateData.fecha_lectura = new Date();
+    } else if (status === 'FALLIDO' && errorInfo) {
+      // Guardar información del error en metadata
+      const currentMetadata = (message.metadata as Record<string, any>) || {};
+      updateData.metadata = {
+        ...currentMetadata,
+        error_code: errorInfo.code,
+        error_title: errorInfo.title,
+        error_message: errorInfo.message,
+      };
     }
 
     return this.prisma.whatsapp_message.update({

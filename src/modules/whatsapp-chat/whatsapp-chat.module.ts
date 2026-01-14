@@ -38,6 +38,11 @@ import { MetaTemplateService } from './template/meta-template.service';
 import { EtiquetaController } from './etiqueta/etiqueta.controller';
 import { EtiquetaService } from './etiqueta/etiqueta.service';
 
+// Validación Comprobantes
+import { ValidacionComprobanteController } from './validacion-comprobante/validacion-comprobante.controller';
+import { ValidacionComprobanteService } from './validacion-comprobante/validacion-comprobante.service';
+import { ComprobanteAnalyzerService } from './validacion-comprobante/comprobante-analyzer.service';
+
 // WebSocket Gateway
 import { WhatsAppChatGateway } from './whatsapp-chat.gateway';
 
@@ -47,8 +52,11 @@ import { PrismaModule } from '../prisma/prisma.module';
 // MinIO
 import { MinioModule } from '../minio/minio.module';
 
+// OpenAI
+import { OpenaiModule } from '../openai/openai.module';
+
 @Module({
-  imports: [ConfigModule, PrismaModule, MinioModule],
+  imports: [ConfigModule, PrismaModule, MinioModule, OpenaiModule],
   controllers: [
     ChatController,
     MessageController,
@@ -60,6 +68,7 @@ import { MinioModule } from '../minio/minio.module';
     AnalyticsController,
     TemplateController,
     EtiquetaController,
+    ValidacionComprobanteController,
   ],
   providers: [
     ChatService,
@@ -75,6 +84,8 @@ import { MinioModule } from '../minio/minio.module';
     MetaTemplateService,
     EtiquetaService,
     WhatsAppChatGateway,
+    ValidacionComprobanteService,
+    ComprobanteAnalyzerService,
   ],
   exports: [
     ChatService,
@@ -90,6 +101,8 @@ import { MinioModule } from '../minio/minio.module';
     MetaTemplateService,
     EtiquetaService,
     WhatsAppChatGateway,
+    ValidacionComprobanteService,
+    ComprobanteAnalyzerService,
   ],
 })
 export class WhatsAppChatModule {}

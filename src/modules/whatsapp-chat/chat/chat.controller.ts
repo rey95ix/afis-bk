@@ -11,7 +11,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { ChatService } from './chat.service';
-import { CreateChatDto, UpdateChatDto, QueryChatDto } from './dto';
+import { CreateChatDto, UpdateChatDto, QueryChatDto, ClaimChatResponseDto, ClaimChatErrorDto } from './dto';
 import {
   ApiTags,
   ApiOperation,
@@ -284,6 +284,59 @@ export class ChatController {
   })
   markAsRead(@Param('id', ParseIntPipe) id: number) {
     return this.chatService.markAsRead(id);
+  }
+
+  @RequirePermissions('atencion_cliente.whatsapp_chat:editar')
+  @Post(':id/unread')
+  @ApiOperation({
+    summary: 'Marcar chat como no leído',
+    description: 'Establece el contador de mensajes no leídos en 1 para indicar que el chat requiere atención.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del chat',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Chat marcado como no leído',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Chat no encontrado',
+  })
+  markAsUnread(@Param('id', ParseIntPipe) id: number) {
+    return this.chatService.markAsUnread(id);
+  }
+
+  @RequirePermissions('atencion_cliente.whatsapp_chat:editar')
+  @Post(':id/claim')
+  @ApiOperation({
+    summary: 'Reclamar un chat sin asignar',
+    description:
+      'Permite a un agente reclamar (auto-asignarse) un chat que no tiene agente asignado. Si el chat ya está asignado a otro agente, retorna error 409. Usa bloqueo pesimista para evitar race conditions.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del chat a reclamar',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Chat reclamado exitosamente',
+    type: ClaimChatResponseDto,
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Chat ya asignado a otro agente o chat cerrado',
+    type: ClaimChatErrorDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Chat no encontrado',
+  })
+  claimChat(@Param('id', ParseIntPipe) id: number, @Request() req) {
+    return this.chatService.claimChat(id, req.user.id_usuario);
   }
 
   @RequirePermissions('atencion_cliente.whatsapp_chat:editar')
