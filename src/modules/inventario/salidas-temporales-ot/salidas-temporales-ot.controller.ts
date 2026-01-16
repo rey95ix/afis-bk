@@ -21,7 +21,9 @@ import {
   ApiConsumes,
   ApiBody,
   ApiQuery,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
+import { HEADER_API_BEARER_AUTH } from '../../../common/const';
 import { SalidasTemporalesOtService } from './salidas-temporales-ot.service';
 import { CreateSalidaTemporalDto } from './dto/create-salida-temporal.dto';
 import { QuerySalidaTemporalDto } from './dto/query-salida-temporal.dto';
@@ -33,6 +35,7 @@ import type { usuarios } from '@prisma/client';
 import { Auth, GetUser } from 'src/modules/auth/decorators';
 
 @ApiTags('Salidas Temporales OT')
+@ApiBearerAuth(HEADER_API_BEARER_AUTH)
 @Controller('inventario/salidas-temporales-ot')
 export class SalidasTemporalesOtController {
   constructor(private readonly service: SalidasTemporalesOtService) {}

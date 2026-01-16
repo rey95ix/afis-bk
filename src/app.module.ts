@@ -12,6 +12,7 @@ import { SmsModule } from './modules/sms/sms.module';
 import { FcmModule } from './modules/fcm/fcm.module';
 import { FacturacionModule } from './modules/facturacion/facturacion.module';
 import { WhatsAppChatModule } from './modules/whatsapp-chat/whatsapp-chat.module';
+import { MigrationModule } from './modules/migration/migration.module';
 // import { UtilidadesModule } from './modules/utilidades/utilidades.module';
 
 @Module({
@@ -33,6 +34,7 @@ import { WhatsAppChatModule } from './modules/whatsapp-chat/whatsapp-chat.module
     FcmModule,
     FacturacionModule,
     WhatsAppChatModule,
+    MigrationModule, // Módulo de migración MySQL → PostgreSQL
     // UtilidadesModule, //TODO Habilitar módulo de utilidades
   ],
   controllers: [],

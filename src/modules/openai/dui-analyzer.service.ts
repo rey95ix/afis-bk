@@ -43,6 +43,14 @@ export interface DuiTraseraExtractionResult {
   mensaje: string;
 }
 
+export type DocumentType = 'DUI_FRENTE' | 'DUI_TRASERA' | 'NIT_FRENTE' | 'NIT_TRASERA' | 'RECIBO' | 'FIRMA' | 'DESCONOCIDO';
+
+export interface DocumentClassificationResult {
+  tipo_documento: DocumentType;
+  confianza: 'alta' | 'media' | 'baja';
+  mensaje: string;
+}
+
 @Injectable()
 export class DuiAnalyzerService {
   private readonly logger = new Logger(DuiAnalyzerService.name);
@@ -90,6 +98,26 @@ Si no encuentras algún dato, usa null:
 
 Valores para tipo_servicio: "ENERGIA", "AGUA", "DESCONOCIDO"
 Niveles de confianza: "alta", "media", "baja"`;
+
+  // Prompt para clasificación de tipo de documento
+  private readonly DOCUMENT_CLASSIFICATION_PROMPT = `Analiza esta imagen y clasifica qué tipo de documento es.
+
+TIPOS POSIBLES:
+1. DUI_FRENTE - Parte frontal del Documento Único de Identidad de El Salvador (tiene foto, nombre, número DUI)
+2. DUI_TRASERA - Parte trasera del DUI (tiene NIT, estado familiar, código de barras)
+3. NIT_FRENTE - Tarjeta NIT del Ministerio de Hacienda de El Salvador (frontal)
+4. NIT_TRASERA - Parte trasera de la tarjeta NIT
+5. RECIBO - Recibo de servicio público (luz, agua, con números de cuenta y direcciones)
+6. FIRMA - Imagen de una firma manuscrita (generalmente fondo blanco con firma en tinta)
+7. DESCONOCIDO - No se puede identificar el tipo de documento
+
+IMPORTANTE: Responde ÚNICAMENTE con JSON válido, sin texto adicional, sin markdown, sin backticks:
+{"tipo_documento": "DUI_FRENTE", "confianza": "alta"}
+
+Niveles de confianza:
+- "alta": El tipo de documento es claramente identificable
+- "media": Hay algunas características del tipo de documento pero no es 100% seguro
+- "baja": No se puede determinar con certeza el tipo de documento`;
 
   // Prompt para extracción de datos del DUI TRASERA (NIT, Estado Familiar)
   private readonly DUI_TRASERA_EXTRACTION_PROMPT = `Analiza esta imagen de la parte TRASERA de un DUI (Documento Único de Identidad) de El Salvador.
@@ -759,6 +787,113 @@ Niveles de confianza:
     const normalized = tipo?.toUpperCase();
     if (normalized === 'ENERGIA') return 'ENERGIA';
     if (normalized === 'AGUA') return 'AGUA';
+    return 'DESCONOCIDO';
+  }
+
+  // ==================== CLASIFICACIÓN DE DOCUMENTOS ====================
+
+  /**
+   * Clasifica el tipo de documento usando IA
+   * Útil para migración de documentos desde sistemas legacy
+   * @param imageBuffer Buffer de la imagen del documento
+   * @param mimeType Tipo MIME de la imagen
+   */
+  async classifyDocument(
+    imageBuffer: Buffer,
+    mimeType: string = 'image/jpeg',
+  ): Promise<DocumentClassificationResult> {
+    // Verificar si OpenAI está disponible
+    if (!this.openaiService.isAvailable()) {
+      this.logger.warn('OpenAI no está disponible para clasificación de documento');
+      return {
+        tipo_documento: 'DESCONOCIDO',
+        confianza: 'baja',
+        mensaje: 'El servicio de IA no está disponible',
+      };
+    }
+
+    try {
+      this.logger.log('Iniciando clasificación de documento con GPT-4 Vision...');
+
+      const response = await this.openaiService.analyzeImage(
+        imageBuffer,
+        this.DOCUMENT_CLASSIFICATION_PROMPT,
+        mimeType,
+      );
+
+      this.logger.debug(`Respuesta de OpenAI (Clasificación): ${response}`);
+
+      // Parsear la respuesta JSON
+      const result = this.parseDocumentClassificationResponse(response);
+
+      this.logger.log(
+        `Documento clasificado: ${result.tipo_documento} (confianza: ${result.confianza})`,
+      );
+
+      return {
+        tipo_documento: result.tipo_documento,
+        confianza: this.parseConfianza(result.confianza),
+        mensaje: `Documento clasificado como ${result.tipo_documento}`,
+      };
+    } catch (error) {
+      this.logger.error(`Error al clasificar documento: ${error.message}`);
+      return {
+        tipo_documento: 'DESCONOCIDO',
+        confianza: 'baja',
+        mensaje: `Error en la clasificación: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Parsea la respuesta de OpenAI para clasificación de documentos
+   */
+  private parseDocumentClassificationResponse(response: string): {
+    tipo_documento: DocumentType;
+    confianza: string;
+  } {
+    try {
+      // Limpiar la respuesta de posibles caracteres extra
+      let cleanResponse = response.trim();
+
+      // Remover backticks de markdown si existen
+      if (cleanResponse.startsWith('```')) {
+        cleanResponse = cleanResponse.replace(/```json?\n?/g, '').replace(/```/g, '');
+      }
+
+      cleanResponse = cleanResponse.trim();
+
+      const parsed = JSON.parse(cleanResponse);
+      const tipoDocumento = this.parseDocumentType(parsed.tipo_documento);
+
+      return {
+        tipo_documento: tipoDocumento,
+        confianza: parsed.confianza || 'media',
+      };
+    } catch (error) {
+      this.logger.error(`Error al parsear respuesta de clasificación: ${error.message}`);
+      this.logger.debug(`Respuesta original: ${response}`);
+
+      return {
+        tipo_documento: 'DESCONOCIDO',
+        confianza: 'baja',
+      };
+    }
+  }
+
+  /**
+   * Parsea y valida el tipo de documento
+   */
+  private parseDocumentType(tipo: string): DocumentType {
+    const normalized = tipo?.toUpperCase();
+    const validTypes: DocumentType[] = [
+      'DUI_FRENTE', 'DUI_TRASERA', 'NIT_FRENTE', 'NIT_TRASERA', 'RECIBO', 'FIRMA', 'DESCONOCIDO',
+    ];
+
+    if (validTypes.includes(normalized as DocumentType)) {
+      return normalized as DocumentType;
+    }
+
     return 'DESCONOCIDO';
   }
 }

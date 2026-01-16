@@ -11,7 +11,8 @@ import {
   Query,
   ParseIntPipe,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { HEADER_API_BEARER_AUTH } from '../../../common/const';
 import { Auth } from '../../auth/decorators/auth.decorator';
 import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
 import { UsuariosService } from './usuarios.service';
@@ -21,6 +22,7 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 
 @ApiTags('Usuarios')
+@ApiBearerAuth(HEADER_API_BEARER_AUTH)
 @Controller('administracion/usuarios')
 export class UsuariosController {
   constructor(private readonly usuariosService: UsuariosService) {}
