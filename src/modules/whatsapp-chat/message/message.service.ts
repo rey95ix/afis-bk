@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { SendMessageDto, QueryMessageDto } from './dto';
+import { SendMessageDto, QueryMessageDto, QueryFailedTemplatesDto, ResendTemplateDto } from './dto';
 import { direccion_mensaje, estado_mensaje_whatsapp } from '@prisma/client';
 import { ChatService } from '../chat/chat.service';
 import { WhatsAppApiService } from '../whatsapp-api/whatsapp-api.service';
@@ -761,5 +761,302 @@ export class MessageService {
       where: { id_chat: chatId },
       data: updateData,
     });
+  }
+
+  // ==================== TEMPLATES FALLIDOS ====================
+
+  /**
+   * Obtener templates fallidos con paginación y filtros
+   */
+  async getFailedTemplates(queryDto: QueryFailedTemplatesDto) {
+    const {
+      page = 1,
+      limit = 20,
+      error_code,
+      search,
+      fecha_desde,
+      fecha_hasta,
+    } = queryDto;
+
+    const where: any = {
+      tipo: 'PLANTILLA',
+      estado: 'FALLIDO',
+      direccion: 'SALIENTE',
+    };
+
+    // Filtrar por código de error en metadata
+    if (error_code !== undefined) {
+      where.metadata = {
+        path: ['error_code'],
+        equals: error_code,
+      };
+    }
+
+    // Filtrar por fechas
+    if (fecha_desde || fecha_hasta) {
+      where.fecha_creacion = {};
+      if (fecha_desde) {
+        where.fecha_creacion.gte = new Date(fecha_desde);
+      }
+      if (fecha_hasta) {
+        where.fecha_creacion.lte = new Date(fecha_hasta);
+      }
+    }
+
+    const skip = (page - 1) * limit;
+
+    // Si hay búsqueda, necesitamos filtrar después de obtener los resultados
+    // porque el search es por teléfono/nombre del chat relacionado
+    let messages: any[];
+    let total: number;
+
+    if (search) {
+      // Obtener con filtro de chat
+      const [data, count] = await Promise.all([
+        this.prisma.whatsapp_message.findMany({
+          where: {
+            ...where,
+            chat: {
+              OR: [
+                { telefono_cliente: { contains: search, mode: 'insensitive' } },
+                { nombre_cliente: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+          skip,
+          take: limit,
+          include: {
+            chat: {
+              select: {
+                id_chat: true,
+                telefono_cliente: true,
+                nombre_cliente: true,
+                estado: true,
+              },
+            },
+            usuario_envia: {
+              select: {
+                id_usuario: true,
+                nombres: true,
+                apellidos: true,
+              },
+            },
+          },
+          orderBy: {
+            fecha_creacion: 'desc',
+          },
+        }),
+        this.prisma.whatsapp_message.count({
+          where: {
+            ...where,
+            chat: {
+              OR: [
+                { telefono_cliente: { contains: search, mode: 'insensitive' } },
+                { nombre_cliente: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+        }),
+      ]);
+      messages = data;
+      total = count;
+    } else {
+      const [data, count] = await Promise.all([
+        this.prisma.whatsapp_message.findMany({
+          where,
+          skip,
+          take: limit,
+          include: {
+            chat: {
+              select: {
+                id_chat: true,
+                telefono_cliente: true,
+                nombre_cliente: true,
+                estado: true,
+              },
+            },
+            usuario_envia: {
+              select: {
+                id_usuario: true,
+                nombres: true,
+                apellidos: true,
+              },
+            },
+          },
+          orderBy: {
+            fecha_creacion: 'desc',
+          },
+        }),
+        this.prisma.whatsapp_message.count({ where }),
+      ]);
+      messages = data;
+      total = count;
+    }
+
+    return {
+      data: messages,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * Obtener estadísticas de templates fallidos
+   */
+  async getFailedTemplatesStats() {
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    // Total de templates fallidos
+    const total = await this.prisma.whatsapp_message.count({
+      where: {
+        tipo: 'PLANTILLA',
+        estado: 'FALLIDO',
+        direccion: 'SALIENTE',
+      },
+    });
+
+    // Fallidos últimos 7 días
+    const ultimos7Dias = await this.prisma.whatsapp_message.count({
+      where: {
+        tipo: 'PLANTILLA',
+        estado: 'FALLIDO',
+        direccion: 'SALIENTE',
+        fecha_creacion: {
+          gte: sevenDaysAgo,
+        },
+      },
+    });
+
+    // Reenviados exitosamente (que tienen metadata.reenviado = true)
+    const reenviados = await this.prisma.whatsapp_message.count({
+      where: {
+        tipo: 'PLANTILLA',
+        estado: 'FALLIDO',
+        direccion: 'SALIENTE',
+        metadata: {
+          path: ['reenviado'],
+          equals: true,
+        },
+      },
+    });
+
+    // Pendientes (no reenviados)
+    const pendientes = total - reenviados;
+
+    // Agrupación por código de error usando raw query
+    const errorGroups = await this.prisma.$queryRaw<Array<{ error_code: number; count: bigint }>>`
+      SELECT
+        (metadata->>'error_code')::int as error_code,
+        COUNT(*) as count
+      FROM whatsapp_message
+      WHERE tipo = 'PLANTILLA'
+        AND estado = 'FALLIDO'
+        AND direccion = 'SALIENTE'
+        AND metadata->>'error_code' IS NOT NULL
+      GROUP BY (metadata->>'error_code')::int
+      ORDER BY count DESC
+      LIMIT 10
+    `;
+
+    return {
+      total,
+      ultimos_7_dias: ultimos7Dias,
+      reenviados,
+      pendientes,
+      por_error: errorGroups.map(g => ({
+        error_code: g.error_code,
+        count: Number(g.count),
+      })),
+    };
+  }
+
+  /**
+   * Reenviar un template fallido
+   */
+  async resendFailedTemplate(
+    messageId: number,
+    dto: ResendTemplateDto,
+    userId: number,
+  ) {
+    // Obtener el mensaje original
+    const message = await this.prisma.whatsapp_message.findUnique({
+      where: { id_message: messageId },
+      include: {
+        chat: true,
+      },
+    });
+
+    if (!message) {
+      throw new NotFoundException(`Mensaje con ID ${messageId} no encontrado`);
+    }
+
+    // Validar que sea un template fallido
+    if (message.tipo !== 'PLANTILLA') {
+      throw new BadRequestException('El mensaje no es una plantilla');
+    }
+
+    if (message.estado !== 'FALLIDO') {
+      throw new BadRequestException('El mensaje no está en estado fallido');
+    }
+
+    if (message.direccion !== 'SALIENTE') {
+      throw new BadRequestException('El mensaje no es saliente');
+    }
+
+    // Verificar que no haya sido reenviado
+    const metadata = (message.metadata as Record<string, any>) || {};
+    if (metadata.reenviado === true) {
+      throw new BadRequestException('Este template ya fue reenviado');
+    }
+
+    // Extraer información del template original
+    const templateId = metadata.template_id;
+    if (!templateId) {
+      throw new BadRequestException('No se encontró el ID del template en la metadata');
+    }
+
+    // Usar los parámetros proporcionados o los originales
+    const parametros = dto.parametros || metadata.parametros || {};
+
+    // Reenviar el template usando el método existente
+    const newMessage = await this.sendTemplateMessage(
+      message.id_chat,
+      {
+        id_template: templateId,
+        parametros,
+      },
+      userId,
+    );
+
+    // Actualizar metadata del mensaje original para marcar como reenviado
+    await this.prisma.whatsapp_message.update({
+      where: { id_message: messageId },
+      data: {
+        metadata: {
+          ...metadata,
+          reenviado: true,
+          reenviado_at: new Date().toISOString(),
+          reenviado_por: userId,
+          nuevo_mensaje_id: newMessage.id_message,
+        },
+      },
+    });
+
+    await this.prisma.logAction(
+      'REENVIAR_WHATSAPP_TEMPLATE',
+      userId,
+      `Template reenviado: mensaje original #${messageId}, nuevo mensaje #${newMessage.id_message}`,
+    );
+
+    return {
+      success: true,
+      original_message_id: messageId,
+      new_message: newMessage,
+    };
   }
 }

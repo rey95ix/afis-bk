@@ -8,6 +8,7 @@ import { ChatService } from './chat/chat.service';
 // Message
 import { MessageController } from './message/message.controller';
 import { MessageService } from './message/message.service';
+import { FailedTemplatesController } from './message/failed-templates.controller';
 
 // WhatsApp API
 import { WhatsAppApiService } from './whatsapp-api/whatsapp-api.service';
@@ -60,6 +61,7 @@ import { OpenaiModule } from '../openai/openai.module';
   controllers: [
     ChatController,
     MessageController,
+    FailedTemplatesController,
     WhatsAppWebhookController,
     IaConfigController,
     IaRuleController,

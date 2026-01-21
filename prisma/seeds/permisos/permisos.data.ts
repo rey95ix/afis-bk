@@ -843,6 +843,23 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     { requiere_auditoria: true },
   ),
 
+  // Templates Fallidos de WhatsApp
+  crearPermiso(
+    'atencion_cliente',
+    'whatsapp_failed_templates',
+    'VER',
+    'Ver Templates Fallidos',
+    'Ver bandeja de templates de WhatsApp que fallaron al enviarse',
+  ),
+  crearPermisoCustom(
+    'atencion_cliente',
+    'whatsapp_failed_templates',
+    'reenviar',
+    'Reenviar Templates Fallidos',
+    'Reenviar templates de WhatsApp que fallaron previamente',
+    { requiere_auditoria: true },
+  ),
+
   // =============================================================
   // PERMISOS ADICIONALES DE INVENTARIO
   // =============================================================

@@ -2,6 +2,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import * as Minio from 'minio';
 import { ConfigService } from '@nestjs/config';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class MinioService implements OnModuleInit {
@@ -116,6 +118,52 @@ export class MinioService implements OnModuleInit {
       };
     } catch (error) {
       this.logger.error(`Error al subir buffer: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Subir un archivo desde una ruta local a MinIO
+   * @param filePath - Ruta absoluta del archivo en el sistema de archivos
+   * @param objectName - Nombre del objeto en MinIO (ruta dentro del bucket)
+   * @param mimeType - Tipo MIME del archivo
+   */
+  async uploadFromPath(
+    filePath: string,
+    objectName: string,
+    mimeType: string,
+  ): Promise<{ url: string; etag: string }> {
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Archivo no encontrado: ${filePath}`);
+      }
+
+      const fileStats = fs.statSync(filePath);
+      const fileStream = fs.createReadStream(filePath);
+
+      const metaData = {
+        'Content-Type': mimeType,
+        'X-Original-Name': Buffer.from(path.basename(filePath)).toString('base64'),
+      };
+
+      const result = await this.minioClient.putObject(
+        this.bucketName,
+        objectName,
+        fileStream,
+        fileStats.size,
+        metaData,
+      );
+
+      const url = await this.getFileUrl(objectName);
+
+      this.logger.log(`Archivo subido desde path: ${filePath} → ${objectName}`);
+
+      return {
+        url,
+        etag: result.etag,
+      };
+    } catch (error) {
+      this.logger.error(`Error al subir archivo desde path: ${error.message}`);
       throw error;
     }
   }

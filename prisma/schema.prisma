@@ -3035,6 +3035,7 @@ model whatsapp_message {
   @@index([id_usuario_envia])
   @@index([direccion])
   @@index([fecha_creacion])
+  @@index([tipo, estado, direccion]) // Para consultas de templates fallidos
 }
 
 // Configuración de IA para WhatsApp

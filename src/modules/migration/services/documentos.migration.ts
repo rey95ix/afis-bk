@@ -15,6 +15,8 @@ import {
   MigrationOptions,
 } from '../interfaces/mapping.interface';
 import { v4 as uuidv4 } from 'uuid';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Mapeo de columnas MySQL a tipos de documento
 type DocumentColumnKey = 'from_identification' | 'reverse_identification' | 'from_nit' | 'reverse_nit' | 'receipt' | 'signature';
@@ -260,8 +262,7 @@ export class DocumentosMigrationService {
       : mediaRecord.media;
 
     // Detectar MIME type
-    const { mime } = this.detectMimeType(buffer);
-    const ext = 'png'
+    const { mime, ext } = this.detectMimeType(buffer);
     if (options.dryRun) {
       this.logger.debug(
         `[DRY RUN] Migraría documento: ${column} (${mediaId}) para cliente ${idCliente}, mime: ${mime}`,
@@ -272,6 +273,7 @@ export class DocumentosMigrationService {
     // Clasificar documento con IA (solo para imágenes)
     let tipoDocumento: DocumentType = COLUMN_TO_DOCUMENT_TYPE[column];
 
+    this.logger.log(`Migrando id: ${mediaId}`);
     if (this.isImageMime(mime)) {
       try {
         const classification = await this.duiAnalyzer.classifyDocument(buffer, mime);
@@ -293,11 +295,29 @@ export class DocumentosMigrationService {
       }
     }
 
-    // Generar nombre del objeto en MinIO
+    // Generar nombre del objeto
     const objectName = this.generateObjectName(idCliente, tipoDocumento, ext);
 
-    // Subir a MinIO
-    const { url } = await this.minioService.uploadBuffer(buffer, objectName, mime);
+    // === INICIO DEBUG: Guardar temporalmente en local, subir a MinIO, luego eliminar ===
+    const uploadsDir = path.join(process.cwd(), 'uploads', 'clientes', String(idCliente), 'documentos');
+    fs.mkdirSync(uploadsDir, { recursive: true });
+
+    const localFileName = `${tipoDocumento}-${uuidv4()}.${ext}`;
+    const localFilePath = path.join(uploadsDir, localFileName);
+    fs.writeFileSync(localFilePath, buffer);
+    this.logger.debug(`[DEBUG] Archivo guardado temporalmente: ${localFilePath}`);
+
+    // Subir a MinIO desde el archivo local
+    const { url } = await this.minioService.uploadFromPath(localFilePath, objectName, mime);
+
+    // Eliminar archivo local después de subir exitosamente a MinIO
+    try {
+      fs.unlinkSync(localFilePath);
+      this.logger.debug(`[DEBUG] Archivo local eliminado: ${localFilePath}`);
+    } catch (unlinkError) {
+      this.logger.warn(`No se pudo eliminar archivo temporal: ${localFilePath}`, unlinkError);
+    }
+    // === FIN DEBUG ===
 
     // Crear registro en PostgreSQL
     const documento = await this.prisma.clienteDocumentos.create({
@@ -422,8 +442,10 @@ export class DocumentosMigrationService {
             continue;
           }
 
-          // Decodificar base64 a Buffer de imagen
-          const buffer: Buffer = Buffer.from(mediaRecord.media.toString(), 'base64');
+          // Convertir a Buffer si viene como string base64 (MySQL2 LONGBLOB)
+          
+          const base64Data = mediaRecord.media.toString().replace(/^data:image\/\w+;base64,/, ''); 
+          const buffer = Buffer.from(base64Data, 'base64');
           const { mime, ext } = this.detectMimeType(buffer);
 
           if (options.dryRun) {
@@ -445,12 +467,31 @@ export class DocumentosMigrationService {
               // Usar fallback
             }
           }
+          this.logger.log(`Migrando id: ${mediaId}`);
 
-          // Generar nombre del objeto en MinIO
+          // Generar nombre del objeto
           const objectName = this.generateObjectName(postgresClienteId, tipoDocumento, ext);
 
-          // Subir a MinIO
-          const { url } = await this.minioService.uploadBuffer(buffer, objectName, mime);
+          // === INICIO DEBUG: Guardar temporalmente en local, subir a MinIO, luego eliminar ===
+          const uploadsDir = path.join(process.cwd(), 'uploads', 'clientes', String(postgresClienteId), 'documentos');
+          fs.mkdirSync(uploadsDir, { recursive: true });
+
+          const localFileName = `${tipoDocumento}-${uuidv4()}.${ext}`;
+          const localFilePath = path.join(uploadsDir, localFileName);
+          fs.writeFileSync(localFilePath, buffer);
+          this.logger.debug(`[DEBUG] Archivo guardado temporalmente: ${localFilePath}`);
+
+          // Subir a MinIO desde el archivo local
+          const { url } = await this.minioService.uploadFromPath(localFilePath, objectName, mime);
+
+          // Eliminar archivo local después de subir exitosamente a MinIO
+          try {
+            fs.unlinkSync(localFilePath);
+            this.logger.debug(`[DEBUG] Archivo local eliminado: ${localFilePath}`);
+          } catch (unlinkError) {
+            this.logger.warn(`No se pudo eliminar archivo temporal: ${localFilePath}`, unlinkError);
+          }
+          // === FIN DEBUG ===
 
           // Crear registro en PostgreSQL
           const documento = await this.prisma.clienteDocumentos.create({

@@ -49,6 +49,9 @@ GEMINI.md
 .temp
 .tmp
 
+# Uploads directory (temporal para debugging)
+/uploads
+
 # Runtime data
 pids
 *.pid
