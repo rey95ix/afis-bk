@@ -17,6 +17,10 @@ export class UpdateGeneralDataDto {
   @IsOptional()
   @IsString()
   razon?: string;
+   
+  @IsOptional()
+  @IsString()
+  url_correo_atencion?: string;
 
   @ApiProperty({ description: 'NIT de la empresa', required: false })
   @IsOptional()

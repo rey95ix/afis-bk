@@ -29,6 +29,7 @@ export class GeneralDataController {
   @ApiResponse({ status: 400, description: 'Petición inválida.' })
   update(@Body() updateGeneralDataDto: UpdateGeneralDataDto, @Req() req: any) {
     const id_usuario = req.user?.id_usuario;
+    delete updateGeneralDataDto.url_correo_atencion; // El correo no se puede actualizar desde aquí
     return this.generalDataService.update(updateGeneralDataDto, id_usuario);
   }
 }
