@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 
 // Chat
 import { ChatController } from './chat/chat.controller';
 import { ChatService } from './chat/chat.service';
+import { ChatSchedulerService } from './chat/chat-scheduler.service';
 
 // Message
 import { MessageController } from './message/message.controller';
@@ -57,7 +59,7 @@ import { MinioModule } from '../minio/minio.module';
 import { OpenaiModule } from '../openai/openai.module';
 
 @Module({
-  imports: [ConfigModule, PrismaModule, MinioModule, OpenaiModule],
+  imports: [ConfigModule, PrismaModule, MinioModule, OpenaiModule, ScheduleModule.forRoot()],
   controllers: [
     ChatController,
     MessageController,
@@ -74,6 +76,7 @@ import { OpenaiModule } from '../openai/openai.module';
   ],
   providers: [
     ChatService,
+    ChatSchedulerService,
     MessageService,
     WhatsAppApiService,
     IaConfigService,
@@ -91,6 +94,7 @@ import { OpenaiModule } from '../openai/openai.module';
   ],
   exports: [
     ChatService,
+    ChatSchedulerService,
     MessageService,
     WhatsAppApiService,
     IaConfigService,

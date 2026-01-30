@@ -69,4 +69,9 @@ export class CreateCatalogoDto {
   @IsOptional()
   @IsInt()
   vida_util_meses?: number;
+
+  @ApiProperty({ description: 'ID del tipo de item DTE', required: false })
+  @IsOptional()
+  @IsInt()
+  id_dte_tipo_item?: number;
 }

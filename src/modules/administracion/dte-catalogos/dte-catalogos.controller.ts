@@ -107,4 +107,39 @@ export class DteCatalogosController {
   findOneTipoEstablecimiento(@Param('id', ParseIntPipe) id: number) {
     return this.dteCatalogosService.findOneTipoEstablecimiento(id);
   }
+
+  // ==================== TIPOS DE ITEM ====================
+
+  @Get('tipos-item')
+  @Auth()
+  @RequirePermissions('administracion.dte:ver')
+  @ApiOperation({ summary: 'Obtener todos los tipos de item DTE' })
+  @ApiResponse({
+    status: 200,
+    description: 'Retorna todos los tipos de item para DTE.',
+  })
+  findAllTiposItem() {
+    return this.dteCatalogosService.findAllTiposItem();
+  }
+
+  @Get('tipos-item/:id')
+  @Auth()
+  @RequirePermissions('administracion.dte:ver')
+  @ApiOperation({ summary: 'Obtener un tipo de item por su ID' })
+  @ApiParam({
+    name: 'id',
+    description: 'ID del tipo de item',
+    type: Number,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Retorna el tipo de item.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Tipo de item no encontrado.',
+  })
+  findOneTipoItem(@Param('id', ParseIntPipe) id: number) {
+    return this.dteCatalogosService.findOneTipoItem(id);
+  }
 }

@@ -15,15 +15,16 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiQuery,
-} from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
+} from '@nestjs/swagger'; 
 import { CobrosService } from '../services';
 import { CrearCobroDto, ContratosPendientesDto } from '../dto';
 import { estado_dte } from '@prisma/client';
+import { HEADER_API_BEARER_AUTH } from 'src/common/const'; 
+import { Auth } from 'src/modules/auth/decorators';
 
 @ApiTags('Facturación - Cobros')
-@ApiBearerAuth()
-@UseGuards(AuthGuard('jwt'))
+@ApiBearerAuth(HEADER_API_BEARER_AUTH)
+@Auth()
 @Controller('facturacion/cobros')
 export class CobrosController {
   constructor(private readonly cobrosService: CobrosService) {}

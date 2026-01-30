@@ -78,6 +78,7 @@ export interface PagoData {
 export interface BuildDteParams {
   // Identificación
   ambiente: '00' | '01';
+  version: number;
   numeroControl: string;
   codigoGeneracion: string;
   tipoModelo?: number;
@@ -107,6 +108,10 @@ export interface BuildDteParams {
     numeroDocumento: string;
     fechaEmision: string;
   }>;
+
+  // FSE: campos de retención (opcionales)
+  ivaRetenido?: number;
+  rentaRetenido?: number;
 }
 
 /**

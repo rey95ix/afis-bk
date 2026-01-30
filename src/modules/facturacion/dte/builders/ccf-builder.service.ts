@@ -15,7 +15,7 @@ import {
   DteExtension,
   Tributo,
 } from '../../interfaces';
-import { numeroALetras, redondearMonto } from './numero-letras.util';
+import { numeroALetras, redondearMonto, DECIMALES_ITEM } from './numero-letras.util';
 
 /**
  * Builder para Comprobante de Crédito Fiscal (tipo 03)
@@ -86,7 +86,7 @@ export class CcfBuilderService implements IDteBuilder {
     const now = new Date();
 
     return {
-      version: this.VERSION,
+      version: params.version,
       ambiente: params.ambiente,
       tipoDte: this.TIPO_DTE,
       numeroControl: params.numeroControl,
@@ -158,10 +158,10 @@ export class CcfBuilderService implements IDteBuilder {
     let totalDescuento = 0;
 
     const cuerpoDocumento: DteItemCCF[] = items.map((item, index) => {
-      // Calcular subtotal del item (en CCF los precios son SIN IVA)
-      const subtotal = redondearMonto(item.cantidad * item.precioUnitario);
-      const descuento = redondearMonto(item.descuento || 0);
-      const montoNeto = redondearMonto(subtotal - descuento);
+      // Calcular subtotal del item (en CCF los precios son SIN IVA) - 4 decimales para items
+      const subtotal = redondearMonto(item.cantidad * item.precioUnitario, DECIMALES_ITEM);
+      const descuento = redondearMonto(item.descuento || 0, DECIMALES_ITEM);
+      const montoNeto = redondearMonto(subtotal - descuento, DECIMALES_ITEM);
 
       // Determinar tipo de venta
       let ventaNoSuj = 0;
@@ -193,11 +193,11 @@ export class CcfBuilderService implements IDteBuilder {
         descripcion: item.descripcion,
         cantidad: item.cantidad,
         uniMedida: item.uniMedida,
-        precioUni: redondearMonto(item.precioUnitario),
-        montoDescu: descuento,
-        ventaNoSuj: redondearMonto(ventaNoSuj),
-        ventaExenta: redondearMonto(ventaExenta),
-        ventaGravada: redondearMonto(ventaGravada),
+        precioUni: redondearMonto(item.precioUnitario, DECIMALES_ITEM),
+        montoDescu: redondearMonto(descuento, DECIMALES_ITEM),
+        ventaNoSuj: redondearMonto(ventaNoSuj, DECIMALES_ITEM),
+        ventaExenta: redondearMonto(ventaExenta, DECIMALES_ITEM),
+        ventaGravada: redondearMonto(ventaGravada, DECIMALES_ITEM),
         tributos,
         psv: 0,
         noGravado: 0,
@@ -253,7 +253,7 @@ export class CcfBuilderService implements IDteBuilder {
     // Construir pagos si existen
     const pagos = params.pagos?.map((p) => ({
       codigo: p.codigo,
-      montoPago: p.monto,
+      montoPago: redondearMonto(p.monto),
       referencia: p.referencia,
       plazo: p.plazo,
       periodo: p.periodo,

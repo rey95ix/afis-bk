@@ -392,7 +392,111 @@ export class MessageService {
     // Emitir nuevo mensaje via WebSocket
     this.chatGateway.emitNewMessage(chatId, message);
 
+    // Cierre automático del chat después de enviar plantilla exitosamente
+    await this.closeChatAfterTemplate(chatId, userId, chat);
+
     return message;
+  }
+
+  /**
+   * Cerrar chat automáticamente después de enviar una plantilla exitosamente.
+   * Este método implementa la regla de negocio: envío de plantilla → estado CERRADO
+   */
+  private async closeChatAfterTemplate(
+    chatId: number,
+    userId: number,
+    chat: any,
+  ): Promise<void> {
+    // Verificar que el chat no esté ya CERRADO
+    if (chat.estado === 'CERRADO') {
+      return;
+    }
+
+    try {
+      // Calcular duración del chat
+      const duracion = Math.floor(
+        (new Date().getTime() - chat.fecha_creacion.getTime()) / 1000,
+      );
+
+      // Ejecutar en transacción
+      await this.prisma.$transaction([
+        // Actualizar chat a CERRADO
+        this.prisma.whatsapp_chat.update({
+          where: { id_chat: chatId },
+          data: {
+            estado: 'CERRADO',
+            fecha_cierre: new Date(),
+          },
+        }),
+        // Actualizar métricas con duración
+        this.prisma.whatsapp_chat_metrics.update({
+          where: { id_chat: chatId },
+          data: { duracion },
+        }),
+        // Desactivar asignaciones activas
+        this.prisma.whatsapp_chat_assignment.updateMany({
+          where: { id_chat: chatId, activo: true },
+          data: {
+            activo: false,
+            fecha_desasignacion: new Date(),
+            razon: 'Chat cerrado automáticamente por envío de plantilla',
+          },
+        }),
+      ]);
+
+      // Registrar en log
+      await this.prisma.logAction(
+        'CERRAR_WHATSAPP_CHAT_PLANTILLA',
+        userId,
+        `Chat WhatsApp #${chatId} cerrado automáticamente por envío de plantilla`,
+      );
+
+      // Obtener chat actualizado para emitir
+      const updatedChat = await this.prisma.whatsapp_chat.findUnique({
+        where: { id_chat: chatId },
+        include: {
+          cliente: {
+            select: {
+              id_cliente: true,
+              titular: true,
+              telefono1: true,
+            },
+          },
+          usuario_asignado: {
+            select: {
+              id_usuario: true,
+              nombres: true,
+              apellidos: true,
+            },
+          },
+          etiquetas: {
+            include: {
+              etiqueta: {
+                select: {
+                  id_etiqueta: true,
+                  nombre: true,
+                  color: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Emitir actualización del chat via WebSocket
+      this.chatGateway.emitChatUpdated(updatedChat);
+
+      // Emitir estadísticas actualizadas
+      const stats = await this.chatService.getStats();
+      this.chatGateway.emitStatsUpdated(stats);
+
+      this.logger.log(`Chat #${chatId} cerrado automáticamente por envío de plantilla`);
+    } catch (error) {
+      // No lanzar error para no afectar el envío de plantilla exitoso
+      this.logger.error(
+        `Error al cerrar chat automáticamente después de plantilla: ${error.message}`,
+      );
+    }
   }
 
   /**

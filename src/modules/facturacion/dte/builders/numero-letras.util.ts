@@ -3,6 +3,10 @@
  * Requerido para el campo totalLetras del DTE
  */
 
+// Constantes para claridad en decimales
+export const DECIMALES_ITEM = 4;    // Para precios y subtotales de items
+export const DECIMALES_TOTAL = 2;   // Para totales del resumen
+
 const UNIDADES = [
   '',
   'UN',

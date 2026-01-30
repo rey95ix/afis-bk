@@ -109,6 +109,13 @@ export class CatalogoService {
               nombre: true,
             },
           },
+          dte_tipo_item: {
+            select: {
+              id_dte_tipo_item: true,
+              codigo: true,
+              valor: true,
+            },
+          },
         },
       }),
       this.prisma.catalogo.count({ where }),
@@ -147,6 +154,13 @@ export class CatalogoService {
           select: {
             id_modelo: true,
             nombre: true,
+          },
+        },
+        dte_tipo_item: {
+          select: {
+            id_dte_tipo_item: true,
+            codigo: true,
+            valor: true,
           },
         },
       },

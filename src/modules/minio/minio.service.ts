@@ -77,7 +77,7 @@ export class MinioService implements OnModuleInit {
         metaData,
       );
 
-      const url = await this.getFileUrl(objectName);
+      const url = this.getFileUrl(objectName);
 
       return {
         url,
@@ -110,7 +110,7 @@ export class MinioService implements OnModuleInit {
         metaData,
       );
 
-      const url = await this.getFileUrl(objectName);
+      const url = this.getFileUrl(objectName);
 
       return {
         url,
@@ -154,7 +154,7 @@ export class MinioService implements OnModuleInit {
         metaData,
       );
 
-      const url = await this.getFileUrl(objectName);
+      const url = this.getFileUrl(objectName);
 
       this.logger.log(`Archivo subido desde path: ${filePath} → ${objectName}`);
 
@@ -169,19 +169,36 @@ export class MinioService implements OnModuleInit {
   }
 
   /**
-   * Obtener URL del archivo
+   * Obtener URL pública permanente (sin expiración)
+   * Requiere que el bucket tenga política de acceso público configurada
    */
-  async getFileUrl(objectName: string): Promise<string> {
+  getFileUrl(objectName: string): string {
+    const endpoint =
+      this.configService.get<string>('MINIO_ENDPOINT') || 'localhost';
+    const port = this.configService.get<string>('MINIO_PORT') || '9000';
+    const useSSL = this.configService.get<string>('MINIO_USE_SSL') === 'true';
+    const protocol = useSSL ? 'https' : 'http';
+
+    return `${protocol}://${endpoint}:${port}/${this.bucketName}/${objectName}`;
+  }
+
+  /**
+   * Obtener URL firmada con expiración (para casos especiales)
+   * @param objectName - Nombre del objeto en MinIO
+   * @param expirySeconds - Tiempo de expiración en segundos (default: 7 días)
+   */
+  async getSignedUrl(
+    objectName: string,
+    expirySeconds = 7 * 24 * 60 * 60,
+  ): Promise<string> {
     try {
-      // Generar URL firmada con 7 días de expiración
-      const url = await this.minioClient.presignedGetObject(
+      return await this.minioClient.presignedGetObject(
         this.bucketName,
         objectName,
-        7 * 24 * 60 * 60, // 7 días
+        expirySeconds,
       );
-      return url;
     } catch (error) {
-      this.logger.error(`Error al obtener URL: ${error.message}`);
+      this.logger.error(`Error al obtener URL firmada: ${error.message}`);
       throw error;
     }
   }

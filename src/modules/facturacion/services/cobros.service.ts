@@ -192,7 +192,7 @@ export class CobrosService {
         {
           ambiente: datos.generalData.ambiente as Ambiente,
           idEnvio: 1,
-          version: builder.getVersion(),
+          version: datos.bloque?.Tipo?.version || builder.getVersion(),
           tipoDte,
           documento: signResult.documentoFirmado!,
           codigoGeneracion,
@@ -447,6 +447,7 @@ export class CobrosService {
 
     return {
       ambiente: (generalData.ambiente || '00') as Ambiente,
+      version: datos.bloque?.Tipo?.version || 1,
       numeroControl,
       codigoGeneracion,
       emisor,

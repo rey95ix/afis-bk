@@ -211,7 +211,7 @@ export class MhTransmitterService {
   ): Promise<TransmisionResult> {
     try {
       const token = await this.mhAuthService.obtenerToken(request.ambiente, nit);
-
+       
       const response = await axios.post<MhRecepcionResponse>(
         endpoint,
         {
@@ -230,7 +230,8 @@ export class MhTransmitterService {
           },
           timeout: this.timeout,
         },
-      );
+      ); 
+      console.log("Respuesta MH:", response.data);
 
       return this.procesarRespuesta(response.data);
     } catch (error) {
@@ -307,14 +308,14 @@ export class MhTransmitterService {
    * Maneja errores de comunicación
    */
   private handleError(error: unknown): TransmisionResult {
+    // console.error("Error en comunicación con MH:", error instanceof AxiosError ? error.response?.data : error);
     if (error instanceof AxiosError) {
       if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
         return {
           success: false,
           error: 'Timeout al comunicarse con MH. Verifique el estado del DTE antes de reenviar.',
         };
-      }
-
+      } 
       if (error.response) {
         const status = error.response.status;
         const data = error.response.data;
@@ -329,7 +330,7 @@ export class MhTransmitterService {
 
         return {
           success: false,
-          error: `Error HTTP ${status}: ${JSON.stringify(data)}`,
+          error: data?.descripcionMsg || `Error HTTP ${status}`,
           codigoMsg: data?.codigoMsg,
           descripcionMsg: data?.descripcionMsg,
         };

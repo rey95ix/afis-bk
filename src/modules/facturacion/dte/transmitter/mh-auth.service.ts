@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError } from 'axios';
+import { PrismaService } from 'src/modules/prisma/prisma.service';
 
 /**
  * Response de autenticación de MH
@@ -55,7 +56,10 @@ export class MhAuthService {
   // Margen de seguridad para renovación (30 minutos antes de expirar)
   private readonly TOKEN_REFRESH_MARGIN_MS = 30 * 60 * 1000;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService
+  ) { }
 
   /**
    * Obtiene un token válido para el ambiente especificado
@@ -81,6 +85,14 @@ export class MhAuthService {
 
     // Guardar en cache
     const expiresAt = this.calculateExpiration(ambiente);
+    await this.prisma.generalData.update({
+      where: {
+        id_general: 1
+      },
+      data: {
+        token_api_fac: newToken,
+      },
+    })
     this.tokenCache.set(cacheKey, {
       token: newToken,
       expiresAt,
@@ -97,9 +109,9 @@ export class MhAuthService {
     const baseUrl = ambiente === '00' ? this.apiTestUrl : this.apiProdUrl;
     const endpoint = `${baseUrl}/seguridad/auth`;
 
-    const userNit = nit || this.configService.get<string>('MH_NIT', '');
-    const password = this.configService.get<string>('MH_PASSWORD', '');
-
+    const generalData = await this.prisma.generalData.findFirst();
+    const userNit = generalData?.nit || '';
+    const password = generalData?.api_key || ''; 
     if (!userNit || !password) {
       throw new Error('MH_NIT y MH_PASSWORD deben estar configurados en las variables de entorno');
     }

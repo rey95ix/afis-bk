@@ -284,6 +284,28 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     requiere_auditoria: true,
   }),
 
+  // Bloques de Facturas
+  crearPermiso(
+    'administracion',
+    'facturas_bloques',
+    'VER',
+    'Ver Bloques de Facturas',
+    'Ver listado y detalles de bloques de facturas',
+  ),
+  crearPermiso('administracion', 'facturas_bloques', 'CREAR', 'Crear Bloques de Facturas', 'Crear nuevos bloques de facturas', {
+    requiere_auditoria: true,
+  }),
+  crearPermiso('administracion', 'facturas_bloques', 'EDITAR', 'Editar Bloques de Facturas', 'Modificar bloques de facturas existentes', {
+    requiere_auditoria: true,
+  }),
+  crearPermiso('administracion', 'facturas_bloques', 'ELIMINAR', 'Eliminar Bloques de Facturas', 'Eliminar bloques de facturas', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+
+  // Permisos
+  crearPermiso('administracion', 'permisos', 'VER', 'Ver Permisos', 'Ver listado y detalles de permisos del sistema'),
+
   // =============================================================
   // MODULO: ATENCION AL CLIENTE
   // =============================================================
@@ -721,6 +743,22 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     es_critico: true,
     requiere_auditoria: true,
   }),
+
+  // Libros de IVA
+  crearPermiso(
+    'facturacion',
+    'libros_iva',
+    'VER',
+    'Ver Libros de IVA',
+    'Ver y consultar libros de IVA (Anexos 1, 2 y 5)',
+  ),
+  crearPermiso(
+    'facturacion',
+    'libros_iva',
+    'EXPORTAR',
+    'Exportar Libros de IVA',
+    'Exportar libros de IVA a Excel y PDF',
+  ),
 
   // =============================================================
   // MODULO: SMS Y NOTIFICACIONES

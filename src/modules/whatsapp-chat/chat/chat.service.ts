@@ -672,13 +672,13 @@ export class ChatService {
 
   /**
    * Buscar o crear chat por teléfono (para webhook)
-   * Retorna el chat y un indicador si fue recién creado
+   * Retorna el chat y un indicador si fue recién creado o reabierto
    */
   async findOrCreateByPhone(
     telefono: string,
     whatsappChatId: string,
     nombre?: string,
-  ): Promise<{ chat: any; isNew: boolean }> {
+  ): Promise<{ chat: any; isNew: boolean; wasReopened: boolean }> {
     // Buscar chat existente activo
     let chat = await this.prisma.whatsapp_chat.findFirst({
       where: {
@@ -688,7 +688,26 @@ export class ChatService {
     });
 
     if (chat) {
-      return { chat, isNew: false };
+      return { chat, isNew: false, wasReopened: false };
+    }
+
+    // Buscar chat CERRADO de los últimos 30 días para reabrir
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const closedChat = await this.prisma.whatsapp_chat.findFirst({
+      where: {
+        telefono_cliente: telefono,
+        estado: 'CERRADO',
+        fecha_cierre: { gte: thirtyDaysAgo },
+      },
+      orderBy: { fecha_cierre: 'desc' },
+    });
+
+    // Si existe un chat cerrado reciente, reabrirlo
+    if (closedChat) {
+      const reopenedChat = await this.reopenChat(closedChat.id_chat);
+      return { chat: reopenedChat, isNew: false, wasReopened: true };
     }
 
     // Buscar cliente por teléfono
@@ -722,7 +741,83 @@ export class ChatService {
     // Emitir nuevo chat via WebSocket
     this.chatGateway.emitChatUpdated(chat);
 
-    return { chat, isNew: true };
+    return { chat, isNew: true, wasReopened: false };
+  }
+
+  /**
+   * Reabrir un chat CERRADO por mensaje entrante del cliente.
+   * Cambia el estado a IA_MANEJANDO para respuesta automática.
+   */
+  async reopenChat(chatId: number): Promise<any> {
+    const chat = await this.prisma.whatsapp_chat.findUnique({
+      where: { id_chat: chatId },
+    });
+
+    if (!chat) {
+      throw new NotFoundException(`Chat con ID ${chatId} no encontrado`);
+    }
+
+    if (chat.estado !== 'CERRADO') {
+      // Si no está cerrado, no hacer nada
+      return chat;
+    }
+
+    // Reabrir el chat
+    const reopenedChat = await this.prisma.whatsapp_chat.update({
+      where: { id_chat: chatId },
+      data: {
+        estado: 'IA_MANEJANDO', // Para respuesta automática de IA
+        ia_habilitada: true,
+        fecha_cierre: null, // Limpiar fecha de cierre
+        ultima_interaccion_cliente: new Date(), // Reiniciar ventana de 24h
+        archivado: false, // Desarchivar si estaba archivado
+        fecha_archivado: null,
+      },
+      include: {
+        cliente: {
+          select: {
+            id_cliente: true,
+            titular: true,
+            telefono1: true,
+          },
+        },
+        usuario_asignado: {
+          select: {
+            id_usuario: true,
+            nombres: true,
+            apellidos: true,
+          },
+        },
+        etiquetas: {
+          include: {
+            etiqueta: {
+              select: {
+                id_etiqueta: true,
+                nombre: true,
+                color: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Registrar en log (sin userId porque es automático por mensaje entrante)
+    await this.prisma.log.create({
+      data: {
+        accion: 'REABRIR_WHATSAPP_CHAT',
+        descripcion: `Chat WhatsApp #${chatId} reabierto automáticamente por mensaje del cliente`,
+      },
+    });
+
+    // Emitir actualización del chat via WebSocket
+    this.chatGateway.emitChatUpdated(reopenedChat);
+
+    // Emitir estadísticas actualizadas
+    const stats = await this.getStats();
+    this.chatGateway.emitStatsUpdated(stats);
+
+    return reopenedChat;
   }
 
   /**

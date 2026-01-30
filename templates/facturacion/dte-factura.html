@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{{:nombreFactura}} - {{:identificacion.numeroControl}}</title>
+    {{*
+        // Converter para 4 decimales (items)
+        $.views.converters("dec4", function(val) {
+            if (val === null || val === undefined) return "0.0000";
+            return Number(val).toFixed(4);
+        });
+
+        // Converter para 2 decimales (totales)
+        $.views.converters("dec2", function(val) {
+            if (val === null || val === undefined) return "0.00";
+            return Number(val).toFixed(2);
+        });
+    }}
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 10px;
+            line-height: 1.3;
+            color: #333;
+            padding: 10mm;
+        }
+
+        /* ==================== HEADER 3 COLUMNAS ==================== */
+        .header-3col {
+            display: flex;
+            margin-bottom: 15px; 
+        }
+
+        .company-info {
+            width: 30%;
+            padding: 10px;
+            background: #fff; 
+        }
+
+        .company-info .logo-container {
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .company-info .logo-container img {
+            max-width: 100px;
+            max-height: 60px;
+        }
+
+        .company-info .company-name {
+            font-weight: bold;
+            font-size: 11px;  
+        }
+
+        .company-info .company-detail {
+            font-size: 8px; 
+            display: flex;
+            align-items: flex-start;
+            color: #000;
+        }
+
+        .company-info .company-detail .icon {
+            margin-right: 4px;
+            min-width: 12px;
+        }
+
+        .doc-type-box {
+            width: 25%;  
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            border: 2px solid #1a237e;
+            border-radius: 10px;
+            height: 100px;
+        }
+
+        .doc-type-box .doc-status {
+            font-size: 8px;
+            margin-bottom: 5px; 
+            border-radius: 3px;
+        }
+
+        .doc-type-box .doc-status.valid {
+            background: #4caf50;
+        }
+
+        .doc-type-box .doc-status.invalid {
+            background: #f44336;
+        }
+
+        .doc-type-box .doc-title {
+            font-size: 10px;
+            font-weight: bold; 
+            text-transform: uppercase;
+        }
+
+        .doc-type-box .doc-info-item {
+            font-size: 14px;
+            margin-bottom: 5px;
+            width: 100%;
+        }
+
+        .doc-type-box .doc-info-item-customer {
+            font-size: 14px; 
+            width: 100%;
+            font-weight: bold;
+        }
+
+        .doc-type-box .doc-info-item .label {
+            font-weight: normal; 
+        }
+
+        .doc-type-box .doc-info-item .value {
+            font-weight: bold;
+            display: block;
+            background: rgba(255,255,255,0.15);
+            padding: 2px 5px;
+            border-radius: 3px;
+            margin-top: 2px;
+        }
+
+        .doc-type-box .total-pagar {
+            padding: 4px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 5px;
+            width: 80%;
+            color: white;
+            background: #1a237e;
+        }
+
+        .doc-type-box .total-pagar .label {
+            font-size: 12px; 
+        }
+
+        .doc-type-box .total-pagar .amount {
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .qr-codes-section {
+            width: 35%;
+            padding: 10px;
+            background: #f5f5f5;
+            font-size: 8px;
+        }
+
+        .qr-codes-section .qr-container {
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .qr-codes-section .qr-container img {
+            width: 75px;
+            height: 75px;
+        }
+
+        .qr-codes-section .code-item {
+            margin-bottom: 4px;
+            display: flex;
+        }
+
+        .qr-codes-section .code-item .label {
+            font-weight: bold;
+            min-width: 100px;
+            color: #1a237e;
+        }
+
+        .qr-codes-section .code-item .value {
+            flex: 1;
+            word-break: break-all;
+            background: #e8eaf6;
+            padding: 1px 4px;
+            border-radius: 2px;
+        }
+
+        /* ==================== SECCION CLIENTE Y PAGO ==================== */
+        .cliente-pago-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .cliente-box {
+            flex: 1;
+            border: 2px solid #1a237e;
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+        .cliente-box .section-title {
+            font-size: 10px;
+            font-weight: bold;
+            color: #1a237e;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .cliente-box .cliente-nombre {
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .cliente-box .cliente-direccion {
+            font-size: 9px;
+            color: #555;
+        }
+
+        .pago-box {
+            width: 280px;
+            border: 2px solid #1a237e;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .pago-box table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .pago-box table td {
+            padding: 6px 8px;
+            font-size: 9px;
+            border-bottom: 1px solid #e8eaf6;
+        }
+
+        .pago-box table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .pago-box table td:first-child {
+            background: #1a237e;
+            color: white;
+            font-weight: bold;
+            text-transform: uppercase;
+            width: 60%;
+        }
+
+        .pago-box table td:last-child {
+            text-align: right;
+            font-weight: bold;
+            background: #e8eaf6;
+        }
+
+        .pago-box table tr:first-child td:last-child {
+            font-size: 12px;
+            color: #1a237e;
+        }
+
+        /* ==================== CAJA DE MENSAJES ==================== */
+        .caja-mensajes {
+            border: 2px solid #1a237e;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        .caja-mensajes .caja-titulo {
+            background: #1a237e;
+            color: white;
+            padding: 5px 10px;
+            font-size: 10px;
+            font-weight: bold;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .caja-mensajes .caja-contenido {
+            padding: 8px 10px;
+            font-size: 9px;
+            background: #f5f5f5;
+        }
+
+        /* ==================== TABLA DE ITEMS ==================== */
+        .section {
+            margin-bottom: 12px;
+        }
+
+        .section-header {
+            background: #1a237e;
+            color: white;
+            padding: 5px 10px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-radius: 6px 6px 0 0;
+        }
+
+        table.items {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table.items thead {
+            background-color: #e8eaf6;
+        }
+
+        table.items th {
+            padding: 6px 4px;
+            text-align: center;
+            font-size: 8px;
+            font-weight: bold;
+            text-transform: uppercase;
+            border: 1px solid #1a237e;
+            color: #1a237e;
+        }
+
+        table.items td {
+            padding: 4px;
+            border: 1px solid #ddd;
+            font-size: 9px;
+        }
+
+        table.items td.center {
+            text-align: center;
+        }
+
+        table.items td.right {
+            text-align: right;
+        }
+
+        table.items td.left {
+            text-align: left;
+        }
+
+        table.items tbody tr:nth-child(even) {
+            background-color: #fafafa;
+        }
+
+        /* ==================== SECCION DE RESUMEN ==================== */
+        .summary-section {
+            display: flex;
+            gap: 15px;
+        }
+
+        .letras-box {
+            flex: 1;
+            border: 2px solid #1a237e;
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+        .letras-box .title {
+            font-size: 10px;
+            font-weight: bold;
+            color: #1a237e;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .letras-box .content {
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .summary-box {
+            width: 300px;
+            border: 2px solid #1a237e;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .summary-row {
+            display: flex;
+            font-size: 9px;
+            border-bottom: 1px solid #e8eaf6;
+        }
+
+        .summary-row:last-child {
+            border-bottom: none;
+        }
+
+        .summary-row.header {
+            background-color: #1a237e;
+            color: white;
+            font-weight: bold;
+        }
+
+        .summary-label {
+            flex: 1;
+            padding: 4px 8px;
+            text-align: right;
+        }
+
+        .summary-value {
+            width: 90px;
+            padding: 4px 8px;
+            text-align: right;
+            background-color: #e8eaf6;
+            font-weight: bold;
+        }
+
+        .summary-row.header .summary-value {
+            background-color: rgba(255,255,255,0.15);
+        }
+
+        .summary-row.total {
+            background-color: #1a237e;
+            color: white;
+            font-weight: bold;
+            font-size: 10px;
+        }
+
+        .summary-row.total .summary-value {
+            background-color: rgba(255,255,255,0.2);
+        }
+
+        /* ==================== OTROS ==================== */
+        .notes-box {
+            flex: 1;
+            border: 2px solid #1a237e;
+            border-radius: 6px;
+            padding: 8px;
+            font-size: 9px;
+            min-height: 60px;
+            margin-top: 10px;
+        }
+
+        .notes-box strong {
+            display: block;
+            margin-bottom: 5px;
+            color: #1a237e;
+        }
+
+        @media print {
+            body {
+                padding: 5mm;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header 3 Columnas -->
+    <div class="header-3col">
+        <!-- Columna Izquierda: Info Empresa -->
+        <div class="company-info">
+            <div class="logo-container">
+                {{if logo}}
+                <img src="{{:logo}}" alt="Logo">
+                {{/if}}
+            </div>
+            <div class="company-name">{{:emisor.nombre}}</div>
+            <div class="company-detail"> 
+                <span>{{:emisor.direccion.complemento}}</span>
+            </div>
+            <div class="company-detail"> 
+                <span>Registro: {{:emisor.nrc}} </span>
+            </div>
+            <div class="company-detail"> 
+                <span> NIT: {{:emisor.nit}}</span>
+            </div>
+            <div class="company-detail"> 
+                <span>{{:emisor.telefono}}</span>
+            </div>
+            <div class="company-detail"> 
+                <span>{{:emisor.descActividad}}</span>
+            </div>
+        </div>
+
+        <!-- Columna Central: Tipo Documento -->
+        <div class="doc-type-box">
+            {{if esValidoMH}} 
+            {{else}}
+            <div class="doc-status invalid">NO ES DTE VALIDO - {{:estadoDte}}</div>
+            {{/if}}
+
+            <div class="doc-title">{{:nombreFactura}}</div>
+
+            <div class="doc-info-item-customer">
+                <span class="label">Codigo Cliente: {{:codigoCliente}}</span>
+            </div>
+
+            <div class="doc-info-item">
+                <span class="label">Correlativo: {{:correlativo}}</span>
+            </div>
+
+            <div class="total-pagar">
+                <span class="label">Total a Pagar $ {{dec2:resumen.totalPagar}}</span>
+            </div>
+        </div>
+
+        <!-- Columna Derecha: QR y Codigos -->
+        <div class="qr-codes-section">
+            <div class="qr-container">
+                {{if qr}}
+                <img src="{{:qr}}" alt="QR Verificacion">
+                {{/if}}
+            </div>
+            <div class="code-item">
+                <span class="label">Cod. Generacion:</span>
+                <span class="value">{{:identificacion.codigoGeneracion}}</span>
+            </div>
+            {{if selloRecibido}}
+            <div class="code-item">
+                <span class="label">Sello Recepcion:</span>
+                <span class="value">{{:selloRecibido}}</span>
+            </div>
+            {{/if}}
+            <div class="code-item">
+                <span class="label">Numero Control:</span>
+                <span class="value">{{:identificacion.numeroControl}}</span>
+            </div>
+            <div class="code-item">
+                <span class="label">Modelo:</span>
+                <span class="value">{{:identificacion.tipoModelo}}</span>
+            </div>
+            <div class="code-item">
+                <span class="label">Transmision:</span>
+                <span class="value">{{:identificacion.tipoOperacion}}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Seccion Cliente y Pago -->
+    <div class="cliente-pago-row">
+        <div class="cliente-box">
+            <div class="section-title">Cliente:</div>
+            {{if receptor}}
+            <div class="cliente-nombre">{{:receptor.nombre}}</div>
+            <div class="cliente-direccion">
+                <strong>Direccion:</strong>
+                {{if receptor.direccion}}
+                    {{if receptor.direccion.complemento}}{{:receptor.direccion.complemento}}{{else}}{{:receptor.direccion}}{{/if}}
+                {{else}}
+                    N/A
+                {{/if}}
+            </div>
+            {{if esCCF}}
+            <div class="cliente-direccion" style="margin-top: 3px;">
+                <strong>NIT:</strong> {{:receptor.nit}} | <strong>NRC:</strong> {{:receptor.nrc}}
+            </div>
+            {{/if}}
+            {{if esFC}}
+                {{if receptor.numDocumento}}
+                <div class="cliente-direccion" style="margin-top: 3px;">
+                    <strong>Documento:</strong> {{:receptor.numDocumento}}
+                </div>
+                {{/if}}
+            {{/if}}
+            {{else}}
+            <div class="cliente-nombre">Consumidor Final</div>
+            {{/if}}
+        </div>
+
+        <div class="pago-box">
+            <table>
+                <tr>
+                    <td>Total a Pagar</td>
+                    <td>$ {{dec2:resumen.totalPagar}}</td>
+                </tr>
+                <tr>
+                    <td>Ultimo Dia de Pago</td>
+                    <td>--/--/----</td>
+                </tr>
+                <tr>
+                    <td>Fecha Emision</td>
+                    <td>Periodo Facturado</td>
+                </tr>
+                <tr>
+                    <td style="background: #e8eaf6; color: #333; text-align: center;">{{:identificacion.fecEmi}}</td>
+                    <td style="text-align: center;">N/A</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- Caja de Mensajes -->
+    <div class="caja-mensajes">
+        <div class="caja-titulo">Caja de Mensajes</div>
+        <div class="caja-contenido">
+            Recuerde que puede hacer sus pagos en todos los puntos de pago de Punto Express,
+            como tambien por medio de la aplicacion (https://app.newtel.com.sv)
+        </div>
+    </div>
+
+    <!-- Tabla de Items -->
+    <div class="section">
+        <div class="section-header">Cuerpo del Documento</div>
+        <table class="items">
+            <thead>
+                <tr>
+                    <th style="width: 8%;">Cant.</th>
+                    <th style="width: 8%;">Unidad</th>
+                    <th style="width: 34%;">Descripcion</th>
+                    <th style="width: 10%;">Precio U.</th>
+                    <th style="width: 10%;">Desc. Item</th>
+                    <th style="width: 10%;">No Sujetas</th>
+                    <th style="width: 10%;">Exentas</th>
+                    <th style="width: 10%;">Gravadas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{for cuerpoDocumento}}
+                <tr>
+                    <td class="center">{{:cantidad}}</td>
+                    <td class="center">Unidad</td>
+                    <td class="left">{{:descripcion}}</td>
+                    <td class="right">{{dec4:precioUni}}</td>
+                    <td class="right">{{dec4:montoDescu}}</td>
+                    <td class="right">{{dec4:ventaNoSuj}}</td>
+                    <td class="right">{{dec4:ventaExenta}}</td>
+                    <td class="right">{{dec4:ventaGravada}}</td>
+                </tr>
+                {{/for}}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Resumen -->
+    <div class="summary-section">
+        <div class="letras-box">
+            <div class="title">Total en Letras</div>
+            <div class="content">{{:resumen.totalLetras}}</div>
+        </div>
+
+        <div class="summary-box">
+            <div class="summary-row header">
+                <span class="summary-label">Resumen</span>
+                <span class="summary-value">Monto</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Suma Total de Operaciones:</span>
+                <span class="summary-value">{{dec2:resumen.subTotalVentas}}</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Monto global Desc. ventas no sujetas:</span>
+                <span class="summary-value">{{dec2:resumen.descuNoSuj}}</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Monto global Desc. ventas exentas:</span>
+                <span class="summary-value">{{dec2:resumen.descuExenta}}</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Monto global Desc. ventas gravadas:</span>
+                <span class="summary-value">{{dec2:resumen.descuGravada}}</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Sub-Total:</span>
+                <span class="summary-value">{{dec2:resumen.subTotal}}</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">IVA Retenido:</span>
+                <span class="summary-value">{{dec2:resumen.ivaRete1}}</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Retencion Renta:</span>
+                <span class="summary-value">{{dec2:resumen.reteRenta}}</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Monto Total Operacion:</span>
+                <span class="summary-value">{{dec2:resumen.montoTotalOperacion}}</span>
+            </div>
+            <div class="summary-row">
+                <span class="summary-label">Total otros montos no afectos:</span>
+                <span class="summary-value">{{dec2:resumen.totalNoGravado}}</span>
+            </div>
+            <div class="summary-row total">
+                <span class="summary-label">TOTAL A PAGAR:</span>
+                <span class="summary-value">$ {{dec2:resumen.totalPagar}}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notas/Observaciones -->
+    {{if nota}}
+    <div class="notes-box">
+        <strong>Observaciones:</strong>
+        {{:nota}}
+    </div>
+    {{/if}}
+</body>
+</html>

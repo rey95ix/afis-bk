@@ -130,6 +130,8 @@ model usuarios {
   validaciones_comprobante_aplica  whatsapp_validacion_comprobante[] @relation("validacion_comprobante_usuario_aplica")
   // Relación con empleados de RRHH (cuando el empleado es contratado)
   empleado_vinculado             rh_empleado[]                   @relation("empleado_usuario")
+  // Relación con facturas directas
+  facturasDirectas               facturaDirecta[]
 }
 
 model cliente {
@@ -305,6 +307,8 @@ model municipios {
   proveedores                proveedores[]
   // Relación con empleados de RRHH
   empleados                  rh_empleado[]
+  // Relación con clientes directos
+  clientesDirectos           clienteDirecto[]
 
   @@index([id_departamento], name: "fk_municipio_departamento_id")
 }
@@ -349,6 +353,9 @@ model sucursales {
   dte_emitidos               dte_emitidos[]
   fecha_creacion             DateTime                   @default(now())
   fecha_ultima_actualizacion DateTime                   @default(now()) @updatedAt
+  // Relaciones con facturación directa
+  clientesDirectos           clienteDirecto[]
+  facturasDirectas           facturaDirecta[]
 }
 
 model bodegas {
@@ -461,6 +468,8 @@ model catalogo {
   marca                      marcas?                         @relation(fields: [id_marca], references: [id_marca], onDelete: NoAction, onUpdate: NoAction, map: "fk_catalogo_marca")
   id_modelo                  Int?
   modelo                     modelos?                        @relation(fields: [id_modelo], references: [id_modelo], onDelete: NoAction, onUpdate: NoAction, map: "fk_catalogo_modelo")
+  id_dte_tipo_item           Int?
+  dte_tipo_item              dTETipoItem?                    @relation(fields: [id_dte_tipo_item], references: [id_dte_tipo_item], onDelete: NoAction, onUpdate: NoAction, map: "fk_catalogo_dte_tipo_item")
   estado                     estado                          @default(ACTIVO)
   fecha_creacion             DateTime                        @default(now())
   fecha_ultima_actualizacion DateTime                        @default(now()) @updatedAt
@@ -476,6 +485,8 @@ model catalogo {
   ajustes_inventario         ajustes_inventario[]
   salidas_temporales_detalle salidas_temporales_ot_detalle[]
   dte_emitidos_detalle       dte_emitidos_detalle[]
+  // Relación con detalle de facturas directas
+  facturaDirectaDetalles     facturaDirectaDetalle[]
 }
 
 model log {
@@ -521,6 +532,8 @@ model facturasBloques {
   estado                     estado        @default(ACTIVO)
   fecha_creacion             DateTime      @default(now())
   fecha_ultima_actualizacion DateTime      @default(now()) @updatedAt
+  // Relación con facturas directas
+  facturasDirectas           facturaDirecta[]
 
   @@index([id_sucursal], name: "fk_fatura_bloque_sucursal_id")
   @@index([id_tipo_factura], name: "fk_fatura_bloque_tipo_id")
@@ -537,6 +550,8 @@ model facturasTipos {
   fecha_creacion             DateTime          @default(now())
   fecha_ultima_actualizacion DateTime          @default(now()) @updatedAt
   compras                    compras[]
+  // Relación con facturas directas
+  facturasDirectas           facturaDirecta[]
 }
 
 // catalogos de factura electronica
@@ -550,6 +565,8 @@ model dTEActividadEconomica {
   fecha_ultima_actualizacion DateTime                  @default(now()) @updatedAt
   clienteDatosFacturacion    clienteDatosFacturacion[]
   proveedores                proveedores[]
+  // Relación con clientes directos
+  clientesDirectos           clienteDirecto[]
 }
 
 model dTETipoEstablecimiento {
@@ -591,6 +608,8 @@ model dTETipoDocumentoIdentificacion {
   // Proveedores       Proveedores[]
   clienteDatosFacturacion    clienteDatosFacturacion[]
   proveedores                proveedores[]
+  // Relación con clientes directos
+  clientesDirectos           clienteDirecto[]
 }
 
 model dTERetencionIvaMh {
@@ -618,11 +637,12 @@ model dTETipoServicioMedico {
 }
 
 model dTETipoItem {
-  id_dte_tipo_item           Int      @id @default(autoincrement())
+  id_dte_tipo_item           Int        @id @default(autoincrement())
   codigo                     Int
   valor                      String
-  fecha_creacion             DateTime @default(now())
-  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+  fecha_creacion             DateTime   @default(now())
+  fecha_ultima_actualizacion DateTime   @default(now()) @updatedAt
+  catalogo                   catalogo[]
 }
 
 model dTEUnidadDeMedida {
@@ -689,6 +709,8 @@ model dTEPais {
   fecha_creacion             DateTime @default(now())
   fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
   // cliente Cliente[]
+  // Relación con clientes directos
+  clientesDirectos           clienteDirecto[]
 }
 
 model dTEOtrosDocumentosAsociados {
@@ -3778,4 +3800,304 @@ model rh_empleado_archivo {
 
   @@index([id_empleado])
   @@index([tipo_archivo])
+}
+
+// ============= FACTURACIÓN DIRECTA (Venta sin contrato) =============
+// Migrado desde AR3 - Sistema de facturación para venta directa
+
+// Tipo de detalle para cada línea de factura
+enum tipo_detalle_factura {
+  GRAVADO   // Aplica IVA 13%
+  EXENTA    // Exento de IVA
+  NOSUJETO  // No sujeto a IVA
+  NOGRABADO // No gravado (cargos que no afectan base imponible)
+}
+
+// Estado de pago de la factura
+enum estado_pago_factura {
+  PAGADO    // Pagado en su totalidad
+  PENDIENTE // Pendiente de pago (crédito) - No usado en esta implementación
+  PARCIAL   // Pago parcial - No usado en esta implementación
+}
+
+// Estado general de la factura directa
+enum estado_factura_directa {
+  ACTIVO  // Factura activa/válida
+  ANULADO // Factura anulada
+}
+
+// Tipo de cliente directo (clasificación)
+model tipoClienteDirecto {
+  id_tipo_cliente            Int               @id @default(autoincrement())
+  nombre                     String // PERSONA_NATURAL, EMPRESA, CONTRIBUYENTE, etc.
+  descripcion                String?
+  estado                     estado            @default(ACTIVO)
+  fecha_creacion             DateTime          @default(now())
+  fecha_ultima_actualizacion DateTime          @default(now()) @updatedAt
+  clientes                   clienteDirecto[]
+}
+
+// Métodos de pago disponibles
+model metodosPago {
+  id_metodo_pago             Int               @id @default(autoincrement())
+  nombre                     String // EFECTIVO, TARJETA, CHEQUE, TRANSFERENCIA, MIXTO
+  codigo                     String?           @unique // 01, 02, 03, etc.
+  descripcion                String?
+  estado                     estado            @default(ACTIVO)
+  fecha_creacion             DateTime          @default(now())
+  fecha_ultima_actualizacion DateTime          @default(now()) @updatedAt
+  facturasDirectas           facturaDirecta[]
+}
+
+// Descuentos configurables para facturas directas
+model descuentosDirectos {
+  id_descuento               Int               @id @default(autoincrement())
+  nombre                     String
+  porcentaje                 Decimal           @db.Decimal(5, 2) // 0.00 a 100.00
+  tipo                       String            @default("AMBOS") // AMBOS, GLOBAL, ITEM
+  estado                     estado            @default(ACTIVO)
+  fecha_creacion             DateTime          @default(now())
+  fecha_ultima_actualizacion DateTime          @default(now()) @updatedAt
+}
+
+// Cliente para venta directa (diferente a 'cliente' que es para contratos)
+model clienteDirecto {
+  id_cliente_directo Int    @id @default(autoincrement())
+
+  // === DATOS BÁSICOS ===
+  nombre             String // Nombre o razón social
+  giro               String? // Giro del negocio
+  razon_social       String? // Razón social (si es empresa)
+
+  // === DOCUMENTOS DE IDENTIFICACIÓN ===
+  registro_nrc       String? // Número de Registro de Contribuyente
+  nit                String? // NIT (14 dígitos con guión)
+  dui                String? // DUI (9 dígitos con guión)
+
+  // === TIPO DE DOCUMENTO ===
+  id_tipo_documento  Int?
+  tipoDocumento      dTETipoDocumentoIdentificacion? @relation(fields: [id_tipo_documento], references: [id_tipo_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_tipo_documento")
+
+  // === ACTIVIDAD ECONÓMICA ===
+  id_actividad_economica Int?
+  actividadEconomica     dTEActividadEconomica? @relation(fields: [id_actividad_economica], references: [id_actividad], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_actividad_economica")
+
+  // === UBICACIÓN ===
+  id_pais            Int?
+  pais               dTEPais? @relation(fields: [id_pais], references: [id_pais], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_pais")
+  id_municipio       Int?
+  municipio          municipios? @relation(fields: [id_municipio], references: [id_municipio], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_municipio")
+  direccion          String? @db.Text // Dirección completa
+
+  // === CONTACTO ===
+  contacto           String? // Nombre del contacto
+  telefono           String?
+  correo             String?
+
+  // === CONFIGURACIÓN ===
+  retencion          Boolean @default(false) // Si aplica retención de IVA
+
+  // === TIPO DE CLIENTE ===
+  id_tipo_cliente    Int?
+  tipoCliente        tipoClienteDirecto? @relation(fields: [id_tipo_cliente], references: [id_tipo_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_tipo")
+
+  // === SUCURSAL ===
+  id_sucursal        Int?
+  sucursal           sucursales? @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_sucursal")
+
+  // === ESTADO Y AUDITORÍA ===
+  estado             estado   @default(ACTIVO)
+  fecha_creacion     DateTime @default(now())
+  fecha_actualizacion DateTime @default(now()) @updatedAt
+
+  // === RELACIONES ===
+  facturasDirectas   facturaDirecta[]
+
+  // === ÍNDICES ===
+  @@index([nit])
+  @@index([dui])
+  @@index([registro_nrc])
+  @@index([id_sucursal])
+  @@index([nombre])
+}
+
+// Factura para venta directa (sin contrato previo)
+model facturaDirecta {
+  id_factura_directa Int    @id @default(autoincrement())
+
+  // === NUMERACIÓN ===
+  numero_factura     String // Número secuencial (padded a 10 dígitos)
+
+  // === FECHAS ===
+  fecha_creacion     DateTime @default(now())
+  fecha_de_pago      DateTime? // Para crédito (no usado en esta implementación)
+
+  // === SNAPSHOT DEL CLIENTE (momento de emisión) ===
+  cliente_nombre     String?
+  cliente_nrc        String?
+  cliente_nit        String?
+  cliente_direccion  String? @db.Text
+  cliente_giro       String?
+  cliente_telefono   String?
+  cliente_correo     String?
+
+  // === RELACIÓN CON CLIENTE (opcional, para trazabilidad) ===
+  id_cliente_directo Int?
+  clienteDirecto     clienteDirecto? @relation(fields: [id_cliente_directo], references: [id_cliente_directo], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_cliente")
+
+  // === TIPO DE FACTURA (DTE) ===
+  id_tipo_factura    Int
+  tipoFactura        facturasTipos @relation(fields: [id_tipo_factura], references: [id_tipo_factura], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_tipo")
+
+  // === BLOQUE DE NUMERACIÓN ===
+  id_bloque          Int
+  bloque             facturasBloques @relation(fields: [id_bloque], references: [id_bloque], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_bloque")
+
+  // === MONTOS TOTALES ===
+  subtotal           Decimal @default(0) @db.Decimal(12, 2)
+  subTotalVentas     Decimal @default(0) @db.Decimal(12, 2)
+  descuento          Decimal @default(0) @db.Decimal(12, 2)
+
+  // === DESGLOSE POR TIPO DE VENTA ===
+  totalNoSuj         Decimal @default(0) @db.Decimal(12, 2) // Total no sujeto
+  totalExenta        Decimal @default(0) @db.Decimal(12, 2) // Total exento
+  totalGravada       Decimal @default(0) @db.Decimal(12, 2) // Total gravado
+  totalNoGravado     Decimal @default(0) @db.Decimal(12, 2) // Total no gravado
+
+  // === DESCUENTOS POR TIPO ===
+  descuNoSuj         Decimal @default(0) @db.Decimal(12, 2)
+  descuExenta        Decimal @default(0) @db.Decimal(12, 2)
+  descuGravada       Decimal @default(0) @db.Decimal(12, 2)
+
+  // === IVA Y RETENCIONES ===
+  iva                Decimal @default(0) @db.Decimal(12, 2) // IVA 13%
+  iva_retenido       Decimal @default(0) @db.Decimal(12, 2) // IVA retenido por el cliente
+  iva_percibido      Decimal @default(0) @db.Decimal(12, 2) // IVA percibido
+  renta_retenido     Decimal @default(0) @db.Decimal(12, 2) // Retención de renta
+
+  // === TOTAL FINAL ===
+  total              Decimal @default(0) @db.Decimal(12, 2)
+  total_letras       String? @db.VarChar(300) // "MIL DOSCIENTOS DÓLARES"
+
+  // === PAGOS (solo contado en esta implementación) ===
+  efectivo           Decimal @default(0) @db.Decimal(12, 2)
+  tarjeta            Decimal @default(0) @db.Decimal(12, 2)
+  cheque             Decimal @default(0) @db.Decimal(12, 2)
+  transferencia      Decimal @default(0) @db.Decimal(12, 2)
+
+  // === MÉTODO DE PAGO ===
+  id_metodo_pago     Int?
+  metodoPago         metodosPago? @relation(fields: [id_metodo_pago], references: [id_metodo_pago], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_metodo_pago")
+  condicion_operacion Int @default(1) // 1=Contado, 2=Crédito, 3=Otro
+
+  // === CAMPOS DE EXPORTACIÓN (FEX tipo 11) ===
+  flete              Decimal @default(0) @db.Decimal(12, 2)
+  seguro             Decimal @default(0) @db.Decimal(12, 2)
+  recintoFiscal      String? @db.VarChar(10) // Código recinto fiscal
+  regimen            String? @db.VarChar(10) // Código régimen
+  codIncoterms       String? @db.VarChar(10) // Código Incoterms
+  descIncoterms      String? @db.VarChar(200) // Descripción Incoterms
+  tipoItemExpor      Int? // Tipo de item de exportación
+
+  // === DOCUMENTO RELACIONADO (para NC/ND) ===
+  id_factura_original Int?
+  facturaOriginal    facturaDirecta? @relation("factura_nota", fields: [id_factura_original], references: [id_factura_directa], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_original")
+  notasCredito       facturaDirecta[] @relation("factura_nota")
+
+  // === DTE (Documento Tributario Electrónico) ===
+  codigo_generacion  String? @unique @db.Char(36) // UUID v4 del DTE
+  numero_control     String? @unique @db.VarChar(31) // DTE-XX-YYYYYYYY-ZZZZZZZZZZZZZZZ
+  dte_json           String? @db.Text // JSON completo del DTE
+  dte_firmado        String? @db.Text // DTE firmado (JWS)
+  sello_recepcion    String? @db.VarChar(50) // Sello de MH (40 chars)
+  fecha_recepcion_mh DateTime? // Fecha de procesamiento MH
+  codigo_msg_mh      String? @db.VarChar(10) // Código respuesta MH
+  descripcion_msg_mh String? @db.VarChar(500) // Mensaje MH
+  observaciones_mh   String? @db.Text // Observaciones de MH
+
+  // === ESTADO DEL DTE ===
+  estado_dte         estado_dte @default(BORRADOR)
+  intentos_dte       Int @default(0) // Intentos de transmisión
+  ultimo_error_dte   String? @db.Text // Último error
+
+  // === ESTADO DE LA FACTURA ===
+  estado             estado_factura_directa @default(ACTIVO)
+  estado_pago        estado_pago_factura @default(PAGADO) // Solo contado
+
+  // === OBSERVACIONES ===
+  observaciones      String? @db.Text
+
+  // === SUCURSAL Y USUARIO ===
+  id_sucursal        Int
+  sucursal           sucursales @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_sucursal")
+  id_usuario         Int
+  usuario            usuarios @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_usuario")
+
+  // === AUDITORÍA ===
+  fecha_actualizacion DateTime @default(now()) @updatedAt
+
+  // === RELACIONES ===
+  detalles           facturaDirectaDetalle[]
+
+  // === ÍNDICES ===
+  @@index([numero_factura])
+  @@index([id_cliente_directo])
+  @@index([id_tipo_factura])
+  @@index([id_sucursal])
+  @@index([estado_dte])
+  @@index([fecha_creacion])
+  @@index([codigo_generacion])
+  @@index([cliente_nit])
+}
+
+// Detalle de líneas de factura directa
+model facturaDirectaDetalle {
+  id_detalle         Int @id @default(autoincrement())
+
+  // === RELACIÓN CON FACTURA ===
+  id_factura_directa Int
+  facturaDirecta     facturaDirecta @relation(fields: [id_factura_directa], references: [id_factura_directa], onDelete: Cascade, onUpdate: NoAction, map: "fk_factura_directa_detalle")
+
+  // === DATOS DEL ÍTEM ===
+  num_item           Int // Número de línea (1, 2, 3...)
+  codigo             String? @db.VarChar(50) // SKU/Código del producto
+  nombre             String @db.VarChar(200) // Nombre del producto/servicio
+  descripcion        String? @db.Text // Descripción adicional
+  nota               String? @db.Text // Nota adicional
+
+  // === CANTIDADES Y PRECIOS ===
+  cantidad           Decimal @db.Decimal(12, 4)
+  uni_medida         Int @default(99) // Código unidad de medida (99=Otro)
+  precio_unitario    Decimal @db.Decimal(12, 4)
+  precio_sin_iva     Decimal @default(0) @db.Decimal(12, 4)
+  precio_con_iva     Decimal @default(0) @db.Decimal(12, 4)
+
+  // === TIPO DE DETALLE (determina tratamiento fiscal) ===
+  tipo_detalle       tipo_detalle_factura @default(GRAVADO)
+
+  // === VENTAS POR TIPO ===
+  venta_gravada      Decimal @default(0) @db.Decimal(12, 2)
+  venta_exenta       Decimal @default(0) @db.Decimal(12, 2)
+  venta_nosujeto     Decimal @default(0) @db.Decimal(12, 2)
+  venta_nograbada    Decimal @default(0) @db.Decimal(12, 2)
+
+  // === CÁLCULOS ===
+  subtotal           Decimal @default(0) @db.Decimal(12, 2)
+  descuento          Decimal @default(0) @db.Decimal(12, 2)
+  iva                Decimal @default(0) @db.Decimal(12, 2) // IVA del ítem
+  total              Decimal @default(0) @db.Decimal(12, 2)
+
+  // === RELACIÓN CON CATÁLOGO (opcional) ===
+  id_catalogo        Int?
+  catalogo           catalogo? @relation(fields: [id_catalogo], references: [id_catalogo], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_detalle_catalogo")
+
+  // === RELACIÓN CON DESCUENTO (opcional) ===
+  id_descuento       Int?
+
+  // === AUDITORÍA ===
+  fecha_creacion     DateTime @default(now())
+
+  // === ÍNDICES ===
+  @@index([id_factura_directa])
+  @@index([id_catalogo])
 }

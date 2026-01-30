@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>{{:titulo}}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 8pt;
+      color: #333;
+      padding: 10px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #6D4C41;
+      padding-bottom: 10px;
+    }
+    .header h1 {
+      font-size: 14pt;
+      color: #6D4C41;
+      margin-bottom: 5px;
+    }
+    .header h2 {
+      font-size: 11pt;
+      color: #666;
+      font-weight: normal;
+    }
+    .empresa-info {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 15px;
+      font-size: 9pt;
+    }
+    .empresa-info div {
+      flex: 1;
+    }
+    .periodo {
+      background: #EFEBE9;
+      padding: 8px;
+      text-align: center;
+      margin-bottom: 15px;
+      border-radius: 4px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 7pt;
+    }
+    th {
+      background: #6D4C41;
+      color: white;
+      padding: 5px 3px;
+      text-align: center;
+      font-weight: bold;
+      border: 1px solid #4E342E;
+    }
+    td {
+      padding: 4px 3px;
+      border: 1px solid #ddd;
+      vertical-align: middle;
+    }
+    tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    .text-right {
+      text-align: right;
+    }
+    .text-center {
+      text-align: center;
+    }
+    .totals-row {
+      background: #EFEBE9 !important;
+      font-weight: bold;
+    }
+    .totals-row td {
+      border-top: 2px solid #6D4C41;
+    }
+    .footer {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 8pt;
+      color: #666;
+      border-top: 1px solid #ddd;
+      padding-top: 10px;
+    }
+    .summary {
+      margin-top: 20px;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .summary-box {
+      border: 1px solid #6D4C41;
+      padding: 10px;
+      background: #EFEBE9;
+      min-width: 300px;
+    }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+    }
+    .summary-row.total {
+      border-top: 1px solid #6D4C41;
+      margin-top: 5px;
+      padding-top: 5px;
+      font-weight: bold;
+    }
+    .note {
+      margin-top: 15px;
+      padding: 10px;
+      background: #FFF3E0;
+      border-left: 4px solid #FF9800;
+      font-size: 8pt;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>{{:titulo}}</h1>
+    <h2>Libro de Compras a Sujetos Excluidos - Declaración F-07</h2>
+  </div>
+
+  <div class="empresa-info">
+    <div>
+      <strong>{{:empresa.nombre}}</strong><br>
+      NIT: {{:empresa.nit}} | NRC: {{:empresa.nrc}}<br>
+      {{:empresa.direccion}}
+    </div>
+    <div style="text-align: right;">
+      <strong>Período:</strong> {{:periodoCorto}}<br>
+      <strong>Total registros:</strong> {{:totalRegistros}}<br>
+      <strong>Generado:</strong> {{:fechaGeneracion}}
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>A - Fecha</th>
+        <th>B</th>
+        <th>C</th>
+        <th>D - No. Resolución</th>
+        <th>E - No. Serie</th>
+        <th>F - No. Documento</th>
+        <th>H - DUI/NIT</th>
+        <th>I - Nombre Sujeto</th>
+        <th>J - Monto Compra</th>
+        <th>K - IVA Retenido</th>
+        <th>L - Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{for registros}}
+      <tr>
+        <td class="text-center">{{:fila}}</td>
+        <td class="text-center">{{:fechaEmision}}</td>
+        <td class="text-center">{{:claseDocumento}}</td>
+        <td class="text-center">{{:tipoDocumento}}</td>
+        <td>{{:numeroResolucion}}</td>
+        <td>{{:numeroSerie}}</td>
+        <td>{{:numeroDocumento}}</td>
+        <td>{{:duiNit}}</td>
+        <td>{{:nombreSujeto}}</td>
+        <td class="text-right">{{:montoCompra}}</td>
+        <td class="text-right">{{:ivaRetenido}}</td>
+        <td class="text-right">{{:total}}</td>
+      </tr>
+      {{/for}}
+      <tr class="totals-row">
+        <td colspan="9" style="text-align: right;"><strong>TOTALES:</strong></td>
+        <td class="text-right">{{:totales.montoCompra}}</td>
+        <td class="text-right">{{:totales.ivaRetenido}}</td>
+        <td class="text-right">{{:totales.total}}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="summary">
+    <div class="summary-box">
+      <div class="summary-row">
+        <span>Monto Total Compras:</span>
+        <span>${{:totales.montoCompra}}</span>
+      </div>
+      <div class="summary-row">
+        <span>IVA Retenido (1%):</span>
+        <span>${{:totales.ivaRetenido}}</span>
+      </div>
+      <div class="summary-row total">
+        <span>TOTAL NETO:</span>
+        <span>${{:totales.total}}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Nota:</strong> Las operaciones con sujetos excluidos están sujetas a retención del 1% de IVA
+    cuando el monto de la transacción es igual o superior a $100.00, conforme al Art. 162 del Código Tributario.
+  </div>
+
+  <div class="footer">
+    <p>Anexo 5 - Libro de Compras a Sujetos Excluidos | Período: {{:periodoCorto}}</p>
+    <p>Generado por AFIS ERP - {{:fechaGeneracion}}</p>
+  </div>
+</body>
+</html>

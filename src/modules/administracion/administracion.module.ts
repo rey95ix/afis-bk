@@ -27,6 +27,8 @@ import { MarcasController } from './marcas/marcas.controller';
 import { MarcasService } from './marcas/marcas.service';
 import { ModelosController } from './modelos/modelos.controller';
 import { ModelosService } from './modelos/modelos.service';
+import { FacturasBloquesController } from './facturas-bloques/facturas-bloques.controller';
+import { FacturasBloquesService } from './facturas-bloques/facturas-bloques.service';
 
 @Module({
   imports: [
@@ -46,7 +48,8 @@ import { ModelosService } from './modelos/modelos.service';
     DiagnosticosCatalogoController,
     AtcPlanController,
     MarcasController,
-    ModelosController
+    ModelosController,
+    FacturasBloquesController
   ],
   providers: [
     CategoriasService,
@@ -60,7 +63,8 @@ import { ModelosService } from './modelos/modelos.service';
     DiagnosticosCatalogoService,
     AtcPlanService,
     MarcasService,
-    ModelosService
+    ModelosService,
+    FacturasBloquesService
   ],
 })
 export class AdministracionModule { }

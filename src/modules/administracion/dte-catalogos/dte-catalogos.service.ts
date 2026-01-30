@@ -5,6 +5,7 @@ import {
   dTETipoDocumentoIdentificacion,
   dTEActividadEconomica,
   dTETipoEstablecimiento,
+  dTETipoItem,
 } from '@prisma/client';
 
 @Injectable()
@@ -74,5 +75,25 @@ export class DteCatalogosService {
     }
 
     return tipoEstablecimiento;
+  }
+
+  // ==================== TIPOS DE ITEM ====================
+
+  async findAllTiposItem(): Promise<dTETipoItem[]> {
+    return this.prisma.dTETipoItem.findMany({
+      orderBy: { codigo: 'asc' },
+    });
+  }
+
+  async findOneTipoItem(id: number): Promise<dTETipoItem> {
+    const tipoItem = await this.prisma.dTETipoItem.findUnique({
+      where: { id_dte_tipo_item: id },
+    });
+
+    if (!tipoItem) {
+      throw new NotFoundException(`Tipo de item con ID ${id} no encontrado`);
+    }
+
+    return tipoItem;
   }
 }

@@ -1,6 +1,7 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import axios, { AxiosError } from 'axios';
+import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
+import { PrismaService } from 'src/modules/prisma/prisma.service';
 
 /**
  * Request para el API Firmador
@@ -46,13 +47,20 @@ export class DteSignerService {
   private readonly password: string;
   private readonly timeout = 30000; // 30 segundos
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService
+  ) {
     this.apiUrl = this.configService.get<string>('API_FIRMADOR', 'http://localhost:8113');
-    this.password = this.configService.get<string>('FIRMADOR_PASSWORD', '');
-
+    // this.password = this.configService.get<string>('FIRMADOR_PASSWORD', '');
+    this.obtenerFirmadorPassword();
     if (!this.password) {
       this.logger.warn('FIRMADOR_PASSWORD no está configurado en las variables de entorno');
     }
+  }
+  async obtenerFirmadorPassword() {
+    const generalData = await this.prisma.generalData.findFirst();
+    return generalData?.private_key || '';
   }
 
   /**
@@ -68,35 +76,47 @@ export class DteSignerService {
     this.logger.log(`Firmando documento para NIT: ${nit}`);
     this.logger.debug(`Endpoint: ${endpoint}`);
 
+    const generalData = await this.prisma.generalData.findFirst();
     const request: FirmadorRequest = {
       nit: nit.replace(/-/g, ''), // Remover guiones del NIT
       activo: true,
-      passwordPri: this.password,
+      passwordPri: generalData?.private_key || '',
       dteJson: documento,
     };
 
     try {
-      const response = await axios.post<FirmadorResponse>(endpoint, request, {
+      // const response = await axios.post<FirmadorResponse>(endpoint, request, {
+      //   headers: {
+      //     'Content-Type': 'application/json',
+      //   },
+      //   timeout: this.timeout,
+      // }); 
+      const config: AxiosRequestConfig = {
+        method: 'post', // Especifica el método HTTP
+        url: endpoint,       // URL a la que se realizará la solicitud
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json', // Especifica el tipo de contenido esperado 
         },
-        timeout: this.timeout,
-      });
-
+        data: request, // Los datos que se enviarán en el cuerpo de la solicitud
+      };
+      const response: AxiosResponse = await axios.request(config); 
       if (response.data.status === 'OK') {
-        this.logger.log('Documento firmado exitosamente');
+        this.logger.log('Documento firmado exitosamente'); 
         return {
           success: true,
           documentoFirmado: response.data.body,
         };
       } else {
-        this.logger.error(`Error del firmador: ${response.data.body}`);
+        console.log('Error al firmar documento:', response.data.body);
+        console.log('Error al firmar documento:', request);
+        this.logger.error(`Error del firmador: ${response.data.toString()}`);
         return {
           success: false,
-          error: response.data.body || 'Error desconocido del firmador',
+          error: response.data.body.toString() || 'Error desconocido del firmador',
         };
       }
     } catch (error) {
+      console.log('Error al firmar documento:', error.toString());
       return this.handleError(error);
     }
   }

@@ -74,12 +74,13 @@ export class AnulacionBuilderService {
   /**
    * Construye un evento de anulación completo
    */
-  build(params: BuildAnulacionParams): BuildAnulacionResult {
+  build(params: BuildAnulacionParams): BuildAnulacionResult { //d
     const codigoGeneracion = uuidv4().toUpperCase();
 
     const identificacion = this.buildIdentificacion(params.ambiente, codigoGeneracion);
     const emisor = this.buildEmisor(params.emisor);
     const documento = this.buildDocumento(params.dteOriginal, params.motivo);
+    console.log('Documento a anular:', documento);  
     const motivo = this.buildMotivo(params.motivo);
 
     const evento: EventoAnulacion = {

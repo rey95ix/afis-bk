@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>{{:titulo}}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 8pt;
+      color: #333;
+      padding: 10px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #1565C0;
+      padding-bottom: 10px;
+    }
+    .header h1 {
+      font-size: 14pt;
+      color: #1565C0;
+      margin-bottom: 5px;
+    }
+    .header h2 {
+      font-size: 11pt;
+      color: #666;
+      font-weight: normal;
+    }
+    .empresa-info {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 15px;
+      font-size: 9pt;
+    }
+    .empresa-info div {
+      flex: 1;
+    }
+    .periodo {
+      background: #E3F2FD;
+      padding: 8px;
+      text-align: center;
+      margin-bottom: 15px;
+      border-radius: 4px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 7pt;
+    }
+    th {
+      background: #1565C0;
+      color: white;
+      padding: 5px 3px;
+      text-align: center;
+      font-weight: bold;
+      border: 1px solid #0D47A1;
+    }
+    td {
+      padding: 4px 3px;
+      border: 1px solid #ddd;
+      vertical-align: middle;
+    }
+    tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    .text-right {
+      text-align: right;
+    }
+    .text-center {
+      text-align: center;
+    }
+    .totals-row {
+      background: #E3F2FD !important;
+      font-weight: bold;
+    }
+    .totals-row td {
+      border-top: 2px solid #1565C0;
+    }
+    .footer {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 8pt;
+      color: #666;
+      border-top: 1px solid #ddd;
+      padding-top: 10px;
+    }
+    .summary {
+      margin-top: 20px;
+      display: flex;
+      justify-content: flex-end;
+    }
+    .summary-box {
+      border: 1px solid #1565C0;
+      padding: 10px;
+      background: #E3F2FD;
+      min-width: 300px;
+    }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 3px 0;
+    }
+    .summary-row.total {
+      border-top: 1px solid #1565C0;
+      margin-top: 5px;
+      padding-top: 5px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>{{:titulo}}</h1>
+    <h2>Libro de Ventas a Consumidor Final - Declaración F-07</h2>
+  </div>
+
+  <div class="empresa-info">
+    <div>
+      <strong>{{:empresa.nombre}}</strong><br>
+      NIT: {{:empresa.nit}} | NRC: {{:empresa.nrc}}<br>
+      {{:empresa.direccion}}
+    </div>
+    <div style="text-align: right;">
+      <strong>Período:</strong> {{:periodoCorto}}<br>
+      <strong>Total registros:</strong> {{:totalRegistros}}<br>
+      <strong>Generado:</strong> {{:fechaGeneracion}}
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>A - Fecha</th>
+        <th>B</th>
+        <th>C</th>
+        <th>D - No. Resolución</th>
+        <th>E - Serie DEL</th>
+        <th>F - Serie AL</th>
+        <th>G - No. Doc DEL</th>
+        <th>H - No. Doc AL</th>
+        <th>J - Exentas</th>
+        <th>K - No Sujetas</th>
+        <th>L - Gravadas</th>
+        <th>Q - Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{for registros}}
+      <tr>
+        <td class="text-center">{{:fila}}</td>
+        <td class="text-center">{{:fechaEmision}}</td>
+        <td class="text-center">{{:claseDocumento}}</td>
+        <td class="text-center">{{:tipoDocumento}}</td>
+        <td>{{:numeroResolucion}}</td>
+        <td>{{:serieDel}}</td>
+        <td>{{:serieAl}}</td>
+        <td>{{:numeroDocumentoDel}}</td>
+        <td>{{:numeroDocumentoAl}}</td>
+        <td class="text-right">{{:ventasExentas}}</td>
+        <td class="text-right">{{:ventasNoSujetas}}</td>
+        <td class="text-right">{{:ventasGravadas}}</td>
+        <td class="text-right">{{:totalVentas}}</td>
+      </tr>
+      {{/for}}
+      <tr class="totals-row">
+        <td colspan="9" style="text-align: right;"><strong>TOTALES:</strong></td>
+        <td class="text-right">{{:totales.ventasExentas}}</td>
+        <td class="text-right">{{:totales.ventasNoSujetas}}</td>
+        <td class="text-right">{{:totales.ventasGravadas}}</td>
+        <td class="text-right">{{:totales.totalVentas}}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="summary">
+    <div class="summary-box">
+      <div class="summary-row">
+        <span>Ventas Exentas:</span>
+        <span>${{:totales.ventasExentas}}</span>
+      </div>
+      <div class="summary-row">
+        <span>Ventas No Sujetas:</span>
+        <span>${{:totales.ventasNoSujetas}}</span>
+      </div>
+      <div class="summary-row">
+        <span>Ventas Gravadas:</span>
+        <span>${{:totales.ventasGravadas}}</span>
+      </div>
+      <div class="summary-row total">
+        <span>TOTAL VENTAS:</span>
+        <span>${{:totales.totalVentas}}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Anexo 2 - Libro de Ventas a Consumidor Final | Período: {{:periodoCorto}}</p>
+    <p>Generado por AFIS ERP - {{:fechaGeneracion}}</p>
+  </div>
+</body>
+</html>
