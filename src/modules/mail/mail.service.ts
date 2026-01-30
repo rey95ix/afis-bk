@@ -5,6 +5,15 @@ import * as nodemailer from 'nodemailer';
 import * as fs from 'fs';
 import * as path from 'path';
 
+/**
+ * Interfaz para adjuntos de correo electrónico
+ */
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer | string;
+  contentType?: string;
+}
+
 @Injectable()
 export class MailService {
   private transporter: nodemailer.Transporter;
@@ -212,7 +221,13 @@ export class MailService {
     `;
   }
 
-  private async sendMail(to: string, subject: string, text: string, html: string) {
+  private async sendMail(
+    to: string,
+    subject: string,
+    text: string,
+    html: string,
+    attachments?: EmailAttachment[],
+  ) {
     try {
       await this.transporter.sendMail({
         from: this.configService.get<string>('SMTP_FROM'),
@@ -220,9 +235,131 @@ export class MailService {
         subject,
         text,
         html,
+        attachments: attachments?.map((att) => ({
+          filename: att.filename,
+          content: att.content,
+          contentType: att.contentType,
+        })),
       });
     } catch (error) {
-      console.log(error)
+      console.log(error);
     }
+  }
+
+  /**
+   * Envía la factura electrónica (DTE) por correo con PDF y JSON adjuntos
+   */
+  async sendFacturaEmail(
+    email: string,
+    nombreCliente: string,
+    numeroControl: string,
+    codigoGeneracion: string,
+    pdfBuffer: Buffer,
+    dteJson: string,
+  ): Promise<void> {
+    const templatePath = path.join(
+      process.cwd(),
+      'templates',
+      'facturacion',
+      'email-factura.html',
+    );
+    let html: string;
+
+    try {
+      html = fs.readFileSync(templatePath, 'utf-8');
+      html = html.replace(/{{nombreCliente}}/g, nombreCliente);
+      html = html.replace(/{{numeroControl}}/g, numeroControl);
+      html = html.replace(/{{codigoGeneracion}}/g, codigoGeneracion);
+      html = html.replace(/{{fecha}}/g, new Date().toLocaleDateString('es-SV'));
+    } catch (error) {
+      html = this.getFacturaEmailFallback(
+        nombreCliente,
+        numeroControl,
+        codigoGeneracion,
+      );
+    }
+
+    const attachments: EmailAttachment[] = [
+      {
+        filename: `DTE-${numeroControl}.pdf`,
+        content: pdfBuffer,
+        contentType: 'application/pdf',
+      },
+      {
+        filename: `DTE-${numeroControl}.json`,
+        content: dteJson,
+        contentType: 'application/json',
+      },
+    ];
+
+    await this.sendMail(
+      email,
+      `Su Factura Electrónica - ${numeroControl}`,
+      `Adjunto su documento tributario electrónico ${numeroControl}`,
+      html,
+      attachments,
+    );
+  }
+
+  /**
+   * HTML de respaldo para email de factura
+   */
+  private getFacturaEmailFallback(
+    nombreCliente: string,
+    numeroControl: string,
+    codigoGeneracion: string,
+  ): string {
+    const fecha = new Date().toLocaleDateString('es-SV');
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #2a3e52; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+          .info-box { background: #ffffff; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0; border-radius: 4px; }
+          .info-box p { margin: 5px 0; }
+          .attachments { background: #e8f4fd; padding: 15px; border-radius: 4px; margin-top: 20px; }
+          .attachments h4 { margin: 0 0 10px 0; color: #0066cc; }
+          .attachments ul { margin: 0; padding-left: 20px; }
+          .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Documento Tributario Electrónico</h1>
+          </div>
+          <div class="content">
+            <h2>Estimado/a ${nombreCliente},</h2>
+            <p>Adjunto encontrará su Documento Tributario Electrónico (DTE) correspondiente a su transacción.</p>
+
+            <div class="info-box">
+              <p><strong>Número de Control:</strong> ${numeroControl}</p>
+              <p><strong>Código de Generación:</strong> ${codigoGeneracion}</p>
+              <p><strong>Fecha:</strong> ${fecha}</p>
+            </div>
+
+            <div class="attachments">
+              <h4>Archivos adjuntos:</h4>
+              <ul>
+                <li>DTE-${numeroControl}.pdf - Documento en formato PDF</li>
+                <li>DTE-${numeroControl}.json - Documento en formato JSON</li>
+              </ul>
+            </div>
+
+            <p style="margin-top: 20px;">Puede verificar la autenticidad de este documento en el portal del Ministerio de Hacienda de El Salvador.</p>
+          </div>
+          <div class="footer">
+            <p>Este es un correo automático, por favor no responda a este mensaje.</p>
+            <p>&copy; ${new Date().getFullYear()} AFIS. Todos los derechos reservados.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
   }
 }

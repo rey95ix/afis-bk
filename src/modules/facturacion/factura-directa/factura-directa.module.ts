@@ -21,10 +21,11 @@ import { MhAuthService } from '../dte/transmitter/mh-auth.service';
 import { MhTransmitterService } from '../dte/transmitter/mh-transmitter.service';
 import { LibrosIvaModule } from '../libros-iva';
 
-// Libros de IVA 
+// Mail
+import { MailModule } from '../../mail/mail.module';
 
 @Module({
-  imports: [PrismaModule, LibrosIvaModule],
+  imports: [PrismaModule, LibrosIvaModule, MailModule],
   controllers: [FacturaDirectaController],
   providers: [
     FacturaDirectaService,

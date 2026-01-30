@@ -41,8 +41,11 @@ import { FacturaDirectaService } from './factura-directa/factura-directa.service
 // Libros de IVA
 import { LibrosIvaModule } from './libros-iva/libros-iva.module';
 
+// Mail
+import { MailModule } from '../mail/mail.module';
+
 @Module({
-  imports: [PrismaModule, AuthModule, ConfigModule, LibrosIvaModule],
+  imports: [PrismaModule, AuthModule, ConfigModule, LibrosIvaModule, MailModule],
   controllers: [
     CiclosController,
     CobrosController,

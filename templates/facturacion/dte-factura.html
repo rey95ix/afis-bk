@@ -17,6 +17,8 @@
         });
     }}
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
+
         * {
             margin: 0;
             padding: 0;
@@ -24,649 +26,491 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            font-size: 10px;
-            line-height: 1.3;
+            background-color: #f0f2f5;
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 20px;
             color: #333;
-            padding: 10mm;
+            font-size: 12px;
+            line-height: 1.4;
         }
 
-        /* ==================== HEADER 3 COLUMNAS ==================== */
-        .header-3col {
+        .invoice-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        /* ==================== HEADER ==================== */
+        .header {
             display: flex;
-            margin-bottom: 15px; 
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
         }
 
         .company-info {
-            width: 30%;
-            padding: 10px;
-            background: #fff; 
+            flex: 1;
         }
 
-        .company-info .logo-container {
-            text-align: center;
-            margin-bottom: 8px;
+        .logo {
+            height: 50px;
+            margin-bottom: 10px;
         }
 
-        .company-info .logo-container img {
-            max-width: 100px;
-            max-height: 60px;
+        .company-details {
+            font-size: 11px;
+            line-height: 1.4;
+            color: #444;
         }
 
-        .company-info .company-name {
-            font-weight: bold;
-            font-size: 11px;  
-        }
-
-        .company-info .company-detail {
-            font-size: 8px; 
+        .contact-info {
             display: flex;
-            align-items: flex-start;
-            color: #000;
-        }
-
-        .company-info .company-detail .icon {
-            margin-right: 4px;
-            min-width: 12px;
-        }
-
-        .doc-type-box {
-            width: 25%;  
-            padding: 10px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
             align-items: center;
-            text-align: center;
-            border: 2px solid #1a237e;
-            border-radius: 10px;
-            height: 100px;
-        }
-
-        .doc-type-box .doc-status {
-            font-size: 8px;
-            margin-bottom: 5px; 
-            border-radius: 3px;
-        }
-
-        .doc-type-box .doc-status.valid {
-            background: #4caf50;
-        }
-
-        .doc-type-box .doc-status.invalid {
-            background: #f44336;
-        }
-
-        .doc-type-box .doc-title {
-            font-size: 10px;
-            font-weight: bold; 
-            text-transform: uppercase;
-        }
-
-        .doc-type-box .doc-info-item {
-            font-size: 14px;
-            margin-bottom: 5px;
-            width: 100%;
-        }
-
-        .doc-type-box .doc-info-item-customer {
-            font-size: 14px; 
-            width: 100%;
-            font-weight: bold;
-        }
-
-        .doc-type-box .doc-info-item .label {
-            font-weight: normal; 
-        }
-
-        .doc-type-box .doc-info-item .value {
-            font-weight: bold;
-            display: block;
-            background: rgba(255,255,255,0.15);
-            padding: 2px 5px;
-            border-radius: 3px;
-            margin-top: 2px;
-        }
-
-        .doc-type-box .total-pagar {
-            padding: 4px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 5px;
-            width: 80%;
-            color: white;
-            background: #1a237e;
-        }
-
-        .doc-type-box .total-pagar .label {
-            font-size: 12px; 
-        }
-
-        .doc-type-box .total-pagar .amount {
+            gap: 5px;
+            margin-top: 8px;
+            color: #0056b3;
             font-size: 12px;
             font-weight: bold;
         }
 
-        .qr-codes-section {
-            width: 35%;
-            padding: 10px;
-            background: #f5f5f5;
-            font-size: 8px;
-        }
-
-        .qr-codes-section .qr-container {
+        .document-type-box {
+            border: 2px solid #0056b3;
+            border-radius: 8px;
+            padding: 10px 20px;
             text-align: center;
-            margin-bottom: 8px;
+            margin: 0 20px;
+            min-width: 250px;
         }
 
-        .qr-codes-section .qr-container img {
-            width: 75px;
-            height: 75px;
-        }
-
-        .qr-codes-section .code-item {
-            margin-bottom: 4px;
-            display: flex;
-        }
-
-        .qr-codes-section .code-item .label {
-            font-weight: bold;
-            min-width: 100px;
-            color: #1a237e;
-        }
-
-        .qr-codes-section .code-item .value {
-            flex: 1;
-            word-break: break-all;
-            background: #e8eaf6;
-            padding: 1px 4px;
-            border-radius: 2px;
-        }
-
-        /* ==================== SECCION CLIENTE Y PAGO ==================== */
-        .cliente-pago-row {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-
-        .cliente-box {
-            flex: 1;
-            border: 2px solid #1a237e;
-            border-radius: 6px;
-            padding: 10px;
-        }
-
-        .cliente-box .section-title {
-            font-size: 10px;
-            font-weight: bold;
-            color: #1a237e;
-            margin-bottom: 5px;
-            text-transform: uppercase;
-        }
-
-        .cliente-box .cliente-nombre {
-            font-size: 11px;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-
-        .cliente-box .cliente-direccion {
+        .doc-status {
             font-size: 9px;
+            padding: 3px 8px;
+            border-radius: 3px;
+            margin-bottom: 5px;
+            display: inline-block;
+        }
+
+        .doc-status.invalid {
+            background: #f44336;
+            color: white;
+        }
+
+        .doc-title {
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .client-code-label {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .client-code-value {
+            font-size: 22px;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+
+        .correlative {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .total-badge {
+            background: #1a3a6d;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 4px;
+            font-weight: bold;
+            display: inline-block;
+        }
+
+        .qr-section {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            text-align: right;
+        }
+
+        .qr-details {
+            font-size: 9px;
+            line-height: 1.2;
             color: #555;
         }
 
-        .pago-box {
-            width: 280px;
-            border: 2px solid #1a237e;
-            border-radius: 6px;
-            overflow: hidden;
-        }
-
-        .pago-box table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .pago-box table td {
-            padding: 6px 8px;
-            font-size: 9px;
-            border-bottom: 1px solid #e8eaf6;
-        }
-
-        .pago-box table tr:last-child td {
-            border-bottom: none;
-        }
-
-        .pago-box table td:first-child {
-            background: #1a237e;
-            color: white;
+        .qr-details span {
             font-weight: bold;
-            text-transform: uppercase;
-            width: 60%;
+            word-break: break-all;
         }
 
-        .pago-box table td:last-child {
-            text-align: right;
-            font-weight: bold;
-            background: #e8eaf6;
-        }
-
-        .pago-box table tr:first-child td:last-child {
-            font-size: 12px;
-            color: #1a237e;
-        }
-
-        /* ==================== CAJA DE MENSAJES ==================== */
-        .caja-mensajes {
-            border: 2px solid #1a237e;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            overflow: hidden;
-        }
-
-        .caja-mensajes .caja-titulo {
-            background: #1a237e;
-            color: white;
-            padding: 5px 10px;
-            font-size: 10px;
-            font-weight: bold;
-            text-align: center;
-            text-transform: uppercase;
-        }
-
-        .caja-mensajes .caja-contenido {
-            padding: 8px 10px;
-            font-size: 9px;
-            background: #f5f5f5;
-        }
-
-        /* ==================== TABLA DE ITEMS ==================== */
-        .section {
-            margin-bottom: 12px;
-        }
-
-        .section-header {
-            background: #1a237e;
-            color: white;
-            padding: 5px 10px;
-            font-size: 10px;
-            font-weight: bold;
-            text-transform: uppercase;
-            border-radius: 6px 6px 0 0;
-        }
-
-        table.items {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        table.items thead {
-            background-color: #e8eaf6;
-        }
-
-        table.items th {
-            padding: 6px 4px;
-            text-align: center;
-            font-size: 8px;
-            font-weight: bold;
-            text-transform: uppercase;
-            border: 1px solid #1a237e;
-            color: #1a237e;
-        }
-
-        table.items td {
-            padding: 4px;
+        .qr-code {
+            width: 80px;
+            height: 80px;
             border: 1px solid #ddd;
-            font-size: 9px;
         }
 
-        table.items td.center {
-            text-align: center;
+        /* ==================== INFO GRID ==================== */
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
         }
 
-        table.items td.right {
-            text-align: right;
+        .client-info-card {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 4px;
+            font-size: 12px;
+            line-height: 1.6;
         }
 
-        table.items td.left {
-            text-align: left;
+        .client-info-card .info-row {
+            margin-bottom: 3px;
         }
 
-        table.items tbody tr:nth-child(even) {
-            background-color: #fafafa;
-        }
-
-        /* ==================== SECCION DE RESUMEN ==================== */
-        .summary-section {
-            display: flex;
-            gap: 15px;
-        }
-
-        .letras-box {
-            flex: 1;
-            border: 2px solid #1a237e;
-            border-radius: 6px;
-            padding: 10px;
-        }
-
-        .letras-box .title {
-            font-size: 10px;
-            font-weight: bold;
-            color: #1a237e;
-            margin-bottom: 5px;
-            text-transform: uppercase;
-        }
-
-        .letras-box .content {
-            font-size: 10px;
-            font-weight: bold;
-            text-transform: uppercase;
-        }
-
-        .summary-box {
-            width: 300px;
-            border: 2px solid #1a237e;
-            border-radius: 6px;
+        .payment-summary-card {
+            background: #1a3a6d;
+            color: white;
+            border-radius: 8px;
             overflow: hidden;
         }
 
         .summary-row {
             display: flex;
-            font-size: 9px;
-            border-bottom: 1px solid #e8eaf6;
+            justify-content: space-between;
+            padding: 10px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
         }
 
-        .summary-row:last-child {
-            border-bottom: none;
-        }
-
-        .summary-row.header {
-            background-color: #1a237e;
-            color: white;
+        .main-row {
+            font-size: 18px;
             font-weight: bold;
         }
 
-        .summary-label {
+        .sub-row {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .summary-footer {
+            display: flex;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .footer-col {
             flex: 1;
-            padding: 4px 8px;
-            text-align: right;
         }
 
-        .summary-value {
-            width: 90px;
-            padding: 4px 8px;
-            text-align: right;
-            background-color: #e8eaf6;
-            font-weight: bold;
-        }
-
-        .summary-row.header .summary-value {
-            background-color: rgba(255,255,255,0.15);
-        }
-
-        .summary-row.total {
-            background-color: #1a237e;
-            color: white;
-            font-weight: bold;
+        .footer-label {
             font-size: 10px;
+            opacity: 0.8;
         }
 
-        .summary-row.total .summary-value {
-            background-color: rgba(255,255,255,0.2);
+        .footer-val {
+            font-size: 12px;
+            font-weight: bold;
         }
 
-        /* ==================== OTROS ==================== */
-        .notes-box {
-            flex: 1;
-            border: 2px solid #1a237e;
-            border-radius: 6px;
+        /* ==================== MESSAGE & DOCUMENT BOX ==================== */
+        .message-box, .document-body {
+            margin-bottom: 20px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .box-header {
+            background: #3498db;
+            color: white;
+            text-align: center;
+            padding: 6px;
+            font-weight: bold;
+            font-size: 13px;
+        }
+
+        .box-content {
+            background: #eef7fd;
+            padding: 15px;
+            font-size: 11px;
+            color: #444;
+        }
+
+        /* ==================== TABLE ==================== */
+        .table-container {
+            position: relative;
+            background: #eef7fd;
+            min-height: 200px;
+        }
+
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-15deg);
+            font-size: 120px;
+            font-weight: 900;
+            color: rgba(52, 152, 219, 0.1);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .invoice-table {
+            width: 100%;
+            border-collapse: collapse;
+            position: relative;
+            z-index: 1;
+            font-size: 11px;
+        }
+
+        .invoice-table th {
+            background: #3498db;
+            color: white;
             padding: 8px;
-            font-size: 9px;
-            min-height: 60px;
-            margin-top: 10px;
+            text-align: left;
+            font-weight: normal;
+        }
+
+        .invoice-table td {
+            padding: 10px 8px;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .invoice-table td.center {
+            text-align: center;
+        }
+
+        .invoice-table td.right {
+            text-align: right;
+        }
+
+        /* ==================== BOTTOM SECTION ==================== */
+        .bottom-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding: 20px;
+            background: #eef7fd;
+        }
+
+        .amount-text {
+            font-size: 12px;
+            font-weight: bold;
+            color: #1a3a6d;
+            max-width: 50%;
+        }
+
+        .totals-card {
+            background: #1a3a6d;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            width: 400px;
+            font-size: 11px;
+        }
+
+        .total-line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .bold-line {
+            font-weight: bold;
+            font-size: 13px;
+            margin-top: 8px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+            padding-top: 8px;
+        }
+
+        /* ==================== NOTES ==================== */
+        .notes-box {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            background: #f9f9f9;
         }
 
         .notes-box strong {
             display: block;
             margin-bottom: 5px;
-            color: #1a237e;
+            color: #1a3a6d;
         }
 
         @media print {
             body {
-                padding: 5mm;
+                background: white;
+                padding: 0;
+            }
+            .invoice-container {
+                box-shadow: none;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Header 3 Columnas -->
-    <div class="header-3col">
-        <!-- Columna Izquierda: Info Empresa -->
+<div class="invoice-container">
+    <!-- Header Section -->
+    <div class="header">
         <div class="company-info">
-            <div class="logo-container">
-                {{if logo}}
-                <img src="{{:logo}}" alt="Logo">
-                {{/if}}
+            {{if logo}}
+            <img src="{{:logo}}" alt="Logo" class="logo">
+            {{/if}}
+            <div class="company-details">
+                <strong>{{:emisor.nombre}}</strong><br>
+                Dirección: {{:emisor.direccion.complemento}}<br>
+                Registro: {{:emisor.nrc}}<br>
+                NIT: {{:emisor.nit}}<br>
+                Giro: {{:emisor.descActividad}}
             </div>
-            <div class="company-name">{{:emisor.nombre}}</div>
-            <div class="company-detail"> 
-                <span>{{:emisor.direccion.complemento}}</span>
-            </div>
-            <div class="company-detail"> 
-                <span>Registro: {{:emisor.nrc}} </span>
-            </div>
-            <div class="company-detail"> 
-                <span> NIT: {{:emisor.nit}}</span>
-            </div>
-            <div class="company-detail"> 
-                <span>{{:emisor.telefono}}</span>
-            </div>
-            <div class="company-detail"> 
-                <span>{{:emisor.descActividad}}</span>
+            <div class="contact-info">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                <span>Contacto: {{:emisor.telefono}}</span>
             </div>
         </div>
 
-        <!-- Columna Central: Tipo Documento -->
-        <div class="doc-type-box">
-            {{if esValidoMH}} 
-            {{else}}
+        <div class="document-type-box">
+            {{if !esValidoMH}}
             <div class="doc-status invalid">NO ES DTE VALIDO - {{:estadoDte}}</div>
             {{/if}}
-
             <div class="doc-title">{{:nombreFactura}}</div>
-
-            <div class="doc-info-item-customer">
-                <span class="label">Codigo Cliente: {{:codigoCliente}}</span>
-            </div>
-
-            <div class="doc-info-item">
-                <span class="label">Correlativo: {{:correlativo}}</span>
-            </div>
-
-            <div class="total-pagar">
-                <span class="label">Total a Pagar $ {{dec2:resumen.totalPagar}}</span>
-            </div>
+            <div class="client-code-label">Código Cliente:</div>
+            <div class="client-code-value">{{:codigoCliente}}</div>
+            <div class="correlative">Correlativo: {{:correlativo}}</div>
+            <div class="total-badge">Total a Pagar: $ {{dec2:resumen.totalPagar}}</div>
         </div>
 
-        <!-- Columna Derecha: QR y Codigos -->
-        <div class="qr-codes-section">
-            <div class="qr-container">
-                {{if qr}}
-                <img src="{{:qr}}" alt="QR Verificacion">
+        <div class="qr-section">
+            <div class="qr-details">
+                Codigo de Generación: <br><span>{{:identificacion.codigoGeneracion}}</span><br>
+                {{if selloRecibido}}
+                Sello de Recepción: <br><span>{{:selloRecibido}}</span><br>
                 {{/if}}
+                Número de Control: <br><span>{{:identificacion.numeroControl}}</span><br>
+                Modelo de Facturación: {{:identificacion.tipoModelo}}<br>
+                Tipo de Transmisión: {{:identificacion.tipoOperacion}}
             </div>
-            <div class="code-item">
-                <span class="label">Cod. Generacion:</span>
-                <span class="value">{{:identificacion.codigoGeneracion}}</span>
-            </div>
-            {{if selloRecibido}}
-            <div class="code-item">
-                <span class="label">Sello Recepcion:</span>
-                <span class="value">{{:selloRecibido}}</span>
-            </div>
+            {{if qr}}
+            <img src="{{:qr}}" alt="QR Code" class="qr-code">
             {{/if}}
-            <div class="code-item">
-                <span class="label">Numero Control:</span>
-                <span class="value">{{:identificacion.numeroControl}}</span>
-            </div>
-            <div class="code-item">
-                <span class="label">Modelo:</span>
-                <span class="value">{{:identificacion.tipoModelo}}</span>
-            </div>
-            <div class="code-item">
-                <span class="label">Transmision:</span>
-                <span class="value">{{:identificacion.tipoOperacion}}</span>
-            </div>
         </div>
     </div>
 
-    <!-- Seccion Cliente y Pago -->
-    <div class="cliente-pago-row">
-        <div class="cliente-box">
-            <div class="section-title">Cliente:</div>
+    <!-- Client and Summary Section -->
+    <div class="info-grid">
+        <div class="client-info-card">
             {{if receptor}}
-            <div class="cliente-nombre">{{:receptor.nombre}}</div>
-            <div class="cliente-direccion">
-                <strong>Direccion:</strong>
-                {{if receptor.direccion}}
-                    {{if receptor.direccion.complemento}}{{:receptor.direccion.complemento}}{{else}}{{:receptor.direccion}}{{/if}}
+            <div class="info-row"><strong>Cliente:</strong> {{:receptor.nombre}}</div>
+            <div class="info-row"><strong>Dirección:</strong></div>
+            {{if receptor.direccion}}
+                {{if receptor.direccion.complemento}}
+                <div class="info-row">{{:receptor.direccion.complemento}}</div>
                 {{else}}
-                    N/A
+                <div class="info-row">{{:receptor.direccion}}</div>
                 {{/if}}
-            </div>
+            {{else}}
+            <div class="info-row">N/A</div>
+            {{/if}}
             {{if esCCF}}
-            <div class="cliente-direccion" style="margin-top: 3px;">
-                <strong>NIT:</strong> {{:receptor.nit}} | <strong>NRC:</strong> {{:receptor.nrc}}
-            </div>
+            <div class="info-row"><strong>NIT:</strong> {{:receptor.nit}} | <strong>NRC:</strong> {{:receptor.nrc}}</div>
             {{/if}}
             {{if esFC}}
                 {{if receptor.numDocumento}}
-                <div class="cliente-direccion" style="margin-top: 3px;">
-                    <strong>Documento:</strong> {{:receptor.numDocumento}}
-                </div>
+                <div class="info-row"><strong>Documento:</strong> {{:receptor.numDocumento}}</div>
                 {{/if}}
             {{/if}}
             {{else}}
-            <div class="cliente-nombre">Consumidor Final</div>
+            <div class="info-row"><strong>Cliente:</strong> Consumidor Final</div>
             {{/if}}
         </div>
 
-        <div class="pago-box">
-            <table>
-                <tr>
-                    <td>Total a Pagar</td>
-                    <td>$ {{dec2:resumen.totalPagar}}</td>
-                </tr>
-                <tr>
-                    <td>Ultimo Dia de Pago</td>
-                    <td>--/--/----</td>
-                </tr>
-                <tr>
-                    <td>Fecha Emision</td>
-                    <td>Periodo Facturado</td>
-                </tr>
-                <tr>
-                    <td style="background: #e8eaf6; color: #333; text-align: center;">{{:identificacion.fecEmi}}</td>
-                    <td style="text-align: center;">N/A</td>
-                </tr>
+        <div class="payment-summary-card">
+            <div class="summary-row main-row">
+                <div class="summary-label">TOTAL A PAGAR</div>
+                <div class="summary-value">$ {{dec2:resumen.totalPagar}}</div>
+            </div>
+            <div class="summary-row sub-row">
+                <div class="summary-label">ULTIMO DIA DE PAGO</div>
+                <div class="summary-value">--/--/----</div>
+            </div>
+            <div class="summary-footer">
+                <div class="footer-col">
+                    <div class="footer-label">FECHA EMISIÓN</div>
+                    <div class="footer-val">{{:identificacion.fecEmi}}</div>
+                </div>
+                <div class="footer-col">
+                    <div class="footer-label">PERIODO FACTURADO</div>
+                    <div class="footer-val">N/A</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Box -->
+    <div class="message-box">
+        <div class="box-header">CAJA DE MENSAJES</div>
+        <div class="box-content">
+            Recuerda que puede hacer sus pagos en todos los puntos de pago de Punto Express, como también por medio de la aplicación (https://app.newtel.com.sv)
+        </div>
+    </div>
+
+    <!-- Document Body -->
+    <div class="document-body">
+        <div class="box-header">CUERPO DEL DOCUMENTO</div>
+        <div class="table-container">
+            <div class="watermark">Newtel</div>
+            <table class="invoice-table">
+                <thead>
+                    <tr>
+                        <th>Cant.</th>
+                        <th>Unidad</th>
+                        <th>Descripción</th>
+                        <th>Precio U.</th>
+                        <th>Desc. Item</th>
+                        <th>No Sujetas</th>
+                        <th>Exentas</th>
+                        <th>Gravadas</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{for cuerpoDocumento}}
+                    <tr>
+                        <td class="center">{{:cantidad}}</td>
+                        <td class="center">Unidad</td>
+                        <td>{{:descripcion}}</td>
+                        <td class="right">$ {{dec4:precioUni}}</td>
+                        <td class="right">$ {{dec4:montoDescu}}</td>
+                        <td class="right">$ {{dec4:ventaNoSuj}}</td>
+                        <td class="right">$ {{dec4:ventaExenta}}</td>
+                        <td class="right">$ {{dec4:ventaGravada}}</td>
+                    </tr>
+                    {{/for}}
+                </tbody>
             </table>
         </div>
-    </div>
 
-    <!-- Caja de Mensajes -->
-    <div class="caja-mensajes">
-        <div class="caja-titulo">Caja de Mensajes</div>
-        <div class="caja-contenido">
-            Recuerde que puede hacer sus pagos en todos los puntos de pago de Punto Express,
-            como tambien por medio de la aplicacion (https://app.newtel.com.sv)
-        </div>
-    </div>
-
-    <!-- Tabla de Items -->
-    <div class="section">
-        <div class="section-header">Cuerpo del Documento</div>
-        <table class="items">
-            <thead>
-                <tr>
-                    <th style="width: 8%;">Cant.</th>
-                    <th style="width: 8%;">Unidad</th>
-                    <th style="width: 34%;">Descripcion</th>
-                    <th style="width: 10%;">Precio U.</th>
-                    <th style="width: 10%;">Desc. Item</th>
-                    <th style="width: 10%;">No Sujetas</th>
-                    <th style="width: 10%;">Exentas</th>
-                    <th style="width: 10%;">Gravadas</th>
-                </tr>
-            </thead>
-            <tbody>
-                {{for cuerpoDocumento}}
-                <tr>
-                    <td class="center">{{:cantidad}}</td>
-                    <td class="center">Unidad</td>
-                    <td class="left">{{:descripcion}}</td>
-                    <td class="right">{{dec4:precioUni}}</td>
-                    <td class="right">{{dec4:montoDescu}}</td>
-                    <td class="right">{{dec4:ventaNoSuj}}</td>
-                    <td class="right">{{dec4:ventaExenta}}</td>
-                    <td class="right">{{dec4:ventaGravada}}</td>
-                </tr>
-                {{/for}}
-            </tbody>
-        </table>
-    </div>
-
-    <!-- Resumen -->
-    <div class="summary-section">
-        <div class="letras-box">
-            <div class="title">Total en Letras</div>
-            <div class="content">{{:resumen.totalLetras}}</div>
-        </div>
-
-        <div class="summary-box">
-            <div class="summary-row header">
-                <span class="summary-label">Resumen</span>
-                <span class="summary-value">Monto</span>
+        <div class="bottom-section">
+            <div class="amount-text">
+                {{:resumen.totalLetras}}
             </div>
-            <div class="summary-row">
-                <span class="summary-label">Suma Total de Operaciones:</span>
-                <span class="summary-value">{{dec2:resumen.subTotalVentas}}</span>
-            </div>
-            <div class="summary-row">
-                <span class="summary-label">Monto global Desc. ventas no sujetas:</span>
-                <span class="summary-value">{{dec2:resumen.descuNoSuj}}</span>
-            </div>
-            <div class="summary-row">
-                <span class="summary-label">Monto global Desc. ventas exentas:</span>
-                <span class="summary-value">{{dec2:resumen.descuExenta}}</span>
-            </div>
-            <div class="summary-row">
-                <span class="summary-label">Monto global Desc. ventas gravadas:</span>
-                <span class="summary-value">{{dec2:resumen.descuGravada}}</span>
-            </div>
-            <div class="summary-row">
-                <span class="summary-label">Sub-Total:</span>
-                <span class="summary-value">{{dec2:resumen.subTotal}}</span>
-            </div>
-            <div class="summary-row">
-                <span class="summary-label">IVA Retenido:</span>
-                <span class="summary-value">{{dec2:resumen.ivaRete1}}</span>
-            </div>
-            <div class="summary-row">
-                <span class="summary-label">Retencion Renta:</span>
-                <span class="summary-value">{{dec2:resumen.reteRenta}}</span>
-            </div>
-            <div class="summary-row">
-                <span class="summary-label">Monto Total Operacion:</span>
-                <span class="summary-value">{{dec2:resumen.montoTotalOperacion}}</span>
-            </div>
-            <div class="summary-row">
-                <span class="summary-label">Total otros montos no afectos:</span>
-                <span class="summary-value">{{dec2:resumen.totalNoGravado}}</span>
-            </div>
-            <div class="summary-row total">
-                <span class="summary-label">TOTAL A PAGAR:</span>
-                <span class="summary-value">$ {{dec2:resumen.totalPagar}}</span>
+            <div class="totals-card">
+                <div class="total-line"><span>Suma Total de Operaciones:</span> <span>$ {{dec2:resumen.subTotalVentas}}</span></div>
+                <div class="total-line"><span>Monto global Desc., Rebajas y otros a ventas no sujetas:</span> <span>$ {{dec2:resumen.descuNoSuj}}</span></div>
+                <div class="total-line"><span>Monto global Desc., Rebajas y otros a ventas exentas:</span> <span>$ {{dec2:resumen.descuExenta}}</span></div>
+                <div class="total-line"><span>Monto global Desc., Rebajas y otros a ventas gravadas:</span> <span>$ {{dec2:resumen.descuGravada}}</span></div>
+                <div class="total-line"><span>Sub-Total:</span> <span>$ {{dec2:resumen.subTotal}}</span></div>
+                <div class="total-line"><span>IVA Percibido:</span> <span>$ {{dec2:resumen.ivaPerci1}}</span></div>
+                <div class="total-line"><span>IVA Retenido:</span> <span>$ {{dec2:resumen.ivaRete1}}</span></div>
+                <div class="total-line"><span>Retencion Renta:</span> <span>$ {{dec2:resumen.reteRenta}}</span></div>
+                <div class="total-line"><span>Monto Total de la Operación:</span> <span>$ {{dec2:resumen.montoTotalOperacion}}</span></div>
+                <div class="total-line"><span>Total Otros montos no afectos:</span> <span>$ {{dec2:resumen.totalNoGravado}}</span></div>
+                <div class="total-line bold-line"><span>Total a Pagar:</span> <span>$ {{dec2:resumen.totalPagar}}</span></div>
             </div>
         </div>
     </div>
@@ -678,5 +522,6 @@
         {{:nota}}
     </div>
     {{/if}}
+</div>
 </body>
 </html>

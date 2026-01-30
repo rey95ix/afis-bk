@@ -40,6 +40,7 @@ import { DteSignerService } from '../dte/signer';
 import { MhTransmitterService, TransmisionResult } from '../dte/transmitter';
 import { TipoDte, Ambiente, DteDocument, TipoAnulacion } from '../interfaces';
 import { estado_dte, facturaDirecta, Prisma } from '@prisma/client';
+import { MailService } from '../../mail/mail.service';
 
 // Utilidad para convertir números a letras
 import { numeroALetras, redondearMonto, DECIMALES_ITEM } from '../dte/builders/numero-letras.util';
@@ -144,6 +145,7 @@ export class FacturaDirectaService {
     private readonly anulacionBuilder: AnulacionBuilderService,
     private readonly signer: DteSignerService,
     private readonly transmitter: MhTransmitterService,
+    private readonly mailService: MailService,
   ) { }
 
   /**
@@ -264,6 +266,10 @@ export class FacturaDirectaService {
 
       if (transmitResult.success) {
         this.logger.log(`DTE procesado exitosamente. Sello: ${transmitResult.selloRecibido}`);
+
+        // Enviar factura por correo (asíncrono, no bloquea)
+        this.enviarFacturaPorCorreoAsync(facturaCreada.id_factura_directa);
+
         return {
           success: true,
           idFactura: facturaCreada.id_factura_directa,
@@ -435,6 +441,10 @@ export class FacturaDirectaService {
 
       if (transmitResult.success) {
         this.logger.log(`NC procesada exitosamente. Sello: ${transmitResult.selloRecibido}`);
+
+        // Enviar nota de crédito por correo (asíncrono, no bloquea)
+        this.enviarFacturaPorCorreoAsync(ncCreada.id_factura_directa);
+
         return {
           success: true,
           idFactura: ncCreada.id_factura_directa,
@@ -1227,6 +1237,10 @@ export class FacturaDirectaService {
 
     if (transmitResult.success) {
       this.logger.log(`DTE reenviado exitosamente. Sello: ${transmitResult.selloRecibido}`);
+
+      // Enviar factura por correo (asíncrono, no bloquea)
+      this.enviarFacturaPorCorreoAsync(id);
+
       return {
         success: true,
         idFactura: id,
@@ -1274,7 +1288,7 @@ export class FacturaDirectaService {
     try {
       // ==================== PASO 1: VALIDACIONES ====================
       const { factura, generalData, sucursal } = await this.validarAnulacion(id, dto);
-        //documento
+      //documento
       // ==================== PASO 2: PREPARAR DATOS ====================
       const emisor = this.construirEmisorActualizado(generalData, sucursal);
       const dteOriginalData = this.prepararDteOriginalAnulacion(factura);
@@ -2536,5 +2550,142 @@ export class FacturaDirectaService {
 
     const data = `${baseUrl}?ambiente=${ambiente}&codGen=${codigoGeneracion}&fechaEmi=${fecEmi}`;
     return await QRCode.toDataURL(data);
+  }
+
+  /**
+   * Reenvía la factura por correo electrónico al cliente
+   */
+  async reenviarCorreo(idFactura: number): Promise<{
+    success: boolean;
+    message?: string;
+    error?: string;
+  }> {
+    const factura = await this.prisma.facturaDirecta.findUnique({
+      where: { id_factura_directa: idFactura },
+      include: { clienteDirecto: true },
+    });
+
+    if (!factura) {
+      return { success: false, error: 'Factura no encontrada' };
+    }
+
+    // Validar email
+    const emailDestino = factura.clienteDirecto?.correo || factura.cliente_correo;
+    if (!emailDestino) {
+      return { success: false, error: 'No hay correo electrónico registrado para el cliente' };
+    }
+
+    // Validar que tenga DTE procesado
+    if (!factura.dte_json || !factura.numero_control) {
+      return { success: false, error: 'La factura no tiene DTE generado' };
+    }
+
+    try {
+      // Generar PDF
+      const pdfBuffer = await this.generatePdf(idFactura);
+
+      // Construir JSON completo con firma y sello
+      let dteJsonCompleto = factura.dte_json;
+      try {
+        const dteObj = JSON.parse(factura.dte_json);
+        if (factura.dte_firmado) {
+          dteObj.firmaElectronica = factura.dte_firmado;
+        }
+        if (factura.sello_recepcion) {
+          dteObj.selloRecibido = factura.sello_recepcion;
+        }
+        dteJsonCompleto = JSON.stringify(dteObj, null, 4);
+      } catch (parseError) {
+        this.logger.warn(`Error parseando dte_json, se enviará sin firma/sello`);
+      }
+
+      // Enviar correo
+      await this.mailService.sendFacturaEmail(
+        emailDestino,
+        factura.cliente_nombre || 'Cliente',
+        factura.numero_control,
+        factura.codigo_generacion || '',
+        pdfBuffer,
+        dteJsonCompleto,
+      );
+
+      this.logger.log(`Factura ${idFactura}: Correo reenviado a ${emailDestino}`);
+      return { success: true, message: `Correo enviado a ${emailDestino}` };
+    } catch (error) {
+      this.logger.error(`Factura ${idFactura}: Error reenviando correo: ${error.message}`);
+      return { success: false, error: 'Error al enviar el correo' };
+    }
+  }
+
+  /**
+   * Envía la factura por correo de forma asíncrona (fire-and-forget)
+   * No bloquea el flujo principal si falla
+   */
+  private enviarFacturaPorCorreoAsync(idFactura: number): void {
+    (async () => {
+      try {
+        const factura = await this.prisma.facturaDirecta.findUnique({
+          where: { id_factura_directa: idFactura },
+          include: { clienteDirecto: true },
+        });
+
+        if (!factura) return;
+
+        // Determinar email destino (priorizar email de la factura, luego del cliente)
+        const emailDestino = factura.clienteDirecto?.correo || factura.cliente_correo;
+
+        if (!emailDestino) {
+          this.logger.warn(
+            `Factura ${idFactura}: No hay email de cliente para enviar DTE`,
+          );
+          return;
+        }
+
+        if (!factura.dte_json || !factura.numero_control) {
+          this.logger.warn(
+            `Factura ${idFactura}: Faltan datos para enviar DTE`,
+          );
+          return;
+        }
+
+        // Generar PDF
+        const pdfBuffer = await this.generatePdf(idFactura);
+
+        // Construir JSON completo con firma y sello para el correo
+        let dteJsonCompleto = factura.dte_json;
+        try {
+          const dteObj = JSON.parse(factura.dte_json);
+          if (factura.dte_firmado) {
+            dteObj.firmaElectronica = factura.dte_firmado;
+          }
+          if (factura.sello_recepcion) {
+            dteObj.selloRecibido = factura.sello_recepcion;
+          }
+          dteJsonCompleto = JSON.stringify(dteObj, null, 4);
+        } catch (parseError) {
+          this.logger.warn(
+            `Factura ${idFactura}: Error parseando dte_json, se enviará sin firma/sello`,
+          );
+        }
+
+        // Enviar correo
+        await this.mailService.sendFacturaEmail(
+          emailDestino,
+          factura.cliente_nombre || 'Cliente',
+          factura.numero_control,
+          factura.codigo_generacion || '',
+          pdfBuffer,
+          dteJsonCompleto,
+        );
+
+        this.logger.log(
+          `Factura ${idFactura}: DTE enviado por correo a ${emailDestino}`,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Factura ${idFactura}: Error enviando DTE por correo: ${error.message}`,
+        );
+      }
+    })();
   }
 }

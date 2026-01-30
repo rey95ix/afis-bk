@@ -283,6 +283,29 @@ export class FacturaDirectaController {
     return this.facturaDirectaService.reenviarDte(id, id_usuario);
   }
 
+  @Post(':id/reenviar-correo')
+  @RequirePermissions('facturacion.factura_directa:ver')
+  @ApiOperation({
+    summary: 'Reenviar factura por correo electrónico',
+    description: 'Reenvía el PDF y JSON del DTE al correo del cliente registrado en la factura.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resultado del reenvío de correo.',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string' },
+        error: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Factura no encontrada.' })
+  reenviarCorreo(@Param('id', ParseIntPipe) id: number) {
+    return this.facturaDirectaService.reenviarCorreo(id);
+  }
+
   @Post(':id/anular')
   @RequirePermissions('facturacion.factura_directa:anular')
   @ApiOperation({
