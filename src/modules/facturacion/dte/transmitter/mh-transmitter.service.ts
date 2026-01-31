@@ -235,6 +235,8 @@ export class MhTransmitterService {
 
       return this.procesarRespuesta(response.data);
     } catch (error) {
+      console.log(" Error al enviar DTE a MH:");
+      console.log(error.request)
       return this.handleError(error);
     }
   }
@@ -330,7 +332,7 @@ export class MhTransmitterService {
 
         return {
           success: false,
-          error: data?.descripcionMsg || `Error HTTP ${status}`,
+          error: (data?.observaciones.toString()) || `Error HTTP ${status}`,
           codigoMsg: data?.codigoMsg,
           descripcionMsg: data?.descripcionMsg,
         };

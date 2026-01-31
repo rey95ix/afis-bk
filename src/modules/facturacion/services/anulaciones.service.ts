@@ -464,10 +464,13 @@ export class AnulacionesService {
   }
 
   /**
-   * Formatea una fecha a YYYY-MM-DD
+   * Formatea una fecha a YYYY-MM-DD (usando hora local)
    */
   private formatDate(date: Date): string {
-    return date.toISOString().split('T')[0];
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   /**
