@@ -1335,8 +1335,7 @@ export class FacturaDirectaService {
           where: { id_factura_directa: id },
           data: {
             estado_dte: 'INVALIDADO',
-            estado: 'ANULADO',
-            // Datos de anulación
+            estado: 'ANULADO', 
             anulacion_codigo_generacion: codigoGeneracion,
             anulacion_sello_recepcion: transmitResult.selloRecibido,
             anulacion_json: JSON.stringify(evento),
@@ -1510,7 +1509,7 @@ export class FacturaDirectaService {
     if (factura.dte_json) {
       try {
         const dteDoc = JSON.parse(factura.dte_json);
-        receptorData = dteDoc.receptor || dteDoc.sujetoExcluido || {};
+        receptorData = dteDoc.receptor || dteDoc.sujetoExcluido || {}; 
       } catch {
         // Si no se puede parsear, usar datos del snapshot
       }
@@ -1523,8 +1522,8 @@ export class FacturaDirectaService {
       numeroControl: factura.numero_control,
       fechaEmision: this.formatDate(factura.fecha_creacion),
       montoIva: Number(factura.iva) || 0,
-      tipoDocumentoReceptor: receptorData.tipoDocumento || null,
-      numDocumentoReceptor: receptorData.numDocumento || null,
+      tipoDocumentoReceptor: receptorData.tipoDocumento || '36',
+      numDocumentoReceptor: receptorData.numDocumento || receptorData.nit || '',
       nombreReceptor: receptorData.nombre || null,
       telefonoReceptor: receptorData.telefono || null,
       correoReceptor: receptorData.correo || null,
