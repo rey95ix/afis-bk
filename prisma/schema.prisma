@@ -4027,6 +4027,16 @@ model facturaDirecta {
   // === OBSERVACIONES ===
   observaciones      String? @db.Text
 
+  // === DATOS DE ANULACIÓN (cuando se invalida el DTE) ===
+  anulacion_codigo_generacion  String? @unique @db.Char(36) // UUID del evento de anulación
+  anulacion_sello_recepcion    String? @db.VarChar(50) // Sello de MH de la anulación
+  anulacion_json               String? @db.Text // JSON del evento de anulación
+  anulacion_firmada            String? @db.Text // Evento firmado (JWS)
+  fecha_anulacion              DateTime? // Fecha de procesamiento de anulación
+  anulacion_motivo             String? @db.VarChar(300) // Motivo de anulación
+  anulacion_codigo_msg         String? @db.VarChar(10) // Código respuesta MH anulación
+  anulacion_descripcion_msg    String? @db.VarChar(500) // Mensaje MH anulación
+
   // === SUCURSAL Y USUARIO ===
   id_sucursal        Int
   sucursal           sucursales @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_sucursal")

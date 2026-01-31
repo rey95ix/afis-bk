@@ -1331,12 +1331,22 @@ export class FacturaDirectaService {
 
       // ==================== PASO 6: ACTUALIZAR ESTADOS ====================
       if (transmitResult.success) {
-        // Actualizar factura a INVALIDADO/ANULADO
+        // Actualizar factura con datos de anulación
         await this.prisma.facturaDirecta.update({
           where: { id_factura_directa: id },
           data: {
             estado_dte: 'INVALIDADO',
             estado: 'ANULADO',
+            // Datos de anulación
+            anulacion_codigo_generacion: codigoGeneracion,
+            anulacion_sello_recepcion: transmitResult.selloRecibido,
+            anulacion_json: JSON.stringify(evento),
+            anulacion_firmada: signResult.documentoFirmado,
+            fecha_anulacion: new Date(),
+            anulacion_motivo:
+              dto.motivoAnulacion || this.obtenerMotivoAnulacionTexto(dto.tipoAnulacion),
+            anulacion_codigo_msg: transmitResult.codigoMsg || null,
+            anulacion_descripcion_msg: transmitResult.descripcionMsg || null,
           },
         });
 
@@ -1373,6 +1383,22 @@ export class FacturaDirectaService {
       }
 
       throw new InternalServerErrorException(`Error al anular factura: ${error.message}`);
+    }
+  }
+
+  /**
+   * Obtiene el texto descriptivo para el tipo de anulación
+   */
+  private obtenerMotivoAnulacionTexto(tipoAnulacion: number): string {
+    switch (tipoAnulacion) {
+      case 1:
+        return 'Error en información del documento';
+      case 2:
+        return 'Rescindir la operación';
+      case 3:
+        return 'Otro motivo';
+      default:
+        return 'Motivo no especificado';
     }
   }
 
