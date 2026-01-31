@@ -137,8 +137,8 @@ export class CcfBuilderService implements IDteBuilder {
         municipio: receptor.municipio || '01',
         complemento: receptor.complemento || 'Sin dirección registrada',
       },
-      telefono: receptor.telefono || '',
-      correo: receptor.correo || '',
+      telefono: receptor.telefono || null,
+      correo: receptor.correo || null,
     };
   }
 

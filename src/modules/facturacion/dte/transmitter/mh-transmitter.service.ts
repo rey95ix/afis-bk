@@ -231,12 +231,8 @@ export class MhTransmitterService {
           timeout: this.timeout,
         },
       ); 
-      console.log("Respuesta MH:", response.data);
-
       return this.procesarRespuesta(response.data);
-    } catch (error) {
-      console.log(" Error al enviar DTE a MH:");
-      console.log(error.request)
+    } catch (error) { 
       return this.handleError(error);
     }
   }

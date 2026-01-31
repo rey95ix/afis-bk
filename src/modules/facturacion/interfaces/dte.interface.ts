@@ -94,8 +94,8 @@ export interface DteReceptorCCF {
   descActividad: string;
   nombreComercial: string | null;
   direccion: Direccion;
-  telefono: string;
-  correo: string;
+  telefono: string | null;
+  correo: string | null;
 }
 
 // ============= CUERPO DOCUMENTO =============

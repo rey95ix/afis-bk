@@ -1162,7 +1162,6 @@ export class FacturaDirectaService {
     const emisor = this.construirEmisorActualizado(generalData, factura.sucursal);
     const receptor = this.construirReceptorActualizado(factura, tipoDte);
     const items = this.convertirDetallesAItems(factura.detalles);
-
     const buildParams: BuildDteParams = {
       ambiente: (generalData.ambiente || '00') as Ambiente,
       version: factura.tipoFactura?.version || 1,
