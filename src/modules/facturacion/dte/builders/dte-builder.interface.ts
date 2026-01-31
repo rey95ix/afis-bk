@@ -112,6 +112,15 @@ export interface BuildDteParams {
   // FSE: campos de retención (opcionales)
   ivaRetenido?: number;
   rentaRetenido?: number;
+
+  // Descuentos por tipo (para CCF)
+  descuNoSuj?: number;
+  descuExenta?: number;
+  descuGravada?: number;
+  porcentajeDescuento?: number;
+
+  // IVA percibido
+  ivaPercibido?: number;
 }
 
 /**

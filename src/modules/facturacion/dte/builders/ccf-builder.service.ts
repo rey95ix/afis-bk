@@ -264,16 +264,16 @@ export class CcfBuilderService implements IDteBuilder {
       totalExenta: totales.totalExenta,
       totalGravada: totales.totalGravada,
       subTotalVentas,
-      descuNoSuj: 0,
-      descuExenta: 0,
-      descuGravada: 0,
-      porcentajeDescuento: 0,
+      descuNoSuj: params.descuNoSuj ?? 0,
+      descuExenta: params.descuExenta ?? 0,
+      descuGravada: params.descuGravada ?? 0,
+      porcentajeDescuento: params.porcentajeDescuento ?? 0,
       totalDescu: totales.totalDescuento,
       tributos,
       subTotal,
-      ivaPerci1: 0, // IVA percibido (cuando aplique)
-      ivaRete1: 0, // IVA retenido
-      reteRenta: 0, // Retención de renta
+      ivaPerci1: params.ivaPercibido ?? 0,
+      ivaRete1: params.ivaRetenido ?? 0,
+      reteRenta: params.rentaRetenido ?? 0,
       montoTotalOperacion,
       totalNoGravado: 0,
       totalPagar,

@@ -182,6 +182,31 @@ export class CrearFacturaDirectaDto {
   @Min(0)
   renta_retenido?: number;
 
+  // === DESCUENTOS POR TIPO (para CCF) ===
+  @ApiPropertyOptional({ description: 'Descuento aplicado a ventas no sujetas', default: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  descuNoSuj?: number;
+
+  @ApiPropertyOptional({ description: 'Descuento aplicado a ventas exentas', default: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  descuExenta?: number;
+
+  @ApiPropertyOptional({ description: 'Descuento aplicado a ventas gravadas', default: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  descuGravada?: number;
+
+  @ApiPropertyOptional({ description: 'Porcentaje de descuento global', default: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  porcentajeDescuento?: number;
+
   // === CAMPOS DE EXPORTACIÓN (solo para FEX tipo 11) ===
   @ApiPropertyOptional({ description: 'Flete (solo FEX)' })
   @IsOptional()

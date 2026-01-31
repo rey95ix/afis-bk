@@ -2003,6 +2003,13 @@ export class FacturaDirectaService {
       // FSE: retenciones
       ivaRetenido: dto.iva_retenido || 0,
       rentaRetenido: dto.renta_retenido || 0,
+      // Descuentos por tipo (CCF)
+      descuNoSuj: dto.descuNoSuj || 0,
+      descuExenta: dto.descuExenta || 0,
+      descuGravada: dto.descuGravada || 0,
+      porcentajeDescuento: dto.porcentajeDescuento || 0,
+      // IVA percibido
+      ivaPercibido: dto.iva_percibido || 0,
     };
   }
 
