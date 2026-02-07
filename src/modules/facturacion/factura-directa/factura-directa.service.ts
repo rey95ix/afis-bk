@@ -1972,7 +1972,7 @@ export class FacturaDirectaService {
       return {
         tipoItem: 2, // Servicio por defecto
         codigo: item.codigo || null,
-        descripcion: item.nombre + (item.descripcion ? ` - ${item.descripcion}` : ''),
+        descripcion: item.nombre + (item.nota ? ` - ${item.nota}` : ''),
         cantidad: item.cantidad,
         uniMedida: item.uni_medida || 99,
         precioUnitario: item.precio_unitario,
@@ -2236,9 +2236,9 @@ export class FacturaDirectaService {
    */
   private convertirDetallesAItems(detalles: any[]): ItemData[] {
     return detalles.map((detalle) => ({
-      tipoItem: 2, // Servicio por defecto
+      tipoItem: 2, // TODO: Servicio por defecto
       codigo: detalle.codigo || null,
-      descripcion: detalle.nombre + (detalle.descripcion ? ` - ${detalle.descripcion}` : ''),
+      descripcion: detalle.nombre + (detalle.nota ? ` - ${detalle.nota}` : ''),
       cantidad: Number(detalle.cantidad),
       uniMedida: detalle.uni_medida || 99,
       precioUnitario: Number(detalle.precio_unitario),
