@@ -2420,6 +2420,12 @@ export class FacturaDirectaService {
             engine: 'jsrender',
             recipe: 'chrome-pdf',
             helpers: JSRENDER_HELPERS,
+            chrome: {
+              marginTop: '1cm',
+              marginBottom: '1cm',
+              marginLeft: '0.5cm',
+              marginRight: '0.5cm', 
+            }
           },
           data: templateData,
           options: {
@@ -2490,9 +2496,19 @@ export class FacturaDirectaService {
       '11': '#f3e5f5', // Púrpura claro - FEX
       '14': '#efebe9', // Gris claro - FSE
     };
-
+    let receptor = {
+      ...esFSE ? dteDocument.sujetoExcluido : dteDocument.receptor,
+      tipoDocumento: 'NIT' // Forzar NIT en el template
+    }
+    const documento = await this.prisma.dTETipoDocumentoIdentificacion.findFirst({
+      where: { codigo: receptor.tipoDocumento },
+    });
+    if (documento) {
+      receptor.tipoDocumento = documento.nombre;
+    }
     // URL QR para verificación MH
     const qrUrl = await this.buildQrUrl(dteDocument, factura);
+    dteDocument.emisor.tipoEstablecimiento = 'Casa Matriz'; // Forzar etiqueta en el template
     return {
       // Tipo de documento
       tipoDte,
@@ -2504,7 +2520,7 @@ export class FacturaDirectaService {
       esFSE,
       esNota,
       nombreFactura: this.getNombreTipoDte(tipoDte),
-      colorBack: colorMap[tipoDte] || '#f5f5f5',
+      colorBack: generalData?.color_icono || '#f5f5f5',
 
       // Identificación
       identificacion: {
@@ -2517,7 +2533,7 @@ export class FacturaDirectaService {
       emisor: dteDocument.emisor,
 
       // Receptor (varía según tipo)
-      receptor: esFSE ? dteDocument.sujetoExcluido : dteDocument.receptor,
+      receptor,
 
       // Items
       cuerpoDocumento: dteDocument.cuerpoDocumento || [],
