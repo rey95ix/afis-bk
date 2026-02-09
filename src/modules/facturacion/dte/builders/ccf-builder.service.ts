@@ -248,7 +248,10 @@ export class CcfBuilderService implements IDteBuilder {
 
     // En CCF: montoTotalOperacion = subTotal + IVA
     const montoTotalOperacion = redondearMonto(subTotal + totales.totalIva);
-    const totalPagar = montoTotalOperacion;
+    const ivaRete1 = params.ivaRetenido ?? 0;
+    const reteRenta = params.rentaRetenido ?? 0;
+    const ivaPerci1 = params.ivaPercibido ?? 0;
+    const totalPagar = redondearMonto(montoTotalOperacion + ivaPerci1 - ivaRete1 - reteRenta);
 
     // Construir pagos si existen
     const pagos = params.pagos?.map((p) => ({

@@ -168,7 +168,7 @@ export class FacturaDirectaService {
       this.logger.log(`Tipo de DTE: ${tipoFactura.nombre} (${tipoDte})`);
 
       // ==================== PASO 3: CALCULAR TOTALES ====================
-      const totalesCalculados = this.calcularTotales(dto.items, tipoDte);
+      const totalesCalculados = this.calcularTotales(dto.items, tipoDte, dto);
 
       // ==================== PASO 4: GENERAR IDENTIFICACIÓN ====================
       const codigoGeneracion = uuidv4().toUpperCase();
@@ -196,7 +196,8 @@ export class FacturaDirectaService {
           ? this.ccfBuilder
           : this.fcBuilder;
       const { documento, totales } = builder.build(buildParams);
-
+      console.log("totales")
+      console.log(totales)
       this.logger.log(`DTE construido. Total a pagar: $${totales.totalPagar}`);
 
       // ==================== PASO 6: GUARDAR FACTURA ====================
@@ -1335,7 +1336,7 @@ export class FacturaDirectaService {
           where: { id_factura_directa: id },
           data: {
             estado_dte: 'INVALIDADO',
-            estado: 'ANULADO', 
+            estado: 'ANULADO',
             anulacion_codigo_generacion: codigoGeneracion,
             anulacion_sello_recepcion: transmitResult.selloRecibido,
             anulacion_json: JSON.stringify(evento),
@@ -1509,7 +1510,7 @@ export class FacturaDirectaService {
     if (factura.dte_json) {
       try {
         const dteDoc = JSON.parse(factura.dte_json);
-        receptorData = dteDoc.receptor || dteDoc.sujetoExcluido || {}; 
+        receptorData = dteDoc.receptor || dteDoc.sujetoExcluido || {};
       } catch {
         // Si no se puede parsear, usar datos del snapshot
       }
@@ -1806,7 +1807,7 @@ export class FacturaDirectaService {
   /**
    * Calcular totales de la factura
    */
-  private calcularTotales(items: ItemFacturaDirectaDto[], tipoDte: TipoDte) {
+  private calcularTotales(items: ItemFacturaDirectaDto[], tipoDte: TipoDte, factura: CrearFacturaDirectaDto) {
     let totalGravada = 0;
     let totalExenta = 0;
     let totalNoSuj = 0;
@@ -1849,10 +1850,12 @@ export class FacturaDirectaService {
 
     const subtotalVentas = totalGravada + totalExenta + totalNoSuj;
     const subtotal = subtotalVentas - totalDescuento;
-    const totalPagar = (tipoDte === '01' || tipoDte === '14')
+    let totalPagar = (tipoDte === '01' || tipoDte === '14')
       ? subtotal // FC y FSE: IVA incluido
       : subtotal + totalIva; // CCF: IVA aparte
-
+    if (factura.iva_retenido && factura.iva_retenido > 0) { 
+      totalPagar -= factura.iva_retenido; 
+    } 
     return {
       totalGravada,
       totalExenta,
