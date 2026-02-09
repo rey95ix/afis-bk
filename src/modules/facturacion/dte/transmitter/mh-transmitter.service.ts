@@ -306,7 +306,7 @@ export class MhTransmitterService {
    * Maneja errores de comunicación
    */
   private handleError(error: unknown): TransmisionResult {
-    // console.error("Error en comunicación con MH:", error instanceof AxiosError ? error.response?.data : error);
+    console.error("Error en comunicación con MH:", error instanceof AxiosError ? error.response?.data : error);
     if (error instanceof AxiosError) {
       if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
         return {
@@ -328,7 +328,7 @@ export class MhTransmitterService {
 
         return {
           success: false,
-          error: (data?.observaciones.toString()) || `Error HTTP ${status}`,
+          error: (data?.descripcionMsg.toString()) || `Error HTTP ${status}`,
           codigoMsg: data?.codigoMsg,
           descripcionMsg: data?.descripcionMsg,
         };

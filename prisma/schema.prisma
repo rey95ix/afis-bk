@@ -544,6 +544,7 @@ model facturasTipos {
   nombre                     String
   codigo                     String?
   version                    Int?
+  template_html              String?           @default("")
   estado                     estado            @default(ACTIVO)
   activo                     estado            @default(ACTIVO)
   Bloques                    facturasBloques[]

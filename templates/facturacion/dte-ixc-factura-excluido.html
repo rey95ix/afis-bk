@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Factura</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+<style>
+    .small-1 {
+        font-size: 9px;
+    }
+
+    .small-title {
+        font-size: 12px;
+    }
+
+    .div-header {
+        border-radius: 10px;
+        border: 1px solid #000;
+    }
+
+    .border-2 {
+        border: 4px solid {{:colorBack}};
+        border-radius: 10px;
+    }
+
+    .color-1 {
+        background-color: {{:colorBack}};
+    }
+
+    .table-container::before {
+        content: "";
+        position: absolute; 
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: url('{{:iconInvoice}}');
+        /* Ruta o Base64 de la imagen */
+        background-size: 80%;
+        /* Ajusta el tamaño de la marca de agua */
+        background-repeat: no-repeat;
+        background-position: center 470px; /* Desplaza 20px hacia abajo */
+        opacity: 0.05;
+        /* Controla la transparencia de la marca de agua */
+        z-index: 0;
+        /* Envía la marca de agua al fondo */
+    }
+
+    .a-none {
+        text-decoration: none;
+        color: #000;
+    }
+
+    .rectangle {
+        position: relative;
+        width: 90%;
+        border: 2px solid {{:colorBack}};
+        border-radius: 12px;
+        margin: 10px;
+    }
+
+    .title {
+        position: absolute;
+        top: -10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: white;
+        padding: 0 10px;
+        /* Espaciado alrededor del texto */
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    /* Elimina los bordes de la tabla completa */
+    .table-container-sin-border { 
+        border-collapse: collapse;
+        position: relative; /* Asegura que el pseudo-elemento ::before funcione correctamente */ 
+        border-radius: 12px;
+        border: 4px solid {{:colorBack}};
+    }
+
+    /* Elimina los bordes de las celdas de la tabla */
+    .table-container-sin-border th,
+    .table-container-sin-border td {
+        border: none;
+        padding: 8px; /* Ajusta según tus necesidades */
+    }
+
+    /* Opcional: Eliminar bordes al pasar el ratón por encima */
+    .table-container-sin-border tr:hover {
+        border: none;
+    }
+
+    </style>
+</head>
+
+<body style="text-align: center;"> 
+    <div class="row   ">
+        <div class="col-4 me-2 small-1 " style="height: 200px; justify-content: center; align-items: center;    ">
+            <br>
+            <br>
+            <br>
+            <img src="{{:iconInvoice}}" style="width:70%; " alt="">
+            
+
+        </div>
+        <div class="col-8 p-0 border-2   row  ">
+            <div class="col-12 m-0 p-0 " style="font-size: 12px;">
+                <label for="" style="color: #405189; font-weight: bold;">
+                    DOCUMENTO TRIBUTARIO ELECTRÓNICO
+                </label>
+                <br>{{:nombreFactura}}
+            </div>
+            <div class="col-3">
+                <img src="{{:qr}}" style="width: 100%;" alt="" />
+            </div>
+            <div class="col-9 p-0 m-0">
+                <table style="width: 100%;">
+                    <tr>
+                        <td class="small-1 p-0 m-0 text-start pe-2 pt-2" style="width: 25%;"><b>Código de
+                                Generación:</b> </td>
+                        <td class="small-1 p-0 m-0 text-start pe-2 pt-2">
+                            <label for="" class="p-1"
+                                style="background-color: {{:colorBack}};width: 25%;border-radius: 5px; width: 100%;">
+                                {{:identificacion.codigoGeneracion}}
+                            </label>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="small-1 p-0 m-0 text-start pe-2 pt-2" style="width: 25%;"><b>Número de Control:</b>
+                        </td>
+                        <td class="small-1 p-0 m-0 text-start pe-2 pt-2">
+                            <label for="" class="p-1"
+                                style="background-color: {{:colorBack}};width: 25%;border-radius: 5px; width: 100%;">
+                                {{:identificacion.numeroControl}}
+                            </label>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="small-1 p-0 m-0 text-start pe-2 pt-2" style="width: 25%;"><b>Sello de Recepción:</b>
+                        </td>
+                        <td class="small-1 p-0 m-0 text-start pe-2 pt-2">
+                            <label for="" class="p-1"
+                                style="background-color: {{:colorBack}};width: 25%;border-radius: 5px; width: 100%;">
+                                {{:selloRecibido}}
+                            </label>
+                        </td>
+                    </tr>
+                </table>
+
+                <table class="mt-2" style="width: 100%;">
+                    <tr>
+                        <td class="small-1 p-0 m-0 text-start pe-2"> <b>Módelo de Facturación:</b> <br>
+                            {{:identificacion.tipoModelo}}</td>
+                        <td class="small-1 p-0 m-0 text-start pe-2"> <b>Tipo de Transmisión:</b> <br>
+                            {{:identificacion.tipoOperacion}}</td>
+                        <td class="small-1 p-0 m-0 text-start pe-2"> <b>Fecha y Hora de Generación:</b> <br>
+                            {{:identificacion.fecEmi}} {{:identificacion.horEmi}}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="row m-2  pt-2 p-1">
+        <div class="col-6 p-0">
+            <p class="p-0 m-0 small-title"><b>EMISOR</b> </p>
+            <div class="border-2 ps-1 " style="height:170px;">
+                <table style="width: 100%; ">
+                    <tr>
+                        <td style="width: 30%;" class="small-1 p-0 m-0 text-start pe-2"><b>Nombre o razón social:</b>
+                        </td>
+                        <td style="width: 70%;border-top-right-radius: 9px;"
+                            class="small-1 p-0 m-0 text-start pe-2 color-1 ">{{:emisor.nombre}}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="small-1 p-0 m-0 text-start pe-2 fw-bold">NIT:</td>
+                        <td class="small-1 p-0 m-0 text-start pe-2 color-1 ">{{:emisor.nit}}</td>
+                    </tr>
+                    <tr>
+                        <td class="small-1 p-0 m-0 text-start pe-2 fw-bold">NRC:</td>
+                        <td class="small-1 p-0 m-0 text-start pe-2 color-1 ">{{:emisor.nrc}}</td>
+                    </tr>
+                    <tr>
+                        <td class="small-1 p-0 m-0 text-start pe-2 fw-bold">Actividad económica:</td>
+                        <td class="small-1 p-0 m-0 text-start pe-2 color-1 ">{{:emisor.descActividad}}</td>
+                    </tr>
+                    <tr>
+                        <td class="small-1 p-0 m-0 text-start pe-2 fw-bold">Dirección:</td>
+                        <td class="small-1 p-0 m-0 text-start pe-2 color-1 ">{{:emisor.direccion}}</td>
+                    </tr>
+                    <tr>
+                        <td class="small-1 p-0 m-0 text-start pe-2 fw-bold">Número de teléfono:</td>
+                        <td class="small-1 p-0 m-0 text-start pe-2 color-1 ">{{:emisor.telefono}}</td>
+                    </tr>
+                    <tr>
+                        <td class="small-1 p-0 m-0 text-start pe-2 fw-bold">Correo electrónico:</td>
+                        <td class="small-1 p-0 m-0 text-start pe-2 color-1 ">{{:emisor.correo}}</td>
+                    </tr>
+                    <tr>
+                        <td class="small-1 p-0 m-0 text-start pe-2 fw-bold">Nombre Comercial:</td>
+                        <td class="small-1 p-0 m-0 text-start pe-2 color-1 ">{{:emisor.nombreComercial}}</td>
+                    </tr>
+                    <tr>
+                        <td class="small-1 p-0 m-0 text-start pe-2 fw-bold">Tipo de establecimiento:</td>
+                        <td class="small-1 p-0 m-0 text-start pe-2 color-1 ">{{:emisor.tipoEstablecimiento}}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <div class=" col-6 p-0 ">
+            <p class="p-0 m-0 small-title  fw-bold">RECEPTOR</p>
+            <div class="border-2 ps-1 " style="height:170px;">
+                <table style="width: 100%;">
+                    {{if sujetoExcluido.nombre}} 
+                    <tr>
+                        <td style="width: 30%;" class="small-1 p-0 m-0 text-start pe-2  fw-bold">Nombre o razón social:
+                        </td>
+                        <td style="width: 70%;border-top-right-radius: 9px;"
+                            class="small-1 p-0 m-0 text-start pe-2 color-1 ">{{:sujetoExcluido.nombre}}</td>
+                    </tr>
+                    {{else}}
+                    {{/if}}
+
+
+                    <tr>
+                        <td class="small-1 p-0 m-0 text-start pe-2 fw-bold">Tipo de doc. de Identificación:</td>
+                        <td class="small-1 p-0 m-0 text-start pe-2 color-1 ">
+                            {{if sujetoExcluido.tipoDocumento}}
+                            {{:sujetoExcluido.tipoDocumento}}
+                            {{else}}
+                            {{/if}}
+                        </td>
+                    </tr> 
+
+                    <tr>
+                        <td class="small-1 p-0 m-0 text-start pe-2 fw-bold">N° de doc. de Identificación:</td>
+                        <td class="small-1 p-0 m-0 text-start pe-2 color-1 "> 
+                            {{if sujetoExcluido.numDocumento}}
+                            {{:sujetoExcluido.numDocumento}}
+                            {{else}}
+                            {{/if}}
+                        </td>
+                    </tr>
+
+
+
+                    <tr>
+
+                        <td class="small-1 p-0 m-0 text-start pe-2 fw-bold">Dirección:</td>
+                        <td class="small-1 p-0 m-0 text-start pe-2 color-1 ">{{:sujetoExcluido.direccion}}</td>
+                        
+                    </tr>
+ 
+                    {{if sujetoExcluido.telefono}}
+                    <tr>
+                        <td class="small-1 p-0 m-0 text-start pe-2 fw-bold">Número de teléfono:</td>
+                        <td class="small-1 p-0 m-0 text-start pe-2 color-1 "> 
+                            {{if sujetoExcluido.telefono}}
+                            {{:sujetoExcluido.telefono}} 
+                            {{/if}}
+                        </td>
+                    </tr> 
+                    {{/if}}
+
+                    <tr>
+                        <td class="small-1 p-0 m-0 text-start pe-2 fw-bold">Correo Electrónico:</td>
+                        <td class="small-1 p-0 m-0 text-start pe-2 color-1 ">
+
+                            {{if sujetoExcluido.correo}}
+                            {{:sujetoExcluido.correo}}
+                            {{else}}
+                            {{/if}}
+                        </td>
+                    </tr>
+
+
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="row px-3 pt-2">
+        <div class="col-12">
+            <div style="min-height: 320px;">
+                <table class="table table-container">
+                    <thead>
+                        <tr>
+                            <th style="width: 7%; background-color: {{:colorBack}}; " class="small-1 p-0 m-0 text-center">N°</th>
+                            <th style="width: 7%; background-color: {{:colorBack}}; " class="small-1 p-0 m-0 text-center">Cantidad</th>
+                            <th style="width: 7%; background-color: {{:colorBack}}; " class="small-1 p-0 m-0 text-center">Unidad</th>
+                            <th style="width: 23%; background-color: {{:colorBack}}; " class="small-1 p-0 m-0 text-center">Descripción</th>
+                            <th style="width: 8%; background-color: {{:colorBack}}; " class="small-1 p-0 m-0 text-center">Precio<br>Unitario</th>
+                            <th style="width: 10%; background-color: {{:colorBack}}; " class="small-1 p-0 m-0 text-center">Descuento por<br>item</th>
+                            <th style="width: 10%; background-color: {{:colorBack}}; " class="small-1 p-0 m-0 text-center">Ventas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{for cuerpoDocumento}}
+                        <tr>
+                            <td class="small-1 p-0 m-0 text-center">{{:numItem}}</td>
+                            <td class="small-1 p-0 m-0 text-center">{{:cantidad}}</td>
+                            <!-- <td class="small-1 p-0 m-0 text-center">{{>uniMedida}}</td> -->
+                            <td class="small-1 p-0 m-0 text-center">Unidad</td>
+                            <td class="small-1 p-0 m-0 text-start">{{:descripcion}}</td>
+                            <td class="small-1 p-0 m-0 text-end">{{:precioUni}}</td>
+                            <td class="small-1 p-0 m-0 text-end">{{:montoDescu}}</td>
+                            <td class="small-1 p-0 m-0 text-end">{{:ventaGravada}}</td>
+                        </tr>
+                        {{/for}}
+                    </tbody>
+                </table>
+
+            </div>
+        </div> 
+        <div class="col-6  text-start ps-3">
+            <div class="  border-2 small-1 text-start p-2 " style="height: 175px;">
+                <b>Nota:</b> {{:nota}}
+            </div>
+        </div>
+        <div class="col-6  "   >
+
+            <table class="table table-container-sin-border border-2">
+                <tfoot> 
+                        <tr>
+                            <td style="background-color: {{:colorBack}}" class="small-1 p-0 m-0 text-end" colspan="3"></td>
+                            <td style="background-color: {{:colorBack}}" class="small-1 p-0 m-0 text-end fw-bold" colspan="3">Sumatoria de ventas:</td>
+                            <td style="background-color: {{:colorBack}}" class="small-1 p-0 m-0 text-end">{{:resumen.subTotal}}</td>
+                        </tr>
+
+                        <tr>
+                            <td class="small-1 p-0 m-0 text-end" colspan="3"></td>
+                            <td class="small-1 p-0 m-0 text-end fw-bold" colspan="3">Sub-Total:</td>
+                            <td class="small-1 p-0 m-0 text-end">{{:resumen.subTotal}}</td>
+                        </tr>
+                        <tr>
+                            <td class="small-1 p-0 m-0 text-end" colspan="3"></td>
+                            <td class="small-1 p-0 m-0 text-end fw-bold" colspan="3">Rentencion Renta (-10%):</td>
+                            <td class="small-1 p-0 m-0 text-end">{{:resumen.reteRenta}}</td>
+                        </tr>
+                        <tr>
+                            <td class="small-1 p-0 m-0 text-end" colspan="3"></td>
+                            <td class="small-1 p-0 m-0 text-end fw-bold" colspan="3">Total a Pagar:</td>
+                            <td class="small-1 p-0 m-0 text-end">{{:resumen.totalPagar}}</td>
+                        </tr>
+                    </tfoot>
+                </table> 
+            </div>
+        </div>
+    </div>
+    <div class="row px-3 pt-2 ">
+        <div class="col-12">
+            <div class="border-2  ">
+                <table style="width: 100%;">
+                    <tr>
+                        <td style="width: 20%;" class=" fw-bold small-1 p-0 m-0 text-start pe-2 ps-2">Valor en Letras:
+                        </td>
+                        <td style="width: 80%;" class="small-1 p-0 m-0 text-start pe-2">{{:resumen.totalLetras}}</td> 
+                    </tr> 
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="row px-3 pt-2">
+        <div class="col-12">
+            <div class="border-2  ">
+                <table style="width: 100%;">
+                    <tr>
+                        <td style="width: 25%;" class=" fw-bold small-1 p-0 m-0 text-start pe-2 ps-2">Responsable por
+                            parte del
+                            Emisor:</td>
+                        <td style="width: 25%;" class="small-1 p-0 m-0 text-end pe-2"></td>
+                        <td style="width: 25%;" class=" fw-bold small-1 p-0 m-0 text-end pe-2">N° de Documento:</td>
+                        <td style="width: 25%;" class="small-1 p-0 m-0 text-end pe-2"></td>
+                    </tr>
+                    <tr>
+                        <td style="width: 25%;" class=" fw-bold small-1 p-0 m-0 text-start pe-2 ps-2">Responsable por
+                            parte del
+                            Receptor:</td>
+                        <td style="width: 25%;" class="small-1 p-0 m-0 text-end pe-2"></td>
+                        <td style="width: 25%;" class=" fw-bold small-1 p-0 m-0 text-end pe-2">N° de Documento:</td>
+                        <td style="width: 25%;" class="small-1 p-0 m-0 text-end pe-2"></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>
