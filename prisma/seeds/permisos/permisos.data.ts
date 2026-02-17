@@ -972,6 +972,46 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     'Modificar parametros ROP y configuraciones de catalogo de inventario',
     { requiere_auditoria: true },
   ),
+
+  // =============================================================
+  // MODULO: BANCOS
+  // =============================================================
+
+  // Cuentas Bancarias
+  crearPermiso('bancos', 'cuentas', 'VER', 'Ver Cuentas Bancarias', 'Ver listado y detalles de cuentas bancarias'),
+  crearPermiso('bancos', 'cuentas', 'CREAR', 'Crear Cuentas Bancarias', 'Crear nuevas cuentas bancarias', {
+    requiere_auditoria: true,
+  }),
+  crearPermiso('bancos', 'cuentas', 'EDITAR', 'Editar Cuentas Bancarias', 'Modificar cuentas bancarias existentes', {
+    requiere_auditoria: true,
+  }),
+  crearPermiso('bancos', 'cuentas', 'ELIMINAR', 'Desactivar Cuentas Bancarias', 'Desactivar cuentas bancarias del sistema', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+
+  // Movimientos Bancarios
+  crearPermiso('bancos', 'movimientos', 'VER', 'Ver Movimientos Bancarios', 'Ver historial de movimientos bancarios'),
+  crearPermiso('bancos', 'movimientos', 'CREAR', 'Crear Movimientos Bancarios', 'Crear movimientos bancarios (entradas, salidas)', {
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom(
+    'bancos',
+    'movimientos',
+    'anular',
+    'Anular Movimientos Bancarios',
+    'Anular movimientos bancarios y crear reversa',
+    { es_critico: true, requiere_auditoria: true },
+  ),
+  crearPermisoCustom(
+    'bancos',
+    'movimientos',
+    'ajustar',
+    'Ajustar Saldos Bancarios',
+    'Realizar ajustes manuales de saldo en cuentas bancarias',
+    { es_critico: true, requiere_auditoria: true },
+  ),
+  crearPermiso('bancos', 'movimientos', 'EXPORTAR', 'Exportar Movimientos Bancarios', 'Exportar movimientos bancarios a PDF y Excel'),
 ];
 
 /**

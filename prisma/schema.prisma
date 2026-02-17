@@ -132,6 +132,10 @@ model usuarios {
   empleado_vinculado             rh_empleado[]                   @relation("empleado_usuario")
   // Relación con facturas directas
   facturasDirectas               facturaDirecta[]
+  // Relaciones con módulo de bancos
+  cuentas_bancarias_creadas      cuenta_bancaria[]               @relation("cuenta_bancaria_usuario_crea")
+  movimientos_bancarios          movimiento_bancario[]           @relation("movimiento_bancario_usuario")
+  movimientos_bancarios_anulados movimiento_bancario[]           @relation("movimiento_bancario_usuario_anula")
 }
 
 model cliente {
@@ -356,6 +360,7 @@ model sucursales {
   // Relaciones con facturación directa
   clientesDirectos           clienteDirecto[]
   facturasDirectas           facturaDirecta[]
+  cuentas_bancarias          cuenta_bancaria[]
 }
 
 model bodegas {
@@ -3387,6 +3392,7 @@ model cat_banco {
   fecha_creacion             DateTime                @default(now())
   fecha_ultima_actualizacion DateTime                @default(now()) @updatedAt
   documentos                 rh_empleado_documento[]
+  cuentas                    cuenta_bancaria[]
 }
 
 model cat_tipo_cuenta_banco {
@@ -3397,6 +3403,7 @@ model cat_tipo_cuenta_banco {
   fecha_creacion             DateTime                @default(now())
   fecha_ultima_actualizacion DateTime                @default(now()) @updatedAt
   documentos                 rh_empleado_documento[]
+  cuentas                    cuenta_bancaria[]
 }
 
 model cat_parentesco {
@@ -4111,4 +4118,145 @@ model facturaDirectaDetalle {
   // === ÍNDICES ===
   @@index([id_factura_directa])
   @@index([id_catalogo])
+}
+
+// =============================================================
+// MODULO: BANCOS
+// =============================================================
+
+enum tipo_movimiento_bancario {
+  ENTRADA
+  SALIDA
+  AJUSTE
+}
+
+enum metodo_movimiento_bancario {
+  CHEQUE
+  TRANSFERENCIA
+  DEPOSITO
+  AJUSTE_MANUAL
+  NOTA_DEBITO
+  NOTA_CREDITO
+  COMISION_BANCARIA
+  INTERES
+}
+
+enum modulo_origen_movimiento {
+  VENTAS
+  COMPRAS
+  NOMINA
+  GASTOS
+  MANUAL
+}
+
+enum estado_movimiento_bancario {
+  ACTIVO
+  ANULADO
+}
+
+enum estado_cheque {
+  EMITIDO
+  COBRADO
+  ANULADO
+}
+
+enum tipo_deposito_bancario {
+  EFECTIVO
+  CHEQUE_TERCEROS
+}
+
+model cuenta_bancaria {
+  id_cuenta_bancaria         Int                      @id @default(autoincrement())
+  id_banco                   Int
+  banco                      cat_banco                @relation(fields: [id_banco], references: [id_banco], onDelete: NoAction, onUpdate: NoAction, map: "fk_cuenta_bancaria_banco")
+  id_tipo_cuenta             Int
+  tipo_cuenta                cat_tipo_cuenta_banco    @relation(fields: [id_tipo_cuenta], references: [id_tipo_cuenta], onDelete: NoAction, onUpdate: NoAction, map: "fk_cuenta_bancaria_tipo_cuenta")
+  id_sucursal                Int?
+  sucursal                   sucursales?              @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_cuenta_bancaria_sucursal")
+  id_usuario_crea            Int
+  usuario_crea               usuarios                 @relation("cuenta_bancaria_usuario_crea", fields: [id_usuario_crea], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cuenta_bancaria_usuario_crea")
+  numero_cuenta              String                   @unique
+  alias                      String?
+  moneda                     String                   @default("USD")
+  saldo_actual               Decimal                  @default(0) @db.Decimal(12, 2)
+  permite_saldo_negativo     Boolean                  @default(false)
+  fecha_apertura             DateTime?
+  estado                     estado                   @default(ACTIVO)
+  version                    Int                      @default(0)
+  fecha_creacion             DateTime                 @default(now())
+  fecha_ultima_actualizacion DateTime                 @default(now()) @updatedAt
+  movimientos                movimiento_bancario[]
+
+  @@index([id_banco])
+  @@index([estado])
+}
+
+model movimiento_bancario {
+  id_movimiento              Int                          @id @default(autoincrement())
+  id_cuenta_bancaria         Int
+  cuenta_bancaria            cuenta_bancaria              @relation(fields: [id_cuenta_bancaria], references: [id_cuenta_bancaria], onDelete: NoAction, onUpdate: NoAction, map: "fk_movimiento_bancario_cuenta")
+  id_usuario                 Int
+  usuario                    usuarios                     @relation("movimiento_bancario_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_movimiento_bancario_usuario")
+  fecha_movimiento           DateTime                     @default(now())
+  tipo_movimiento            tipo_movimiento_bancario
+  metodo                     metodo_movimiento_bancario
+  monto                      Decimal                      @db.Decimal(12, 2)
+  saldo_resultante           Decimal                      @db.Decimal(12, 2)
+  referencia_bancaria        String?
+  documento_origen_id        Int?
+  modulo_origen              modulo_origen_movimiento?
+  descripcion                String?
+  estado_movimiento          estado_movimiento_bancario   @default(ACTIVO)
+  id_usuario_anula           Int?
+  usuario_anula              usuarios?                    @relation("movimiento_bancario_usuario_anula", fields: [id_usuario_anula], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_movimiento_bancario_usuario_anula")
+  motivo_anulacion           String?
+  fecha_anulacion            DateTime?
+  metadata                   Json?
+  fecha_creacion             DateTime                     @default(now())
+  fecha_ultima_actualizacion DateTime                     @default(now()) @updatedAt
+  cheque                     cheque?
+  transferencia              transferencia_bancaria?
+  deposito                   deposito_bancario?
+
+  @@index([id_cuenta_bancaria])
+  @@index([fecha_movimiento])
+  @@index([tipo_movimiento])
+  @@index([estado_movimiento])
+  @@index([modulo_origen])
+}
+
+model cheque {
+  id_cheque                  Int                      @id @default(autoincrement())
+  id_movimiento              Int                      @unique
+  movimiento                 movimiento_bancario      @relation(fields: [id_movimiento], references: [id_movimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_cheque_movimiento")
+  numero_cheque              String
+  beneficiario               String
+  fecha_emision              DateTime
+  fecha_cobro                DateTime?
+  estado_cheque              estado_cheque            @default(EMITIDO)
+  fecha_creacion             DateTime                 @default(now())
+  fecha_ultima_actualizacion DateTime                 @default(now()) @updatedAt
+}
+
+model transferencia_bancaria {
+  id_transferencia           Int                      @id @default(autoincrement())
+  id_movimiento              Int                      @unique
+  movimiento                 movimiento_bancario      @relation(fields: [id_movimiento], references: [id_movimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_transferencia_movimiento")
+  banco_contraparte          String?
+  cuenta_contraparte         String?
+  codigo_autorizacion        String?
+  fecha_transferencia        DateTime
+  fecha_creacion             DateTime                 @default(now())
+  fecha_ultima_actualizacion DateTime                 @default(now()) @updatedAt
+}
+
+model deposito_bancario {
+  id_deposito                Int                      @id @default(autoincrement())
+  id_movimiento              Int                      @unique
+  movimiento                 movimiento_bancario      @relation(fields: [id_movimiento], references: [id_movimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_deposito_movimiento")
+  tipo_deposito              tipo_deposito_bancario
+  numero_boleta              String?
+  fecha_deposito             DateTime
+  fecha_creacion             DateTime                 @default(now())
+  fecha_ultima_actualizacion DateTime                 @default(now()) @updatedAt
 }
