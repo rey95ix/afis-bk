@@ -552,41 +552,41 @@ export class MetricasInventarioService {
       // Obtener métricas de auditorías del mes
       const metricsAuditorias = await this.getMetricasAuditoriasMes(fecha);
 
-      // Almacenar métricas
-      await this.prisma.metricas_inventario.upsert({
+      // Almacenar métricas (findFirst + create/update porque Prisma no soporta null en upsert con clave compuesta)
+      const existing = await this.prisma.metricas_inventario.findFirst({
         where: {
-          periodo_id_bodega_id_categoria: {
-            periodo,
-            id_bodega: null as any, // Global
-            id_categoria: null as any, // Todas
-          },
-        },
-        create: {
           periodo,
-          tipo_periodo: TipoPeriodo.DIARIO,
-          accuracy_porcentaje: precision.precision_porcentaje,
-          total_auditorias_realizadas: metricsAuditorias.total,
-          total_items_auditados: metricsAuditorias.items_auditados,
-          total_items_conformes: metricsAuditorias.items_conformes,
-          total_items_con_discrepancia: metricsAuditorias.items_discrepancia,
-          valor_total_inventario: await this.getValorInventarioEnFecha(fecha),
-          total_movimientos: await this.contarMovimientosMes(fecha),
-          total_ajustes: metricsAuditorias.ajustes_total,
-          total_ajustes_autorizados: metricsAuditorias.ajustes_autorizados,
-        },
-        update: {
-          accuracy_porcentaje: precision.precision_porcentaje,
-          total_auditorias_realizadas: metricsAuditorias.total,
-          total_items_auditados: metricsAuditorias.items_auditados,
-          total_items_conformes: metricsAuditorias.items_conformes,
-          total_items_con_discrepancia: metricsAuditorias.items_discrepancia,
-          valor_total_inventario: await this.getValorInventarioEnFecha(fecha),
-          total_movimientos: await this.contarMovimientosMes(fecha),
-          total_ajustes: metricsAuditorias.ajustes_total,
-          total_ajustes_autorizados: metricsAuditorias.ajustes_autorizados,
-          fecha_calculo: new Date(),
+          id_bodega: null,
+          id_categoria: null,
         },
       });
+
+      const data = {
+        accuracy_porcentaje: precision.precision_porcentaje,
+        total_auditorias_realizadas: metricsAuditorias.total,
+        total_items_auditados: metricsAuditorias.items_auditados,
+        total_items_conformes: metricsAuditorias.items_conformes,
+        total_items_con_discrepancia: metricsAuditorias.items_discrepancia,
+        valor_total_inventario: await this.getValorInventarioEnFecha(fecha),
+        total_movimientos: await this.contarMovimientosMes(fecha),
+        total_ajustes: metricsAuditorias.ajustes_total,
+        total_ajustes_autorizados: metricsAuditorias.ajustes_autorizados,
+      };
+
+      if (existing) {
+        await this.prisma.metricas_inventario.update({
+          where: { id_metrica: existing.id_metrica },
+          data: { ...data, fecha_calculo: new Date() },
+        });
+      } else {
+        await this.prisma.metricas_inventario.create({
+          data: {
+            periodo,
+            tipo_periodo: TipoPeriodo.DIARIO,
+            ...data,
+          },
+        });
+      }
 
       this.logger.log(
         `Métricas calculadas: Precisión=${precision.precision_porcentaje}%, ` +
@@ -632,63 +632,60 @@ export class MetricasInventarioService {
       dto.id_bodega,
     );
 
-    // Almacenar
-    const metrica = await this.prisma.metricas_inventario.upsert({
+    // Almacenar (findFirst + create/update porque Prisma no soporta null en upsert con clave compuesta)
+    const existing = await this.prisma.metricas_inventario.findFirst({
       where: {
-        periodo_id_bodega_id_categoria: {
-          periodo,
-          id_bodega: dto.id_bodega || null as any,
-          id_categoria: dto.id_categoria || null as any,
-        },
-      },
-      create: {
         periodo,
-        tipo_periodo: dto.tipo_periodo || TipoPeriodo.MENSUAL,
-        id_bodega: dto.id_bodega,
-        id_categoria: dto.id_categoria,
-        accuracy_porcentaje: precision.precision_porcentaje,
-        total_auditorias_realizadas: metricsAuditorias.total,
-        total_items_auditados: metricsAuditorias.items_auditados,
-        total_items_conformes: metricsAuditorias.items_conformes,
-        total_items_con_discrepancia: metricsAuditorias.items_discrepancia,
-        valor_total_inventario: await this.getValorInventarioEnFecha(
-          fechaFin,
-          dto.id_bodega,
-          dto.id_categoria,
-        ),
-        total_movimientos: await this.contarMovimientosRango(
-          fechaInicio,
-          fechaFin,
-          dto.id_bodega,
-        ),
-        total_ajustes: metricsAuditorias.ajustes_total,
-        total_ajustes_autorizados: metricsAuditorias.ajustes_autorizados,
-      },
-      update: {
-        accuracy_porcentaje: precision.precision_porcentaje,
-        total_auditorias_realizadas: metricsAuditorias.total,
-        total_items_auditados: metricsAuditorias.items_auditados,
-        total_items_conformes: metricsAuditorias.items_conformes,
-        total_items_con_discrepancia: metricsAuditorias.items_discrepancia,
-        valor_total_inventario: await this.getValorInventarioEnFecha(
-          fechaFin,
-          dto.id_bodega,
-          dto.id_categoria,
-        ),
-        total_movimientos: await this.contarMovimientosRango(
-          fechaInicio,
-          fechaFin,
-          dto.id_bodega,
-        ),
-        total_ajustes: metricsAuditorias.ajustes_total,
-        total_ajustes_autorizados: metricsAuditorias.ajustes_autorizados,
-        fecha_calculo: new Date(),
-      },
-      include: {
-        bodega: true,
-        categoria: true,
+        id_bodega: dto.id_bodega ?? null,
+        id_categoria: dto.id_categoria ?? null,
       },
     });
+
+    const data = {
+      accuracy_porcentaje: precision.precision_porcentaje,
+      total_auditorias_realizadas: metricsAuditorias.total,
+      total_items_auditados: metricsAuditorias.items_auditados,
+      total_items_conformes: metricsAuditorias.items_conformes,
+      total_items_con_discrepancia: metricsAuditorias.items_discrepancia,
+      valor_total_inventario: await this.getValorInventarioEnFecha(
+        fechaFin,
+        dto.id_bodega,
+        dto.id_categoria,
+      ),
+      total_movimientos: await this.contarMovimientosRango(
+        fechaInicio,
+        fechaFin,
+        dto.id_bodega,
+      ),
+      total_ajustes: metricsAuditorias.ajustes_total,
+      total_ajustes_autorizados: metricsAuditorias.ajustes_autorizados,
+    };
+
+    let metrica;
+    if (existing) {
+      metrica = await this.prisma.metricas_inventario.update({
+        where: { id_metrica: existing.id_metrica },
+        data: { ...data, fecha_calculo: new Date() },
+        include: {
+          bodega: true,
+          categoria: true,
+        },
+      });
+    } else {
+      metrica = await this.prisma.metricas_inventario.create({
+        data: {
+          periodo,
+          tipo_periodo: dto.tipo_periodo || TipoPeriodo.MENSUAL,
+          id_bodega: dto.id_bodega,
+          id_categoria: dto.id_categoria,
+          ...data,
+        },
+        include: {
+          bodega: true,
+          categoria: true,
+        },
+      });
+    }
 
     return {
       metrica,

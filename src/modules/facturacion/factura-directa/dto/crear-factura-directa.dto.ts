@@ -138,6 +138,12 @@ export class CrearFacturaDirectaDto {
   @IsEnum([1, 2, 3])
   condicion_operacion?: number;
 
+  @ApiPropertyOptional({ description: 'Días de crédito (solo condicion_operacion=2)', default: 30 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  dias_credito?: number;
+
   // === MONTOS DIRECTOS (opcionales, se calculan si no se envían) ===
   @ApiPropertyOptional({ description: 'Monto en efectivo' })
   @IsOptional()

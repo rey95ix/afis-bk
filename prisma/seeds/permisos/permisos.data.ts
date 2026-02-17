@@ -1012,6 +1012,29 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     { es_critico: true, requiere_auditoria: true },
   ),
   crearPermiso('bancos', 'movimientos', 'EXPORTAR', 'Exportar Movimientos Bancarios', 'Exportar movimientos bancarios a PDF y Excel'),
+
+  // =============================================================
+  // MODULO: CUENTAS POR COBRAR
+  // =============================================================
+
+  // Cuentas por Cobrar
+  crearPermiso('cxc', 'cuentas', 'VER', 'Ver Cuentas por Cobrar', 'Ver listado y detalles de cuentas por cobrar'),
+  crearPermisoCustom('cxc', 'cuentas', 'crear', 'Crear CxC', 'Crear cuentas por cobrar', {
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom('cxc', 'cuentas', 'editar', 'Editar CxC', 'Editar cuentas por cobrar y actualizar estados', {
+    requiere_auditoria: true,
+  }),
+
+  // Abonos
+  crearPermiso('cxc', 'abonos', 'VER', 'Ver Abonos', 'Ver abonos de cuentas por cobrar'),
+  crearPermisoCustom('cxc', 'abonos', 'crear', 'Registrar Abonos', 'Registrar abonos a cuentas por cobrar', {
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom('cxc', 'abonos', 'anular', 'Anular Abonos', 'Anular abonos de cuentas por cobrar', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
 ];
 
 /**

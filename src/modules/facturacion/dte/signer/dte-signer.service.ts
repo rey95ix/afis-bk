@@ -51,17 +51,11 @@ export class DteSignerService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService
   ) {
-    this.apiUrl = this.configService.get<string>('API_FIRMADOR', 'http://localhost:8113');
-    // this.password = this.configService.get<string>('FIRMADOR_PASSWORD', '');
-    this.obtenerFirmadorPassword();
+    this.apiUrl = this.configService.get<string>('API_FIRMADOR', 'http://localhost:8113');  
     if (!this.password) {
       this.logger.warn('FIRMADOR_PASSWORD no está configurado en las variables de entorno');
     }
-  }
-  async obtenerFirmadorPassword() {
-    const generalData = await this.prisma.generalData.findFirst();
-    return generalData?.private_key || '';
-  }
+  } 
 
   /**
    * Firma un documento DTE o evento de anulación
@@ -99,9 +93,9 @@ export class DteSignerService {
         },
         data: request, // Los datos que se enviarán en el cuerpo de la solicitud
       };
-      const response: AxiosResponse = await axios.request(config); 
+      const response: AxiosResponse = await axios.request(config);
       if (response.data.status === 'OK') {
-        this.logger.log('Documento firmado exitosamente'); 
+        this.logger.log('Documento firmado exitosamente');
         return {
           success: true,
           documentoFirmado: response.data.body,

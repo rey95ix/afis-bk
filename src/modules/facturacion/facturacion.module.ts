@@ -44,8 +44,11 @@ import { LibrosIvaModule } from './libros-iva/libros-iva.module';
 // Mail
 import { MailModule } from '../mail/mail.module';
 
+// Cuentas por Cobrar
+import { CxcModule } from '../cxc/cxc.module';
+
 @Module({
-  imports: [PrismaModule, AuthModule, ConfigModule, LibrosIvaModule, MailModule],
+  imports: [PrismaModule, AuthModule, ConfigModule, LibrosIvaModule, MailModule, CxcModule],
   controllers: [
     CiclosController,
     CobrosController,

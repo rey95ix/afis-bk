@@ -132,6 +132,9 @@ model usuarios {
   empleado_vinculado             rh_empleado[]                   @relation("empleado_usuario")
   // Relación con facturas directas
   facturasDirectas               facturaDirecta[]
+  // Relaciones con cuentas por cobrar
+  cxc_creadas                    cuenta_por_cobrar[]              @relation("cxc_usuario_crea")
+  abonos_cxc                     abono_cxc[]                      @relation("abono_cxc_usuario")
   // Relaciones con módulo de bancos
   cuentas_bancarias_creadas      cuenta_bancaria[]               @relation("cuenta_bancaria_usuario_crea")
   movimientos_bancarios          movimiento_bancario[]           @relation("movimiento_bancario_usuario")
@@ -361,6 +364,8 @@ model sucursales {
   clientesDirectos           clienteDirecto[]
   facturasDirectas           facturaDirecta[]
   cuentas_bancarias          cuenta_bancaria[]
+  // Relaciones con cuentas por cobrar
+  cuentas_por_cobrar         cuenta_por_cobrar[]
 }
 
 model bodegas {
@@ -2908,8 +2913,9 @@ model mora_configuracion {
   fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 
   // === RELACIONES INVERSAS ===
-  general_data_default GeneralData[] @relation("mora_default")
-  contratos            atcContrato[] @relation("mora_contrato")
+  general_data_default GeneralData[]       @relation("mora_default")
+  contratos            atcContrato[]       @relation("mora_contrato")
+  cuentas_por_cobrar   cuenta_por_cobrar[] @relation("mora_cxc")
 
   @@index([codigo])
   @@index([activo])
@@ -3920,6 +3926,7 @@ model clienteDirecto {
 
   // === RELACIONES ===
   facturasDirectas   facturaDirecta[]
+  cuentasPorCobrar   cuenta_por_cobrar[]
 
   // === ÍNDICES ===
   @@index([nit])
@@ -3997,6 +4004,8 @@ model facturaDirecta {
   id_metodo_pago     Int?
   metodoPago         metodosPago? @relation(fields: [id_metodo_pago], references: [id_metodo_pago], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_metodo_pago")
   condicion_operacion Int @default(1) // 1=Contado, 2=Crédito, 3=Otro
+  dias_credito        Int?
+  fecha_pago_estimada DateTime?
 
   // === CAMPOS DE EXPORTACIÓN (FEX tipo 11) ===
   flete              Decimal @default(0) @db.Decimal(12, 2)
@@ -4056,6 +4065,7 @@ model facturaDirecta {
 
   // === RELACIONES ===
   detalles           facturaDirectaDetalle[]
+  cuenta_por_cobrar  cuenta_por_cobrar?
 
   // === ÍNDICES ===
   @@index([numero_factura])
@@ -4147,6 +4157,26 @@ enum modulo_origen_movimiento {
   NOMINA
   GASTOS
   MANUAL
+  CUENTAS_POR_COBRAR
+}
+
+// ============= CUENTAS POR COBRAR =============
+
+enum estado_cxc {
+  PENDIENTE
+  PAGADA_PARCIAL
+  PAGADA_TOTAL
+  VENCIDA
+  ANULADA
+}
+
+enum metodo_pago_abono {
+  EFECTIVO
+  CHEQUE
+  TRANSFERENCIA
+  DEPOSITO
+  TARJETA
+  OTRO
 }
 
 enum estado_movimiento_bancario {
@@ -4259,4 +4289,99 @@ model deposito_bancario {
   fecha_deposito             DateTime
   fecha_creacion             DateTime                 @default(now())
   fecha_ultima_actualizacion DateTime                 @default(now()) @updatedAt
+}
+
+// ============= CUENTAS POR COBRAR =============
+
+model cuenta_por_cobrar {
+  id_cxc                     Int                      @id @default(autoincrement())
+
+  // === RELACIÓN CON FACTURA ===
+  id_factura_directa         Int                      @unique
+  facturaDirecta             facturaDirecta           @relation(fields: [id_factura_directa], references: [id_factura_directa], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_factura_directa")
+
+  // === RELACIÓN CON CLIENTE ===
+  id_cliente_directo         Int
+  clienteDirecto             clienteDirecto           @relation(fields: [id_cliente_directo], references: [id_cliente_directo], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_cliente_directo")
+
+  // === MONTOS ===
+  monto_total                Decimal                  @db.Decimal(12, 2)
+  saldo_pendiente            Decimal                  @db.Decimal(12, 2)
+  total_abonado              Decimal                  @default(0) @db.Decimal(12, 2)
+
+  // === FECHAS Y CRÉDITO ===
+  fecha_emision              DateTime
+  fecha_vencimiento          DateTime
+  dias_credito               Int                      @default(30)
+
+  // === ESTADO ===
+  estado                     estado_cxc               @default(PENDIENTE)
+
+  // === MORA ===
+  monto_mora                 Decimal                  @default(0) @db.Decimal(12, 2)
+  id_mora_config             Int?
+  moraConfig                 mora_configuracion?      @relation("mora_cxc", fields: [id_mora_config], references: [id_mora_config], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_mora_config")
+
+  // === SUCURSAL ===
+  id_sucursal                Int
+  sucursal                   sucursales               @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_sucursal")
+
+  // === USUARIO CREADOR ===
+  id_usuario_crea            Int
+  usuarioCrea                usuarios                 @relation("cxc_usuario_crea", fields: [id_usuario_crea], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_usuario_crea")
+
+  // === OBSERVACIONES ===
+  observaciones              String?                  @db.Text
+
+  // === AUDITORÍA ===
+  fecha_creacion             DateTime                 @default(now())
+  fecha_actualizacion        DateTime                 @default(now()) @updatedAt
+
+  // === RELACIONES ===
+  abonos                     abono_cxc[]
+
+  // === ÍNDICES ===
+  @@index([id_factura_directa])
+  @@index([id_cliente_directo])
+  @@index([estado])
+  @@index([fecha_vencimiento])
+  @@index([id_sucursal])
+}
+
+model abono_cxc {
+  id_abono                   Int                      @id @default(autoincrement())
+
+  // === RELACIÓN CON CXC ===
+  id_cxc                     Int
+  cuentaPorCobrar            cuenta_por_cobrar        @relation(fields: [id_cxc], references: [id_cxc], onDelete: NoAction, onUpdate: NoAction, map: "fk_abono_cxc")
+
+  // === MONTOS ===
+  monto                      Decimal                  @db.Decimal(12, 2)
+  saldo_anterior             Decimal                  @db.Decimal(12, 2)
+  saldo_posterior             Decimal                  @db.Decimal(12, 2)
+
+  // === PAGO ===
+  metodo_pago                metodo_pago_abono
+  referencia                 String?                  @db.VarChar(200)
+  fecha_pago                 DateTime                 @default(now())
+  id_movimiento_bancario     Int?
+
+  // === USUARIO ===
+  id_usuario                 Int
+  usuario                    usuarios                 @relation("abono_cxc_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_abono_cxc_usuario")
+
+  // === OBSERVACIONES ===
+  observaciones              String?                  @db.Text
+
+  // === ESTADO ===
+  activo                     Boolean                  @default(true)
+
+  // === AUDITORÍA ===
+  fecha_creacion             DateTime                 @default(now())
+  fecha_actualizacion        DateTime                 @default(now()) @updatedAt
+
+  // === ÍNDICES ===
+  @@index([id_cxc])
+  @@index([fecha_pago])
+  @@index([activo])
 }

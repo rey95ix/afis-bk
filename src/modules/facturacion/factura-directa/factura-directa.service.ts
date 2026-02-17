@@ -8,6 +8,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CxcService } from '../../cxc/cxc.service';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import * as fs from 'fs';
@@ -158,6 +159,7 @@ export class FacturaDirectaService {
     private readonly signer: DteSignerService,
     private readonly transmitter: MhTransmitterService,
     private readonly mailService: MailService,
+    private readonly cxcService: CxcService,
   ) { }
 
   /**
@@ -208,8 +210,6 @@ export class FacturaDirectaService {
           ? this.ccfBuilder
           : this.fcBuilder;
       const { documento, totales } = builder.build(buildParams);
-      console.log("totales")
-      console.log(totales)
       this.logger.log(`DTE construido. Total a pagar: $${totales.totalPagar}`);
 
       // ==================== PASO 6: GUARDAR FACTURA ====================
@@ -282,6 +282,24 @@ export class FacturaDirectaService {
 
         // Enviar factura por correo (asíncrono, no bloquea)
         this.enviarFacturaPorCorreoAsync(facturaCreada.id_factura_directa);
+
+        // Crear CxC si es factura a crédito
+        if ((dto.condicion_operacion || 1) === 2 && dto.id_cliente_directo) {
+          try {
+            await this.cxcService.crearCuentaPorCobrar({
+              id_factura_directa: facturaCreada.id_factura_directa,
+              id_cliente_directo: dto.id_cliente_directo,
+              monto_total: totales.totalPagar,
+              dias_credito: dto.dias_credito || 30,
+              fecha_emision: facturaCreada.fecha_creacion,
+              id_sucursal: datos.sucursal.id_sucursal,
+              id_usuario: idUsuario,
+            });
+          } catch (error) {
+            this.logger.error(`Error al crear CxC para factura #${facturaCreada.id_factura_directa}: ${error.message}`);
+            // No bloquear la factura si falla la CxC
+          }
+        }
 
         return {
           success: true,
@@ -1367,6 +1385,9 @@ export class FacturaDirectaService {
           `Factura directa anulada exitosamente. Sello: ${transmitResult.selloRecibido}`,
         );
 
+        // Anular CxC asociada si existe
+        await this.cxcService.anularCxcPorFactura(id);
+
         return {
           success: true,
           idFactura: id,
@@ -1713,6 +1734,11 @@ export class FacturaDirectaService {
       if (!dto.cliente_nit || !dto.cliente_nrc) {
         throw new BadRequestException('Para CCF se requiere NIT y NRC del cliente');
       }
+    }
+
+    // 3.5. Validar cliente para factura a crédito
+    if ((dto.condicion_operacion || 1) === 2 && !dto.id_cliente_directo) {
+      throw new BadRequestException('Las facturas a crédito requieren un cliente registrado');
     }
 
     // 4. Validar sujeto excluido para FSE
@@ -2092,6 +2118,11 @@ export class FacturaDirectaService {
         cheque: dto.cheque || 0,
         transferencia: dto.transferencia || 0,
         condicion_operacion: dto.condicion_operacion || 1,
+        dias_credito: (dto.condicion_operacion || 1) === 2 ? (dto.dias_credito || 30) : null,
+        fecha_pago_estimada: (dto.condicion_operacion || 1) === 2
+          ? new Date(Date.now() + ((dto.dias_credito || 30) * 24 * 60 * 60 * 1000))
+          : null,
+        estado_pago: (dto.condicion_operacion || 1) === 2 ? 'PENDIENTE' : 'PAGADO',
 
         // Exportación (si aplica)
         flete: dto.flete || 0,
@@ -2292,9 +2323,9 @@ export class FacturaDirectaService {
         nit: this.sanitizarIdentificador(clienteDirecto?.nit || factura.cliente_nit),
         nrc: this.sanitizarIdentificador(clienteDirecto?.registro_nrc || factura.cliente_nrc) || '',
         nombre: clienteDirecto?.nombre || factura.cliente_nombre || null,
-        codActividad: null,
-        descActividad: null,
-        nombreComercial: null,
+        codActividad: clienteDirecto?.actividadEconomica?.codigo || null,
+        descActividad: clienteDirecto?.actividadEconomica?.nombre || null,
+        nombreComercial: clienteDirecto?.nombreComercial || null,
         telefono: clienteDirecto?.telefono || factura.cliente_telefono || null,
         correo: clienteDirecto?.correo || factura.cliente_correo || null,
         departamento: clienteDirecto?.municipio?.Departamento?.codigo || null,
@@ -2328,7 +2359,7 @@ export class FacturaDirectaService {
         nombre: clienteDirecto?.nombre || factura.cliente_nombre!,
         codActividad: clienteDirecto?.actividadEconomica?.codigo || null,
         descActividad: clienteDirecto?.actividadEconomica?.nombre || null,
-        nombreComercial: null,
+        nombreComercial: clienteDirecto?.nombreComercial || null,
         telefono: clienteDirecto?.telefono?.length > 0 ? clienteDirecto?.telefono : null,
         correo: clienteDirecto?.correo?.length > 0 ? clienteDirecto?.correo : null,
         departamento: clienteDirecto?.municipio?.Departamento?.codigo || null,
@@ -2424,7 +2455,7 @@ export class FacturaDirectaService {
               marginTop: '1cm',
               marginBottom: '1cm',
               marginLeft: '0.5cm',
-              marginRight: '0.5cm', 
+              marginRight: '0.5cm',
             }
           },
           data: templateData,
