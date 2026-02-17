@@ -47,8 +47,11 @@ import { MailModule } from '../mail/mail.module';
 // Cuentas por Cobrar
 import { CxcModule } from '../cxc/cxc.module';
 
+// Bancos (movimientos bancarios para pagos no-efectivo)
+import { BancosModule } from '../bancos/bancos.module';
+
 @Module({
-  imports: [PrismaModule, AuthModule, ConfigModule, LibrosIvaModule, MailModule, CxcModule],
+  imports: [PrismaModule, AuthModule, ConfigModule, LibrosIvaModule, MailModule, CxcModule, BancosModule],
   controllers: [
     CiclosController,
     CobrosController,

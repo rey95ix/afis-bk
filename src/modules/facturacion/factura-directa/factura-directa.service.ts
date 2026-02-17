@@ -42,6 +42,7 @@ import { MhTransmitterService, TransmisionResult } from '../dte/transmitter';
 import { TipoDte, Ambiente, DteDocument, TipoAnulacion } from '../interfaces';
 import { estado_dte, facturaDirecta, Prisma } from '@prisma/client';
 import { MailService } from '../../mail/mail.service';
+import { MovimientosBancariosService } from '../../bancos/movimientos-bancarios/movimientos-bancarios.service';
 
 // Utilidad para convertir números a letras
 import { numeroALetras, redondearMonto, DECIMALES_ITEM } from '../dte/builders/numero-letras.util';
@@ -160,6 +161,7 @@ export class FacturaDirectaService {
     private readonly transmitter: MhTransmitterService,
     private readonly mailService: MailService,
     private readonly cxcService: CxcService,
+    private readonly movimientosBancariosService: MovimientosBancariosService,
   ) { }
 
   /**
@@ -299,6 +301,11 @@ export class FacturaDirectaService {
             this.logger.error(`Error al crear CxC para factura #${facturaCreada.id_factura_directa}: ${error.message}`);
             // No bloquear la factura si falla la CxC
           }
+        }
+
+        // Crear movimientos bancarios para pagos no-efectivo (contado)
+        if ((dto.condicion_operacion || 1) === 1) {
+          await this.crearMovimientosBancarios(facturaCreada.id_factura_directa, dto, idUsuario, facturaCreada.numero_factura);
         }
 
         return {
@@ -2117,6 +2124,9 @@ export class FacturaDirectaService {
         tarjeta: dto.tarjeta || 0,
         cheque: dto.cheque || 0,
         transferencia: dto.transferencia || 0,
+        id_cuenta_tarjeta: dto.id_cuenta_tarjeta || null,
+        id_cuenta_cheque: dto.id_cuenta_cheque || null,
+        id_cuenta_transferencia: dto.id_cuenta_transferencia || null,
         condicion_operacion: dto.condicion_operacion || 1,
         dias_credito: (dto.condicion_operacion || 1) === 2 ? (dto.dias_credito || 30) : null,
         fecha_pago_estimada: (dto.condicion_operacion || 1) === 2
@@ -2187,6 +2197,45 @@ export class FacturaDirectaService {
         },
       },
     });
+  }
+
+  /**
+   * Crear movimientos bancarios ENTRADA para pagos no-efectivo (tarjeta, cheque, transferencia)
+   * Se ejecuta solo en facturas de contado. Errores se loguean pero NO bloquean la factura.
+   */
+  private async crearMovimientosBancarios(
+    idFactura: number,
+    dto: CrearFacturaDirectaDto,
+    idUsuario: number,
+    numeroFactura: string,
+  ): Promise<void> {
+    const pagos: { monto: number; idCuenta?: number; metodo: 'DEPOSITO' | 'CHEQUE' | 'TRANSFERENCIA'; label: string }[] = [
+      { monto: dto.tarjeta || 0, idCuenta: dto.id_cuenta_tarjeta, metodo: 'DEPOSITO', label: 'tarjeta' },
+      { monto: dto.cheque || 0, idCuenta: dto.id_cuenta_cheque, metodo: 'CHEQUE', label: 'cheque' },
+      { monto: dto.transferencia || 0, idCuenta: dto.id_cuenta_transferencia, metodo: 'TRANSFERENCIA', label: 'transferencia' },
+    ];
+
+    for (const pago of pagos) {
+      if (pago.monto > 0 && pago.idCuenta) {
+        try {
+          await this.movimientosBancariosService.crearMovimiento(
+            {
+              id_cuenta_bancaria: pago.idCuenta,
+              tipo_movimiento: 'ENTRADA',
+              metodo: pago.metodo,
+              monto: pago.monto,
+              modulo_origen: 'VENTAS',
+              documento_origen_id: idFactura,
+              descripcion: `Pago ${pago.label} - Factura directa #${numeroFactura}`,
+            },
+            idUsuario,
+          );
+        } catch (error) {
+          this.logger.error(`Error al crear movimiento bancario (${pago.label}) para factura #${numeroFactura}: ${error.message}`);
+          // No bloquear la factura si falla el movimiento bancario
+        }
+      }
+    }
   }
 
   /**

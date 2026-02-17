@@ -34,6 +34,8 @@ import { MetricasInventarioController } from './metricas-inventario/metricas-inv
 import { MetricasInventarioService } from './metricas-inventario/metricas-inventario.service';
 import { CargaInventarioController } from './carga-inventario/carga-inventario.controller';
 import { CargaInventarioService } from './carga-inventario/carga-inventario.service';
+import { OrdenesCompraController } from './ordenes-compra/ordenes-compra.controller';
+import { OrdenesCompraService } from './ordenes-compra/ordenes-compra.service';
 import { MinioModule } from '../minio/minio.module';
 
 @Module({
@@ -60,6 +62,7 @@ import { MinioModule } from '../minio/minio.module';
     SalidasTemporalesOtController,
     MetricasInventarioController,
     CargaInventarioController,
+    OrdenesCompraController,
   ],
   providers: [
     SucursalesService,
@@ -77,6 +80,7 @@ import { MinioModule } from '../minio/minio.module';
     SalidasTemporalesOtService,
     MetricasInventarioService,
     CargaInventarioService,
+    OrdenesCompraService,
   ],
   exports: [MetricasInventarioService],
 })

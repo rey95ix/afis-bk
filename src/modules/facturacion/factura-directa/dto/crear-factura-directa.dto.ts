@@ -169,6 +169,22 @@ export class CrearFacturaDirectaDto {
   @Min(0)
   transferencia?: number;
 
+  // === CUENTAS BANCARIAS DESTINO (para pagos no-efectivo en contado) ===
+  @ApiPropertyOptional({ description: 'ID cuenta bancaria para pago con tarjeta' })
+  @IsOptional()
+  @IsInt()
+  id_cuenta_tarjeta?: number;
+
+  @ApiPropertyOptional({ description: 'ID cuenta bancaria para pago con cheque' })
+  @IsOptional()
+  @IsInt()
+  id_cuenta_cheque?: number;
+
+  @ApiPropertyOptional({ description: 'ID cuenta bancaria para pago con transferencia' })
+  @IsOptional()
+  @IsInt()
+  id_cuenta_transferencia?: number;
+
   // === RETENCIONES ===
   @ApiPropertyOptional({ description: 'IVA retenido por el cliente', default: 0 })
   @IsOptional()

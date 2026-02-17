@@ -578,6 +578,75 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     { requiere_auditoria: true },
   ),
 
+  // Ordenes de Compra
+  crearPermiso('inventario', 'ordenes_compra', 'VER', 'Ver Ordenes de Compra', 'Ver listado y detalles de ordenes de compra'),
+  crearPermiso('inventario', 'ordenes_compra', 'CREAR', 'Crear Ordenes de Compra', 'Crear nuevas ordenes de compra', {
+    requiere_auditoria: true,
+  }),
+  crearPermiso('inventario', 'ordenes_compra', 'EDITAR', 'Editar Ordenes de Compra', 'Modificar ordenes de compra en borrador', {
+    requiere_auditoria: true,
+  }),
+  crearPermiso('inventario', 'ordenes_compra', 'ELIMINAR', 'Eliminar Ordenes de Compra', 'Eliminar ordenes de compra', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom(
+    'inventario',
+    'ordenes_compra',
+    'enviar_aprobacion',
+    'Enviar OC a Aprobacion',
+    'Enviar ordenes de compra para su aprobacion',
+    { requiere_auditoria: true },
+  ),
+  crearPermisoCustom(
+    'inventario',
+    'ordenes_compra',
+    'aprobar',
+    'Aprobar Ordenes de Compra',
+    'Aprobar ordenes de compra pendientes',
+    { requiere_auditoria: true },
+  ),
+  crearPermisoCustom(
+    'inventario',
+    'ordenes_compra',
+    'rechazar',
+    'Rechazar Ordenes de Compra',
+    'Rechazar ordenes de compra',
+    { requiere_auditoria: true },
+  ),
+  crearPermisoCustom(
+    'inventario',
+    'ordenes_compra',
+    'emitir',
+    'Emitir Ordenes de Compra',
+    'Emitir ordenes de compra aprobadas al proveedor',
+    { requiere_auditoria: true },
+  ),
+  crearPermisoCustom(
+    'inventario',
+    'ordenes_compra',
+    'generar_compra',
+    'Generar Compra desde OC',
+    'Generar compra desde orden de compra',
+    { requiere_auditoria: true },
+  ),
+  crearPermisoCustom(
+    'inventario',
+    'ordenes_compra',
+    'cerrar',
+    'Cerrar Ordenes de Compra',
+    'Cerrar manualmente ordenes de compra',
+    { requiere_auditoria: true },
+  ),
+  crearPermisoCustom(
+    'inventario',
+    'ordenes_compra',
+    'cancelar',
+    'Cancelar Ordenes de Compra',
+    'Cancelar ordenes de compra',
+    { requiere_auditoria: true },
+  ),
+
   // Ordenes de Salida
   crearPermiso('inventario', 'ordenes_salida', 'VER', 'Ver Ordenes de Salida', 'Ver listado y detalles de ordenes de salida'),
   crearPermiso('inventario', 'ordenes_salida', 'CREAR', 'Crear Ordenes de Salida', 'Crear nuevas ordenes de salida de inventario', {

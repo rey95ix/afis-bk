@@ -139,6 +139,9 @@ model usuarios {
   cuentas_bancarias_creadas      cuenta_bancaria[]               @relation("cuenta_bancaria_usuario_crea")
   movimientos_bancarios          movimiento_bancario[]           @relation("movimiento_bancario_usuario")
   movimientos_bancarios_anulados movimiento_bancario[]           @relation("movimiento_bancario_usuario_anula")
+  // Órdenes de compra
+  ordenes_compra_crea            ordenes_compra[]                @relation("usuario_crea_orden_compra")
+  ordenes_compra_aprueba         ordenes_compra[]                @relation("usuario_aprueba_orden_compra")
 }
 
 model cliente {
@@ -357,6 +360,7 @@ model sucursales {
   requisiciones_origen       requisiciones_inventario[] @relation("requisicion_sucursal_origen")
   requisiciones_destino      requisiciones_inventario[] @relation("requisicion_sucursal_destino")
   ordenes_salida             ordenes_salida[]
+  ordenes_compra             ordenes_compra[]
   dte_emitidos               dte_emitidos[]
   fecha_creacion             DateTime                   @default(now())
   fecha_ultima_actualizacion DateTime                   @default(now()) @updatedAt
@@ -393,6 +397,7 @@ model bodegas {
   requisiciones_origen       requisiciones_inventario[] @relation("requisicion_bodega_origen")
   requisiciones_destino      requisiciones_inventario[] @relation("requisicion_bodega_destino")
   ordenes_salida             ordenes_salida[]
+  ordenes_compra             ordenes_compra[]
   auditorias_inventario      auditorias_inventario[]
   ajustes_inventario         ajustes_inventario[]
   snapshots_inventario       snapshots_inventario[]
@@ -497,6 +502,7 @@ model catalogo {
   dte_emitidos_detalle       dte_emitidos_detalle[]
   // Relación con detalle de facturas directas
   facturaDirectaDetalles     facturaDirectaDetalle[]
+  ordenes_compra_detalle     ordenes_compra_detalle[]
 }
 
 model log {
@@ -711,6 +717,7 @@ model dTEFormaPago {
   fecha_creacion             DateTime  @default(now())
   fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
   compras                    compras[]
+  ordenes_compra             ordenes_compra[]
 }
 
 model dTEPais {
@@ -835,6 +842,7 @@ model proveedores {
   usuario                        usuarios                        @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_proveedor_usuario")
   compras                        compras[]
   importaciones                  importaciones[]
+  ordenes_compra                 ordenes_compra[]
   fecha_actualizacion            DateTime                        @default(now()) @updatedAt
 }
 
@@ -880,11 +888,16 @@ model compras {
   numeroControl       String?                  @default("")
   codigoGeneracion    String?                  @default("")
 
+  // Orden de compra (si la compra fue generada desde una OC)
+  id_orden_compra     Int?
+  orden_compra        ordenes_compra?          @relation(fields: [id_orden_compra], references: [id_orden_compra], onDelete: NoAction, onUpdate: NoAction, map: "fk_compra_orden_compra")
+
   @@index([id_tipo_factura], name: "fk_compras_tipo_factura_id")
   @@index([id_sucursal], name: "fk_compras_sucursal_id")
   @@index([id_bodega], name: "fk_compras_bodega_id")
   @@index([id_usuario], name: "fk_compra_usuario_id")
   @@index([id_proveedor], name: "fk_compras_proveedor_id")
+  @@index([id_orden_compra], name: "fk_compra_orden_compra_id")
 }
 
 model comprasDetalle {
@@ -1654,6 +1667,18 @@ model requisiciones_detalle_series {
 // ============= MÓDULO DE ÓRDENES DE SALIDA =============
 
 // Estados de orden de salida
+enum estado_orden_compra {
+  BORRADOR
+  PENDIENTE_APROBACION
+  APROBADA
+  RECHAZADA
+  EMITIDA
+  RECEPCION_PARCIAL
+  RECEPCION_TOTAL
+  CERRADA
+  CANCELADA
+}
+
 enum estado_orden_salida {
   BORRADOR
   PENDIENTE_AUTORIZACION
@@ -4000,6 +4025,14 @@ model facturaDirecta {
   cheque             Decimal @default(0) @db.Decimal(12, 2)
   transferencia      Decimal @default(0) @db.Decimal(12, 2)
 
+  // === CUENTAS BANCARIAS DESTINO (para pagos no-efectivo en contado) ===
+  id_cuenta_tarjeta       Int?
+  cuentaTarjeta           cuenta_bancaria? @relation("factura_cuenta_tarjeta", fields: [id_cuenta_tarjeta], references: [id_cuenta_bancaria], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_cuenta_tarjeta")
+  id_cuenta_cheque        Int?
+  cuentaCheque            cuenta_bancaria? @relation("factura_cuenta_cheque", fields: [id_cuenta_cheque], references: [id_cuenta_bancaria], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_cuenta_cheque")
+  id_cuenta_transferencia Int?
+  cuentaTransferencia     cuenta_bancaria? @relation("factura_cuenta_transferencia", fields: [id_cuenta_transferencia], references: [id_cuenta_bancaria], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_cuenta_transferencia")
+
   // === MÉTODO DE PAGO ===
   id_metodo_pago     Int?
   metodoPago         metodosPago? @relation(fields: [id_metodo_pago], references: [id_metodo_pago], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_metodo_pago")
@@ -4217,6 +4250,11 @@ model cuenta_bancaria {
   fecha_ultima_actualizacion DateTime                 @default(now()) @updatedAt
   movimientos                movimiento_bancario[]
 
+  // Relaciones inversas con facturaDirecta (pagos no-efectivo)
+  facturas_tarjeta        facturaDirecta[] @relation("factura_cuenta_tarjeta")
+  facturas_cheque         facturaDirecta[] @relation("factura_cuenta_cheque")
+  facturas_transferencia  facturaDirecta[] @relation("factura_cuenta_transferencia")
+
   @@index([id_banco])
   @@index([estado])
 }
@@ -4384,4 +4422,99 @@ model abono_cxc {
   @@index([id_cxc])
   @@index([fecha_pago])
   @@index([activo])
+}
+
+// =============================================================
+// ORDENES DE COMPRA
+// =============================================================
+
+model ordenes_compra {
+  id_orden_compra     Int                   @id @default(autoincrement())
+  codigo              String                @unique // OC-YYYYMM-#####
+  estado              estado_orden_compra   @default(BORRADOR)
+
+  // Proveedor
+  id_proveedor        Int
+  proveedor           proveedores           @relation(fields: [id_proveedor], references: [id_proveedor], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_proveedor")
+
+  // Destino
+  id_sucursal         Int?
+  sucursal            sucursales?           @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_sucursal")
+  id_bodega           Int?
+  bodega              bodegas?              @relation(fields: [id_bodega], references: [id_bodega], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_bodega")
+
+  // Condiciones comerciales
+  id_forma_pago       Int?
+  forma_pago          dTEFormaPago?         @relation(fields: [id_forma_pago], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_forma_pago")
+  dias_credito        Int?                  @default(0)
+  moneda              String                @default("USD")
+
+  // Totales (calculados server-side)
+  subtotal            Float?                @default(0)
+  descuento           Float?                @default(0)
+  iva                 Float?                @default(0)
+  total               Float?                @default(0)
+
+  // Usuarios workflow
+  id_usuario_crea     Int
+  usuario_crea        usuarios              @relation("usuario_crea_orden_compra", fields: [id_usuario_crea], references: [id_usuario])
+  id_usuario_aprueba  Int?
+  usuario_aprueba     usuarios?             @relation("usuario_aprueba_orden_compra", fields: [id_usuario_aprueba], references: [id_usuario])
+
+  // Observaciones workflow
+  motivo              String?               @db.Text
+  observaciones       String?               @db.Text
+  observaciones_aprobacion String?           @db.Text
+  motivo_rechazo      String?               @db.Text
+
+  // Fechas workflow
+  fecha_emision           DateTime?
+  fecha_aprobacion        DateTime?
+  fecha_entrega_esperada  DateTime?
+  fecha_cierre            DateTime?
+
+  // Timestamps
+  fecha_creacion             DateTime        @default(now())
+  fecha_ultima_actualizacion DateTime        @default(now()) @updatedAt
+
+  // Relaciones
+  detalle             ordenes_compra_detalle[]
+  compras             compras[]
+
+  @@index([estado])
+  @@index([id_proveedor])
+  @@index([id_usuario_crea])
+  @@index([fecha_creacion])
+}
+
+model ordenes_compra_detalle {
+  id_orden_compra_detalle Int              @id @default(autoincrement())
+  id_orden_compra         Int
+  orden_compra            ordenes_compra   @relation(fields: [id_orden_compra], references: [id_orden_compra], onDelete: Cascade)
+
+  id_catalogo             Int?
+  catalogo                catalogo?        @relation(fields: [id_catalogo], references: [id_catalogo])
+
+  codigo                  String?          @db.Text
+  nombre                  String
+  descripcion             String?          @db.Text
+  tiene_serie             Boolean          @default(false)
+
+  cantidad_ordenada       Float            @default(0)
+  cantidad_recibida       Float            @default(0)
+
+  costo_unitario          Float?           @default(0)
+  subtotal                Float?           @default(0)
+  descuento_porcentaje    Float?           @default(0)
+  descuento_monto         Float?           @default(0)
+  iva                     Float?           @default(0)
+  total                   Float?           @default(0)
+
+  observaciones           String?
+
+  fecha_creacion             DateTime      @default(now())
+  fecha_ultima_actualizacion DateTime      @default(now()) @updatedAt
+
+  @@index([id_orden_compra])
+  @@index([id_catalogo])
 }
