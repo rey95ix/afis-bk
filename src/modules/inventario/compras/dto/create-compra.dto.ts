@@ -100,12 +100,14 @@ export class CreateCompraDto {
   id_bodega?: number;
 
   @ApiProperty({
-    description: 'ID del estante donde se ubicará el inventario (OBLIGATORIO)',
+    description: 'ID del estante donde se ubicará el inventario (obligatorio si hay líneas de inventario)',
     example: 1,
+    required: false,
   })
+  @IsOptional()
   @IsInt()
   @Type(() => Number)
-  id_estante: number;
+  id_estante?: number;
 
   @ApiProperty({
     description: 'ID del tipo de factura',
@@ -278,6 +280,16 @@ export class CreateCompraDto {
   @Min(0)
   @Type(() => Number)
   total?: number;
+
+  @ApiProperty({
+    description: 'Indica si la compra es a crédito (genera cuenta por pagar)',
+    example: false,
+    default: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  es_credito?: boolean;
 
   @ApiProperty({
     description: 'Detalles de los productos de la compra',

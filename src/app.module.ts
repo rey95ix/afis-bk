@@ -15,6 +15,7 @@ import { WhatsAppChatModule } from './modules/whatsapp-chat/whatsapp-chat.module
 import { MigrationModule } from './modules/migration/migration.module';
 import { BancosModule } from './modules/bancos/bancos.module';
 import { CxcModule } from './modules/cxc/cxc.module';
+import { CxpModule } from './modules/cxp/cxp.module';
 // import { UtilidadesModule } from './modules/utilidades/utilidades.module';
 
 @Module({
@@ -39,6 +40,7 @@ import { CxcModule } from './modules/cxc/cxc.module';
     MigrationModule, // Módulo de migración MySQL → PostgreSQL
     BancosModule, // Módulo de bancos y gestión financiera
     CxcModule, // Módulo de cuentas por cobrar
+    CxpModule, // Módulo de cuentas por pagar
     // UtilidadesModule, //TODO Habilitar módulo de utilidades
   ],
   controllers: [],

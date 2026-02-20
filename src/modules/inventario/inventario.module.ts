@@ -37,12 +37,16 @@ import { CargaInventarioService } from './carga-inventario/carga-inventario.serv
 import { OrdenesCompraController } from './ordenes-compra/ordenes-compra.controller';
 import { OrdenesCompraService } from './ordenes-compra/ordenes-compra.service';
 import { MinioModule } from '../minio/minio.module';
+import { BancosModule } from '../bancos/bancos.module';
+import { CxpModule } from '../cxp/cxp.module';
 
 @Module({
   imports: [
     AuthModule,
     PrismaModule,
     MinioModule,
+    BancosModule,
+    CxpModule,
     ScheduleModule.forRoot(),
   ],
   controllers: [

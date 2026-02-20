@@ -135,6 +135,9 @@ model usuarios {
   // Relaciones con cuentas por cobrar
   cxc_creadas                    cuenta_por_cobrar[]              @relation("cxc_usuario_crea")
   abonos_cxc                     abono_cxc[]                      @relation("abono_cxc_usuario")
+  // Relaciones con cuentas por pagar
+  cxp_creadas                    cuenta_por_pagar[]               @relation("cxp_usuario_crea")
+  pagos_cxp                      pago_cxp[]                       @relation("pago_cxp_usuario")
   // Relaciones con módulo de bancos
   cuentas_bancarias_creadas      cuenta_bancaria[]               @relation("cuenta_bancaria_usuario_crea")
   movimientos_bancarios          movimiento_bancario[]           @relation("movimiento_bancario_usuario")
@@ -370,6 +373,8 @@ model sucursales {
   cuentas_bancarias          cuenta_bancaria[]
   // Relaciones con cuentas por cobrar
   cuentas_por_cobrar         cuenta_por_cobrar[]
+  // Relaciones con cuentas por pagar
+  cuentas_por_pagar          cuenta_por_pagar[]
 }
 
 model bodegas {
@@ -843,6 +848,7 @@ model proveedores {
   compras                        compras[]
   importaciones                  importaciones[]
   ordenes_compra                 ordenes_compra[]
+  cuentas_por_pagar              cuenta_por_pagar[]
   fecha_actualizacion            DateTime                        @default(now()) @updatedAt
 }
 
@@ -892,6 +898,9 @@ model compras {
   id_orden_compra     Int?
   orden_compra        ordenes_compra?          @relation(fields: [id_orden_compra], references: [id_orden_compra], onDelete: NoAction, onUpdate: NoAction, map: "fk_compra_orden_compra")
 
+  // Cuenta por pagar (si la compra es a crédito)
+  cuentaPorPagar      cuenta_por_pagar?
+
   @@index([id_tipo_factura], name: "fk_compras_tipo_factura_id")
   @@index([id_sucursal], name: "fk_compras_sucursal_id")
   @@index([id_bodega], name: "fk_compras_bodega_id")
@@ -910,6 +919,7 @@ model comprasDetalle {
   nombre               String
   descripcion          String?             @db.Text
   tiene_serie          Boolean             @default(false) // indica si el item requiere serie
+  afecta_inventario    Boolean             @default(true)  // false para servicios/gastos que no generan inventario
   costo_unitario       Float?              @default(0)
   cantidad             Float               @default(0)
   cantidad_inventario  Float               @default(0)
@@ -3269,6 +3279,21 @@ model configuracion_whatsapp {
   fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
 }
 
+// Números de teléfono detectados como inválidos (sin cuenta de WhatsApp)
+model whatsapp_numero_invalido {
+  id_numero_invalido         Int      @id @default(autoincrement())
+  telefono                   String   @unique
+  codigo_error               Int
+  mensaje_error              String?  @db.Text
+  id_chat_origen             Int?
+  fecha_deteccion            DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+  activo                     Boolean  @default(true)
+
+  @@index([telefono])
+  @@index([activo])
+}
+
 // Estado de validación de comprobantes bancarios
 enum estado_validacion_comprobante {
   PENDIENTE
@@ -4191,6 +4216,7 @@ enum modulo_origen_movimiento {
   GASTOS
   MANUAL
   CUENTAS_POR_COBRAR
+  CUENTAS_POR_PAGAR
 }
 
 // ============= CUENTAS POR COBRAR =============
@@ -4425,6 +4451,106 @@ model abono_cxc {
 }
 
 // =============================================================
+// CUENTAS POR PAGAR
+// =============================================================
+
+enum estado_cxp {
+  PENDIENTE
+  PAGADA_PARCIAL
+  PAGADA_TOTAL
+  VENCIDA
+  ANULADA
+}
+
+model cuenta_por_pagar {
+  id_cxp                     Int                      @id @default(autoincrement())
+
+  // === RELACIÓN CON COMPRA ===
+  id_compras                 Int                      @unique
+  compra                     compras                  @relation(fields: [id_compras], references: [id_compras], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxp_compra")
+
+  // === RELACIÓN CON PROVEEDOR ===
+  id_proveedor               Int
+  proveedor                  proveedores              @relation(fields: [id_proveedor], references: [id_proveedor], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxp_proveedor")
+
+  // === MONTOS ===
+  monto_total                Decimal                  @db.Decimal(12, 2)
+  saldo_pendiente            Decimal                  @db.Decimal(12, 2)
+  total_pagado               Decimal                  @default(0) @db.Decimal(12, 2)
+
+  // === FECHAS Y CRÉDITO ===
+  fecha_emision              DateTime
+  fecha_vencimiento          DateTime
+  dias_credito               Int                      @default(30)
+
+  // === ESTADO ===
+  estado                     estado_cxp               @default(PENDIENTE)
+
+  // === SUCURSAL ===
+  id_sucursal                Int
+  sucursal                   sucursales               @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxp_sucursal")
+
+  // === USUARIO CREADOR ===
+  id_usuario_crea            Int
+  usuarioCrea                usuarios                 @relation("cxp_usuario_crea", fields: [id_usuario_crea], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxp_usuario_crea")
+
+  // === OBSERVACIONES ===
+  observaciones              String?                  @db.Text
+
+  // === AUDITORÍA ===
+  fecha_creacion             DateTime                 @default(now())
+  fecha_actualizacion        DateTime                 @default(now()) @updatedAt
+
+  // === RELACIONES ===
+  pagos                      pago_cxp[]
+
+  // === ÍNDICES ===
+  @@index([id_compras])
+  @@index([id_proveedor])
+  @@index([estado])
+  @@index([fecha_vencimiento])
+  @@index([id_sucursal])
+}
+
+model pago_cxp {
+  id_pago                    Int                      @id @default(autoincrement())
+
+  // === RELACIÓN CON CXP ===
+  id_cxp                     Int
+  cuentaPorPagar             cuenta_por_pagar         @relation(fields: [id_cxp], references: [id_cxp], onDelete: NoAction, onUpdate: NoAction, map: "fk_pago_cxp")
+
+  // === MONTOS ===
+  monto                      Decimal                  @db.Decimal(12, 2)
+  saldo_anterior             Decimal                  @db.Decimal(12, 2)
+  saldo_posterior             Decimal                  @db.Decimal(12, 2)
+
+  // === PAGO ===
+  metodo_pago                metodo_pago_abono
+  referencia                 String?                  @db.VarChar(200)
+  fecha_pago                 DateTime                 @default(now())
+  id_movimiento_bancario     Int?
+
+  // === USUARIO ===
+  id_usuario                 Int
+  usuario                    usuarios                 @relation("pago_cxp_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_pago_cxp_usuario")
+
+  // === OBSERVACIONES ===
+  observaciones              String?                  @db.Text
+
+  // === ESTADO ===
+  activo                     Boolean                  @default(true)
+
+  // === AUDITORÍA ===
+  fecha_creacion             DateTime                 @default(now())
+  fecha_actualizacion        DateTime                 @default(now()) @updatedAt
+
+  // === ÍNDICES ===
+  @@index([id_cxp])
+  @@index([fecha_pago])
+  @@index([activo])
+}
+
+// =============================================================
 // ORDENES DE COMPRA
 // =============================================================
 
@@ -4473,6 +4599,14 @@ model ordenes_compra {
   fecha_entrega_esperada  DateTime?
   fecha_cierre            DateTime?
 
+  // Pago
+  pago_registrado         Boolean   @default(false)
+  metodo_pago             String?
+  id_cuenta_bancaria_pago Int?
+  id_movimiento_bancario  Int?
+  monto_pagado            Float?    @default(0)
+  fecha_pago              DateTime?
+
   // Timestamps
   fecha_creacion             DateTime        @default(now())
   fecha_ultima_actualizacion DateTime        @default(now()) @updatedAt
@@ -4499,6 +4633,7 @@ model ordenes_compra_detalle {
   nombre                  String
   descripcion             String?          @db.Text
   tiene_serie             Boolean          @default(false)
+  afecta_inventario       Boolean          @default(true)
 
   cantidad_ordenada       Float            @default(0)
   cantidad_recibida       Float            @default(0)

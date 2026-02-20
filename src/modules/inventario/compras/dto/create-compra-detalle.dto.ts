@@ -55,6 +55,16 @@ export class CreateCompraDetalleDto {
   tiene_serie: boolean;
 
   @ApiProperty({
+    description: 'Indica si la línea afecta inventario (false para servicios/gastos)',
+    example: true,
+    default: true,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  afecta_inventario?: boolean;
+
+  @ApiProperty({
     description: 'Costo unitario del producto',
     example: 25.5,
   })

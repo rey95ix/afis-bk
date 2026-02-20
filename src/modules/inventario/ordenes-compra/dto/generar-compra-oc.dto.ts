@@ -68,13 +68,13 @@ export class GenerarCompraOcDto {
   @IsString()
   numero_quedan?: string;
 
-  @ApiProperty({
-    description: 'ID del estante donde se almacenará',
+  @ApiPropertyOptional({
+    description: 'ID del estante donde se almacenará (requerido si hay productos que afectan inventario)',
     example: 1,
   })
-  @IsNotEmpty()
+  @IsOptional()
   @IsInt()
-  id_estante: number;
+  id_estante?: number;
 
   @ApiPropertyOptional({
     description: 'ID del tipo de factura',
@@ -138,4 +138,49 @@ export class GenerarCompraOcDto {
   @ValidateNested({ each: true })
   @Type(() => GenerarCompraOcDetalleDto)
   detalles: GenerarCompraOcDetalleDto[];
+
+  // Campos opcionales de crédito
+  @ApiPropertyOptional({ description: 'Indica si la compra es a crédito (genera cuenta por pagar)' })
+  @IsOptional()
+  @IsBoolean()
+  es_credito?: boolean;
+
+  @ApiPropertyOptional({ description: 'Días de crédito override (por defecto usa el de la OC)' })
+  @IsOptional()
+  @IsInt()
+  dias_credito_override?: number;
+
+  // Campos opcionales de pago
+  @ApiPropertyOptional({ description: 'Registrar pago al generar compra' })
+  @IsOptional()
+  @IsBoolean()
+  registrar_pago?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Método de pago',
+    example: 'TRANSFERENCIA',
+  })
+  @IsOptional()
+  @IsString()
+  metodo_pago?: string;
+
+  @ApiPropertyOptional({ description: 'ID de la cuenta bancaria origen' })
+  @IsOptional()
+  @IsInt()
+  id_cuenta_bancaria?: number;
+
+  @ApiPropertyOptional({ description: 'Número de cheque (si método = CHEQUE)' })
+  @IsOptional()
+  @IsString()
+  cheque_numero?: string;
+
+  @ApiPropertyOptional({ description: 'Beneficiario del cheque' })
+  @IsOptional()
+  @IsString()
+  cheque_beneficiario?: string;
+
+  @ApiPropertyOptional({ description: 'Fecha emisión cheque (ISO 8601)' })
+  @IsOptional()
+  @IsDateString()
+  cheque_fecha_emision?: string;
 }

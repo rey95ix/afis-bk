@@ -893,11 +893,123 @@ export class ChatService {
   }
 
   /**
+   * Registrar un número como inválido (sin cuenta de WhatsApp)
+   */
+  async registerInvalidNumber(
+    telefono: string,
+    codigoError: number,
+    mensajeError: string,
+    idChatOrigen?: number,
+  ): Promise<void> {
+    await this.prisma.whatsapp_numero_invalido.upsert({
+      where: { telefono },
+      update: {
+        codigo_error: codigoError,
+        mensaje_error: mensajeError,
+        id_chat_origen: idChatOrigen,
+        activo: true,
+      },
+      create: {
+        telefono,
+        codigo_error: codigoError,
+        mensaje_error: mensajeError,
+        id_chat_origen: idChatOrigen,
+      },
+    });
+
+    await this.prisma.logAction(
+      'REGISTRAR_NUMERO_INVALIDO',
+      undefined,
+      `Numero ${telefono} registrado como invalido (error ${codigoError})`,
+    );
+  }
+
+  /**
+   * Verificar si un número está marcado como inválido
+   */
+  async isNumberInvalid(telefono: string): Promise<{
+    isInvalid: boolean;
+    reason?: string;
+    errorCode?: number;
+    detectedAt?: Date;
+  }> {
+    const record = await this.prisma.whatsapp_numero_invalido.findUnique({
+      where: { telefono },
+    });
+
+    if (record && record.activo) {
+      return {
+        isInvalid: true,
+        reason: record.mensaje_error || 'El numero no tiene cuenta de WhatsApp activa',
+        errorCode: record.codigo_error,
+        detectedAt: record.fecha_deteccion,
+      };
+    }
+
+    return { isInvalid: false };
+  }
+
+  /**
+   * Archivar un chat automáticamente por el sistema (número inválido)
+   */
+  async archiveChatBySystem(chatId: number): Promise<void> {
+    const chat = await this.prisma.whatsapp_chat.findUnique({
+      where: { id_chat: chatId },
+    });
+
+    if (!chat || chat.archivado) return;
+
+    const updatedChat = await this.prisma.whatsapp_chat.update({
+      where: { id_chat: chatId },
+      data: {
+        archivado: true,
+        fecha_archivado: new Date(),
+      },
+      include: {
+        cliente: { select: { id_cliente: true, titular: true, telefono1: true } },
+        usuario_asignado: { select: { id_usuario: true, nombres: true, apellidos: true } },
+      },
+    });
+
+    await this.prisma.logAction(
+      'ARCHIVAR_WHATSAPP_CHAT_SISTEMA',
+      undefined,
+      `Chat WhatsApp #${chatId} archivado automaticamente por numero invalido`,
+    );
+
+    this.chatGateway.emitChatUpdated(updatedChat);
+    const stats = await this.getStats();
+    this.chatGateway.emitStatsUpdated(stats);
+  }
+
+  /**
+   * Obtener un chat por ID con datos mínimos (sin mensajes ni métricas)
+   */
+  async findOneLight(id: number) {
+    return this.prisma.whatsapp_chat.findUnique({
+      where: { id_chat: id },
+      select: {
+        id_chat: true,
+        telefono_cliente: true,
+        nombre_cliente: true,
+        estado: true,
+        archivado: true,
+      },
+    });
+  }
+
+  /**
    * Verificar si existe un chat activo con un número de teléfono
    * Retorna información del chat y estado de la ventana 24h si existe
    */
   async checkPhoneNumber(telefono: string): Promise<{
     exists: boolean;
+    isInvalidNumber?: boolean;
+    invalidNumberInfo?: {
+      reason: string;
+      errorCode: number;
+      detectedAt: Date;
+    };
     chat?: {
       id_chat: number;
       estado: string;
@@ -909,6 +1021,20 @@ export class ChatService {
       };
     };
   }> {
+    // Verificar si el número está marcado como inválido
+    const invalidCheck = await this.isNumberInvalid(telefono);
+    if (invalidCheck.isInvalid) {
+      return {
+        exists: false,
+        isInvalidNumber: true,
+        invalidNumberInfo: {
+          reason: invalidCheck.reason!,
+          errorCode: invalidCheck.errorCode!,
+          detectedAt: invalidCheck.detectedAt!,
+        },
+      };
+    }
+
     // Buscar chat activo (no CERRADO) con este teléfono
     const chat = await this.prisma.whatsapp_chat.findFirst({
       where: {

@@ -15,10 +15,16 @@ import { CerrarOrdenCompraDto } from './dto/cerrar-orden-compra.dto';
 import { CancelarOrdenCompraDto } from './dto/cancelar-orden-compra.dto';
 import { Prisma, usuarios } from '@prisma/client';
 import { convertToUTC } from 'src/common/helpers';
+import { MovimientosBancariosService } from '../../bancos/movimientos-bancarios/movimientos-bancarios.service';
+import { CxpService } from '../../cxp/cxp.service';
 
 @Injectable()
 export class OrdenesCompraService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private movimientosBancariosService: MovimientosBancariosService,
+    private cxpService: CxpService,
+  ) {}
 
   // =============================================
   // Includes reutilizables
@@ -198,6 +204,7 @@ export class OrdenesCompraService {
               nombre: item.nombre,
               descripcion: item.descripcion,
               tiene_serie: item.tiene_serie || false,
+              afecta_inventario: item.afecta_inventario ?? true,
               cantidad_ordenada: item.cantidad_ordenada,
               costo_unitario: item.costo_unitario || 0,
               subtotal: itemSubtotal,
@@ -402,6 +409,7 @@ export class OrdenesCompraService {
                   nombre: item.nombre || '',
                   descripcion: item.descripcion,
                   tiene_serie: item.tiene_serie || false,
+                  afecta_inventario: item.afecta_inventario ?? true,
                   cantidad_ordenada: item.cantidad_ordenada || 0,
                   costo_unitario: item.costo_unitario || 0,
                   subtotal: itemSubtotal,
@@ -573,6 +581,99 @@ export class OrdenesCompraService {
     return ordenReabierta;
   }
 
+  // =============================================
+  // Helper: Registrar pago bancario
+  // =============================================
+
+  private async registrarPagoOC(params: {
+    dto: {
+      metodo_pago?: string;
+      id_cuenta_bancaria?: number;
+      cheque_numero?: string;
+      cheque_beneficiario?: string;
+      cheque_fecha_emision?: string;
+    };
+    monto: number;
+    ordenCodigo: string;
+    documentoOrigenId: number;
+    idUsuario: number;
+  }): Promise<number | null> {
+    const { dto, monto, ordenCodigo, documentoOrigenId, idUsuario } = params;
+
+    if (!dto.metodo_pago) {
+      throw new BadRequestException(
+        'El método de pago es requerido cuando se registra un pago',
+      );
+    }
+
+    if (monto <= 0) {
+      throw new BadRequestException(
+        'El monto debe ser mayor a cero para registrar un pago',
+      );
+    }
+
+    // EFECTIVO no genera movimiento bancario
+    if (dto.metodo_pago === 'EFECTIVO') {
+      return null;
+    }
+
+    if (!dto.id_cuenta_bancaria) {
+      throw new BadRequestException(
+        'La cuenta bancaria es requerida para el método de pago seleccionado',
+      );
+    }
+
+    if (dto.metodo_pago === 'TRANSFERENCIA') {
+      const movimiento = await this.movimientosBancariosService.crearMovimiento(
+        {
+          id_cuenta_bancaria: dto.id_cuenta_bancaria,
+          tipo_movimiento: 'SALIDA',
+          metodo: 'TRANSFERENCIA',
+          monto,
+          modulo_origen: 'COMPRAS',
+          documento_origen_id: documentoOrigenId,
+          descripcion: `Pago OC #${ordenCodigo} - Transferencia`,
+          transferencia: {
+            fecha_transferencia: new Date().toISOString(),
+          },
+        },
+        idUsuario,
+      );
+      return movimiento!.id_movimiento;
+    }
+
+    if (dto.metodo_pago === 'CHEQUE') {
+      if (!dto.cheque_numero || !dto.cheque_beneficiario) {
+        throw new BadRequestException(
+          'El número de cheque y beneficiario son requeridos para el método CHEQUE',
+        );
+      }
+
+      const movimiento = await this.movimientosBancariosService.crearMovimiento(
+        {
+          id_cuenta_bancaria: dto.id_cuenta_bancaria,
+          tipo_movimiento: 'SALIDA',
+          metodo: 'CHEQUE',
+          monto,
+          modulo_origen: 'COMPRAS',
+          documento_origen_id: documentoOrigenId,
+          descripcion: `Pago OC #${ordenCodigo} - Cheque ${dto.cheque_numero}`,
+          cheque: {
+            numero_cheque: dto.cheque_numero,
+            beneficiario: dto.cheque_beneficiario,
+            fecha_emision: dto.cheque_fecha_emision || new Date().toISOString(),
+          },
+        },
+        idUsuario,
+      );
+      return movimiento!.id_movimiento;
+    }
+
+    throw new BadRequestException(
+      `Método de pago no soportado: ${dto.metodo_pago}`,
+    );
+  }
+
   async emitir(id: number, dto: EmitirOrdenCompraDto, user: usuarios) {
     const orden = await this.findOne(id);
 
@@ -582,12 +683,35 @@ export class OrdenesCompraService {
       );
     }
 
+    // Datos de pago opcionales
+    let pagoData: any = {};
+
+    if (dto.registrar_pago) {
+      const idMovimiento = await this.registrarPagoOC({
+        dto,
+        monto: orden.total || 0,
+        ordenCodigo: orden.codigo,
+        documentoOrigenId: orden.id_orden_compra,
+        idUsuario: user.id_usuario,
+      });
+
+      pagoData = {
+        pago_registrado: true,
+        metodo_pago: dto.metodo_pago,
+        id_cuenta_bancaria_pago: dto.metodo_pago !== 'EFECTIVO' ? dto.id_cuenta_bancaria : null,
+        id_movimiento_bancario: idMovimiento,
+        monto_pagado: orden.total || 0,
+        fecha_pago: new Date(),
+      };
+    }
+
     const ordenEmitida = await this.prisma.ordenes_compra.update({
       where: { id_orden_compra: id },
       data: {
         estado: 'EMITIDA',
         fecha_emision: new Date(),
         observaciones: dto.observaciones || orden.observaciones,
+        ...pagoData,
       },
       include: this.includeCompleto,
     });
@@ -595,7 +719,7 @@ export class OrdenesCompraService {
     await this.prisma.logAction(
       'EMITIR_ORDEN_COMPRA',
       user.id_usuario,
-      `Orden de compra emitida: ${orden.codigo}`,
+      `Orden de compra emitida: ${orden.codigo}${dto.registrar_pago ? ` (pago registrado: ${dto.metodo_pago})` : ''}`,
     );
 
     return ordenEmitida;
@@ -614,8 +738,36 @@ export class OrdenesCompraService {
       );
     }
 
-    // Validar estante pertenece a bodega de la OC
-    if (orden.id_bodega) {
+    // Validar existencia de cada línea del detalle primero
+    for (const detDto of dto.detalles) {
+      const detalleOc = orden.detalle.find(
+        (d) =>
+          d.id_orden_compra_detalle === detDto.id_orden_compra_detalle,
+      );
+
+      if (!detalleOc) {
+        throw new NotFoundException(
+          `Detalle con ID ${detDto.id_orden_compra_detalle} no encontrado en la OC`,
+        );
+      }
+    }
+
+    // Determinar si algún producto incluido afecta inventario
+    const algunoAfectaInventario = dto.detalles.some((detDto) => {
+      const det = orden.detalle.find(
+        (d) => d.id_orden_compra_detalle === detDto.id_orden_compra_detalle,
+      )!;
+      return det.afecta_inventario ?? true;
+    });
+
+    if (algunoAfectaInventario && !dto.id_estante) {
+      throw new BadRequestException(
+        'El estante es requerido cuando hay productos que afectan inventario',
+      );
+    }
+
+    // Validar estante pertenece a bodega de la OC (solo si se proporcionó)
+    if (dto.id_estante && orden.id_bodega) {
       const estante = await this.prisma.estantes.findFirst({
         where: {
           id_estante: dto.id_estante,
@@ -635,13 +787,7 @@ export class OrdenesCompraService {
       const detalleOc = orden.detalle.find(
         (d) =>
           d.id_orden_compra_detalle === detDto.id_orden_compra_detalle,
-      );
-
-      if (!detalleOc) {
-        throw new NotFoundException(
-          `Detalle con ID ${detDto.id_orden_compra_detalle} no encontrado en la OC`,
-        );
-      }
+      )!;
 
       const cantidadRestante =
         detalleOc.cantidad_ordenada - detalleOc.cantidad_recibida;
@@ -652,8 +798,8 @@ export class OrdenesCompraService {
         );
       }
 
-      // Validar series si tiene_serie
-      if (detalleOc.tiene_serie) {
+      // Validar series si tiene_serie y afecta inventario
+      if (detalleOc.tiene_serie && (detalleOc.afecta_inventario ?? true)) {
         if (
           !detDto.series ||
           detDto.series.length !== detDto.cantidad_a_recibir
@@ -673,7 +819,7 @@ export class OrdenesCompraService {
     }
 
     // Ejecutar en transacción
-    return await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // Calcular totales de la compra
       const tasaIVA = 0.13;
       let compraSubtotal = 0;
@@ -726,24 +872,29 @@ export class OrdenesCompraService {
           json_dte: dto.json_dte,
           numeroControl: dto.numeroControl,
           codigoGeneracion: dto.codigoGeneracion,
-          recepcionada: false,
+          recepcionada: !algunoAfectaInventario,
+          fecha_recepcion: !algunoAfectaInventario ? new Date() : null,
           ComprasDetalle: {
             create: compraDetalles.map(
-              ({ detalleOc, detDto, costoUnit, lineSubtotal }) => ({
-                id_catalogo: detalleOc.id_catalogo,
-                codigo: detalleOc.codigo,
-                nombre: detalleOc.nombre,
-                descripcion: detalleOc.descripcion,
-                tiene_serie: detalleOc.tiene_serie,
-                costo_unitario: costoUnit,
-                cantidad: detDto.cantidad_a_recibir,
-                cantidad_inventario: detDto.cantidad_a_recibir,
-                subtotal: lineSubtotal,
-                descuento_porcentaje: 0,
-                descuento_monto: 0,
-                iva: lineSubtotal * tasaIVA,
-                total: lineSubtotal * (1 + tasaIVA),
-              }),
+              ({ detalleOc, detDto, costoUnit, lineSubtotal }) => {
+                const afectaInv = detalleOc.afecta_inventario ?? true;
+                return {
+                  id_catalogo: detalleOc.id_catalogo,
+                  codigo: detalleOc.codigo,
+                  nombre: detalleOc.nombre,
+                  descripcion: detalleOc.descripcion,
+                  tiene_serie: afectaInv ? detalleOc.tiene_serie : false,
+                  afecta_inventario: afectaInv,
+                  costo_unitario: costoUnit,
+                  cantidad: detDto.cantidad_a_recibir,
+                  cantidad_inventario: afectaInv ? detDto.cantidad_a_recibir : 0,
+                  subtotal: lineSubtotal,
+                  descuento_porcentaje: 0,
+                  descuento_monto: 0,
+                  iva: lineSubtotal * tasaIVA,
+                  total: lineSubtotal * (1 + tasaIVA),
+                };
+              },
             ),
           },
         },
@@ -759,6 +910,7 @@ export class OrdenesCompraService {
 
         if (
           detalleOc.tiene_serie &&
+          (detalleOc.afecta_inventario ?? true) &&
           detDto.series &&
           detDto.series.length > 0
         ) {
@@ -829,8 +981,53 @@ export class OrdenesCompraService {
         `Compra generada desde OC ${orden.codigo}: Factura ${dto.numero_factura}, Total: $${compraTotal.toFixed(2)}`,
       );
 
-      return nuevaCompra;
+      // Si es compra a crédito, crear cuenta por pagar dentro de la transacción
+      if (dto.es_credito) {
+        if (!orden.id_sucursal) {
+          throw new BadRequestException(
+            'La orden de compra debe tener una sucursal asignada para generar una compra a crédito',
+          );
+        }
+        const diasCredito = dto.dias_credito_override || orden.dias_credito || 30;
+        await this.cxpService.crearCuentaPorPagar({
+          id_compras: nuevaCompra.id_compras,
+          id_proveedor: orden.id_proveedor,
+          monto_total: compraTotal,
+          dias_credito: diasCredito,
+          fecha_emision: new Date(dto.fecha_factura),
+          id_sucursal: orden.id_sucursal,
+          id_usuario: user.id_usuario,
+        }, tx);
+      }
+
+      return { nuevaCompra, compraTotal };
     });
+
+    // Registrar pago DESPUÉS de que la transacción haya sido exitosa
+    // Si es crédito, no registrar pago (se paga a través de CxP)
+    if (dto.registrar_pago && !orden.pago_registrado && !dto.es_credito) {
+      const idMovimiento = await this.registrarPagoOC({
+        dto,
+        monto: result.compraTotal,
+        ordenCodigo: orden.codigo,
+        documentoOrigenId: orden.id_orden_compra,
+        idUsuario: user.id_usuario,
+      });
+
+      await this.prisma.ordenes_compra.update({
+        where: { id_orden_compra: id },
+        data: {
+          pago_registrado: true,
+          metodo_pago: dto.metodo_pago,
+          id_cuenta_bancaria_pago: dto.metodo_pago !== 'EFECTIVO' ? dto.id_cuenta_bancaria : null,
+          id_movimiento_bancario: idMovimiento,
+          monto_pagado: result.compraTotal,
+          fecha_pago: new Date(),
+        },
+      });
+    }
+
+    return result.nuevaCompra;
   }
 
   // =============================================

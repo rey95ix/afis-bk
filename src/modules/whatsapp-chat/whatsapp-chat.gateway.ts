@@ -118,4 +118,18 @@ export class WhatsAppChatGateway
     this.server.emit('chat-etiquetas-updated', { chatId, etiquetas });
     this.logger.debug(`Emitted chat-etiquetas-updated for chat ${chatId}`);
   }
+
+  /**
+   * Emitir notificación de número inválido (sin WhatsApp)
+   */
+  emitNumberInvalid(
+    chatId: number,
+    telefono: string,
+    errorInfo: { code: number; title: string; message: string },
+  ) {
+    const room = `chat-${chatId}`;
+    this.server.to(room).emit('number-invalid', { chatId, telefono, errorInfo });
+    this.server.emit('number-invalid', { chatId, telefono, errorInfo });
+    this.logger.debug(`Emitted number-invalid for chat ${chatId}, phone ${telefono}`);
+  }
 }

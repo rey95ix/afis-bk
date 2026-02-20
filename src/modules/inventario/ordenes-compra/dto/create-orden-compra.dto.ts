@@ -54,6 +54,14 @@ export class CreateOrdenCompraDetalleDto {
   @IsBoolean()
   tiene_serie?: boolean;
 
+  @ApiPropertyOptional({
+    description: 'Indica si el producto afecta inventario (false para servicios/gastos)',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  afecta_inventario?: boolean;
+
   @ApiProperty({
     description: 'Cantidad a ordenar',
     example: 100,

@@ -5,6 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
+import { CxpService } from 'src/modules/cxp/cxp.service';
 import { CreateCompraDto } from './dto/create-compra.dto';
 import { UpdateCompraDto } from './dto/update-compra.dto';
 import { FilterCompraDto } from './dto/filter-compra.dto';
@@ -23,7 +24,10 @@ interface PaginatedResult<T> {
 
 @Injectable()
 export class ComprasService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cxpService: CxpService,
+  ) { }
 
   /**
    * Crea una nueva compra con sus detalles
@@ -31,8 +35,17 @@ export class ComprasService {
   async create(createCompraDto: CreateCompraDto, id_usuario: number) {
     const { detalles, id_estante, id_bodega, fecha_factura, ...compraData } = createCompraDto;
 
-    // Validar que el estante pertenezca a la bodega
-    if (id_estante && id_bodega) {
+    // Determinar si hay líneas que afectan inventario
+    const hasInventoryLines = detalles.some(d => d.afecta_inventario !== false);
+
+    // Validar estante/bodega solo si hay líneas de inventario
+    if (hasInventoryLines) {
+      if (!id_estante || !id_bodega) {
+        throw new BadRequestException(
+          'Debe especificar sucursal, bodega y estante cuando hay líneas que afectan inventario',
+        );
+      }
+
       const estante = await this.prisma.estantes.findFirst({
         where: {
           id_estante,
@@ -48,11 +61,19 @@ export class ComprasService {
       }
     }
 
-    // Calcular totales automáticamente
+    // Calcular totales automáticamente (incluye TODAS las líneas)
     const calculated = this.calculateTotals(detalles, compraData);
 
-    // Validar series antes de crear
+    // Validar series antes de crear (solo líneas de inventario)
     for (const detalle of detalles) {
+      // Forzar valores para líneas de servicio
+      if (detalle.afecta_inventario === false) {
+        detalle.tiene_serie = false;
+        detalle.cantidad_inventario = 0;
+        detalle.series = undefined;
+        continue;
+      }
+
       if (detalle.tiene_serie && detalle.series && detalle.series.length > 0) {
         if (detalle.series.length !== detalle.cantidad_inventario) {
           throw new BadRequestException(
@@ -89,6 +110,7 @@ export class ComprasService {
               nombre: detalle.nombre,
               descripcion: detalle.descripcion,
               tiene_serie: detalle.tiene_serie,
+              afecta_inventario: detalle.afecta_inventario ?? true,
               costo_unitario: detalle.costo_unitario,
               cantidad: detalle.cantidad,
               cantidad_inventario: detalle.cantidad_inventario,
@@ -117,9 +139,11 @@ export class ComprasService {
         },
       });
 
-      // Guardar las series si vienen en los detalles
+      // Guardar las series si vienen en los detalles (solo líneas de inventario)
       for (let i = 0; i < detalles.length; i++) {
         const detalle = detalles[i];
+        if (detalle.afecta_inventario === false) continue;
+
         const detalleCreado = nuevaCompra.ComprasDetalle[i];
 
         if (detalle.tiene_serie && detalle.series && detalle.series.length > 0) {
@@ -144,6 +168,29 @@ export class ComprasService {
           descripcion: `Compra creada: Factura ${createCompraDto.numero_factura}, Total: $${calculated.total.toFixed(2)}`,
         },
       });
+
+      // Si es compra a crédito, crear cuenta por pagar dentro de la transacción
+      if (createCompraDto.es_credito && (createCompraDto.dias_credito || 0) > 0) {
+        if (!nuevaCompra.id_sucursal) {
+          throw new BadRequestException(
+            'La compra debe tener una sucursal asignada para registrar crédito',
+          );
+        }
+        if (!nuevaCompra.id_proveedor) {
+          throw new BadRequestException(
+            'La compra debe tener un proveedor asignado para registrar crédito',
+          );
+        }
+        await this.cxpService.crearCuentaPorPagar({
+          id_compras: nuevaCompra.id_compras,
+          id_proveedor: nuevaCompra.id_proveedor,
+          monto_total: nuevaCompra.total || 0,
+          dias_credito: createCompraDto.dias_credito || 30,
+          fecha_emision: nuevaCompra.fecha_factura || new Date(),
+          id_sucursal: nuevaCompra.id_sucursal,
+          id_usuario,
+        }, prisma);
+      }
 
       return nuevaCompra;
     });
@@ -331,8 +378,11 @@ export class ComprasService {
 
     const { detalles, id_estante, id_bodega, fecha_factura, ...compraData } = updateCompraDto;
 
+    // Determinar si hay líneas que afectan inventario
+    const hasInventoryLines = detalles ? detalles.some(d => d.afecta_inventario !== false) : true;
+
     // Si se proporciona estante y bodega, validar
-    if (id_estante && id_bodega) {
+    if (hasInventoryLines && id_estante && id_bodega) {
       const estante = await this.prisma.estantes.findFirst({
         where: {
           id_estante,
@@ -352,8 +402,16 @@ export class ComprasService {
     if (detalles && detalles.length > 0) {
       calculated = this.calculateTotals(detalles, compraData);
 
-      // Validar series antes de actualizar
+      // Validar series antes de actualizar (solo líneas de inventario)
       for (const detalle of detalles) {
+        // Forzar valores para líneas de servicio
+        if (detalle.afecta_inventario === false) {
+          detalle.tiene_serie = false;
+          detalle.cantidad_inventario = 0;
+          detalle.series = undefined;
+          continue;
+        }
+
         if (detalle.tiene_serie && detalle.series && detalle.series.length > 0) {
           if (detalle.series.length !== detalle.cantidad_inventario) {
             throw new BadRequestException(
@@ -406,6 +464,7 @@ export class ComprasService {
                 nombre: detalle.nombre,
                 descripcion: detalle.descripcion,
                 tiene_serie: detalle.tiene_serie,
+                afecta_inventario: detalle.afecta_inventario ?? true,
                 costo_unitario: detalle.costo_unitario,
                 cantidad: detalle.cantidad,
                 cantidad_inventario: detalle.cantidad_inventario,
@@ -427,9 +486,11 @@ export class ComprasService {
           ),
         );
 
-        // Crear series para los nuevos detalles
+        // Crear series para los nuevos detalles (solo líneas de inventario)
         for (let i = 0; i < detalles.length; i++) {
           const detalle = detalles[i];
+          if (detalle.afecta_inventario === false) continue;
+
           const detalleCreado = nuevosDetalles[i];
 
           if (detalle.tiene_serie && detalle.series && detalle.series.length > 0) {
@@ -496,21 +557,26 @@ export class ComprasService {
       );
     }
 
-    const compra = await this.prisma.compras.update({
-      where: { id_compras: id },
-      data: { estado: 'INACTIVO' },
-    });
+    return await this.prisma.$transaction(async (tx) => {
+      // Intentar anular CxP asociada (si existe)
+      await this.cxpService.anularCxpPorCompra(id, tx);
 
-    // Registrar en log
-    await this.prisma.log.create({
-      data: {
-        accion: 'ELIMINAR_COMPRA',
-        id_usuario,
-        descripcion: `Compra eliminada: Factura ${compra.numero_factura}`,
-      },
-    });
+      const compra = await tx.compras.update({
+        where: { id_compras: id },
+        data: { estado: 'INACTIVO' },
+      });
 
-    return compra;
+      // Registrar en log
+      await tx.log.create({
+        data: {
+          accion: 'ELIMINAR_COMPRA',
+          id_usuario,
+          descripcion: `Compra eliminada: Factura ${compra.numero_factura}`,
+        },
+      });
+
+      return compra;
+    });
   }
 
   /**
@@ -537,26 +603,32 @@ export class ComprasService {
       );
     }
 
-    // Obtener el estante desde la bodega (asumiendo que se guardó en algún lugar)
-    // Para este ejemplo, necesitamos que se haya guardado id_estante en alguna tabla relacionada
-    // o pasarlo como parámetro. Por simplicidad, usaremos el primer estante de la bodega
+    // Filtrar solo líneas que afectan inventario
+    const inventoryDetalles = compra.ComprasDetalle.filter(
+      (d) => d.afecta_inventario !== false,
+    );
 
-    const estante = await this.prisma.estantes.findFirst({
-      where: {
-        id_bodega: compra.id_bodega ?? 0,
-        estado: 'ACTIVO',
-      },
-    });
+    let estante: any = null;
 
-    if (!estante) {
-      throw new BadRequestException(
-        `No se encontró un estante activo para la bodega con ID ${compra.id_bodega}`,
-      );
+    // Solo buscar estante si hay líneas de inventario
+    if (inventoryDetalles.length > 0) {
+      estante = await this.prisma.estantes.findFirst({
+        where: {
+          id_bodega: compra.id_bodega ?? 0,
+          estado: 'ACTIVO',
+        },
+      });
+
+      if (!estante) {
+        throw new BadRequestException(
+          `No se encontró un estante activo para la bodega con ID ${compra.id_bodega}`,
+        );
+      }
     }
 
     return await this.prisma.$transaction(async (prisma) => {
-      // Procesar cada detalle
-      for (const detalle of compra.ComprasDetalle) {
+      // Procesar solo líneas de inventario
+      for (const detalle of inventoryDetalles) {
         // Buscar o crear inventario
         let inventario = await prisma.inventario.findFirst({
           where: {

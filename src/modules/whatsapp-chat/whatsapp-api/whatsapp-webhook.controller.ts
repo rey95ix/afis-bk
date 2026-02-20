@@ -28,7 +28,7 @@ import { AssignmentService } from '../assignment/assignment.service';
 const WHATSAPP_ERROR_MESSAGES: Record<number, string> = {
   131051: 'El número no tiene cuenta de WhatsApp',
   131047: 'La ventana de 24 horas ha expirado',
-  131026: 'Error de pago en la cuenta de WhatsApp Business',
+  131026: 'Mensaje no entregable - el numero no tiene WhatsApp',
   131014: 'Error al cargar el archivo multimedia',
   131009: 'El número está en la lista de bloqueo',
   131031: 'La cuenta de WhatsApp Business está en mantenimiento',
@@ -37,6 +37,8 @@ const WHATSAPP_ERROR_MESSAGES: Record<number, string> = {
   131056: 'El número de teléfono tiene formato inválido',
   130472: 'El usuario ha bloqueado los mensajes de esta cuenta',
 };
+
+const INVALID_NUMBER_ERROR_CODES = new Set([131026, 131051]);
 
 @ApiTags('WhatsApp Webhook')
 @Controller('api/atencion-al-cliente/whatsapp-chat/webhook')
@@ -339,8 +341,45 @@ export class WhatsAppWebhookController {
           errorInfo,
         );
       }
+
+      // Detectar números inválidos (sin cuenta de WhatsApp)
+      if (estado === 'FALLIDO' && errorInfo && INVALID_NUMBER_ERROR_CODES.has(errorInfo.code)) {
+        await this.handleInvalidNumber(updatedMessage, errorInfo);
+      }
     } catch (error) {
       this.logger.error(`Error updating message status: ${error.message}`);
+    }
+  }
+
+  /**
+   * Manejar detección de número inválido (sin cuenta de WhatsApp)
+   */
+  private async handleInvalidNumber(
+    message: any,
+    errorInfo: WhatsAppErrorInfo,
+  ): Promise<void> {
+    if (!message) return;
+
+    try {
+      const chat = await this.chatService.findOneLight(message.id_chat);
+      if (!chat) return;
+
+      this.logger.warn(
+        `Invalid WhatsApp number detected: ${chat.telefono_cliente} (error ${errorInfo.code})`,
+      );
+
+      await this.chatService.registerInvalidNumber(
+        chat.telefono_cliente,
+        errorInfo.code,
+        errorInfo.message,
+        message.id_chat,
+      );
+
+      await this.chatService.archiveChatBySystem(message.id_chat);
+
+      this.chatGateway.emitNumberInvalid(message.id_chat, chat.telefono_cliente, errorInfo);
+    } catch (error) {
+      this.logger.error(`Error handling invalid number: ${error.message}`);
     }
   }
 
