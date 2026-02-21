@@ -1,11 +1,13 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SmsService } from '../../sms/sms.service';
 import { FcmService } from '../../fcm/fcm.service';
+import { FacturaDirectaService } from '../../facturacion/factura-directa/factura-directa.service';
 import { CreateOrdenDto } from './dto/create-orden.dto';
 import { UpdateOrdenDto } from './dto/update-orden.dto';
 import { QueryOrdenDto } from './dto/query-orden.dto';
@@ -23,10 +25,13 @@ import { orden_trabajo } from '@prisma/client';
 
 @Injectable()
 export class OrdenesTrabajoService {
+  private readonly logger = new Logger(OrdenesTrabajoService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly smsService: SmsService,
     private readonly fcmService: FcmService,
+    private readonly facturaDirectaService: FacturaDirectaService,
   ) { }
 
   private async generarCodigoOrden(): Promise<string> {
@@ -130,6 +135,9 @@ export class OrdenesTrabajoService {
       }
       if (createOrdenDto.observaciones_tecnico) {
         data.observaciones_tecnico = createOrdenDto.observaciones_tecnico;
+      }
+      if (createOrdenDto.id_contrato !== undefined) {
+        data.id_contrato = createOrdenDto.id_contrato;
       }
 
       const nuevaOrden = await prisma.orden_trabajo.create({
@@ -290,7 +298,16 @@ export class OrdenesTrabajoService {
             dui: true,
           },
         },
-        contratos: true,
+        contrato: {
+          select: {
+            id_contrato: true,
+            codigo: true,
+            estado: true,
+            plan: {
+              select: { nombre: true },
+            },
+          },
+        },
         direccion_servicio: {
           include: {
             colonias: true,
@@ -771,8 +788,39 @@ export class OrdenesTrabajoService {
         }
       }
 
+      // Si es una OT de INSTALACIÓN y el estado cambia a COMPLETADA, actualizar contrato vinculado
+      if (orden.tipo === 'INSTALACION' && cambiarEstadoDto.estado === 'COMPLETADA' && orden.id_contrato) {
+        const contrato = await prisma.atcContrato.findFirst({
+          where: { id_contrato: orden.id_contrato, estado: 'PENDIENTE_INSTALACION' },
+        });
+        if (contrato) {
+          await prisma.atcContrato.update({
+            where: { id_contrato: contrato.id_contrato },
+            data: {
+              estado: 'INSTALADO_ACTIVO',
+              fecha_instalacion: new Date(),
+              fecha_inicio_contrato: new Date(),
+            },
+          });
+
+          // Generar facturas proyectadas para el contrato
+          try {
+            await this.facturaDirectaService.generarFacturasContrato(
+              contrato.id_contrato,
+              userId,
+              undefined,
+              prisma,
+            );
+          } catch (error) {
+            this.logger.error(
+              `Error generando facturas para contrato ${contrato.id_contrato}: ${error.message}`,
+            );
+          }
+        }
+      }
+
       return ordenActualizada;
-    });
+    }, { maxWait: 10000, timeout: 60000 });
 
     await this.prisma.logAction(
       'CAMBIAR_ESTADO_ORDENES_TRABAJO',
@@ -922,26 +970,34 @@ export class OrdenesTrabajoService {
         },
       });
 
-      // Si es una OT de INSTALACIÓN con resultado RESUELTO, actualizar contratos vinculados
-      if (orden.tipo === 'INSTALACION' && cerrarDto.resultado === 'RESUELTO') {
-        // Buscar contratos vinculados a esta orden de instalación
-        const contratosVinculados = await prisma.atcContrato.findMany({
-          where: {
-            id_orden_trabajo: id,
-            estado: 'PENDIENTE_INSTALACION'
-          }
+      // Si es una OT de INSTALACIÓN con resultado RESUELTO, actualizar contrato vinculado
+      if (orden.tipo === 'INSTALACION' && cerrarDto.resultado === 'RESUELTO' && orden.id_contrato) {
+        const contrato = await prisma.atcContrato.findFirst({
+          where: { id_contrato: orden.id_contrato, estado: 'PENDIENTE_INSTALACION' },
         });
-
-        // Actualizar cada contrato a INSTALADO_ACTIVO
-        for (const contrato of contratosVinculados) {
+        if (contrato) {
           await prisma.atcContrato.update({
             where: { id_contrato: contrato.id_contrato },
             data: {
               estado: 'INSTALADO_ACTIVO',
               fecha_instalacion: new Date(),
-              fecha_inicio_contrato: new Date()
-            }
+              fecha_inicio_contrato: new Date(),
+            },
           });
+
+          // Generar facturas proyectadas para el contrato
+          try {
+            await this.facturaDirectaService.generarFacturasContrato(
+              contrato.id_contrato,
+              userId,
+              undefined,
+              prisma,
+            );
+          } catch (error) {
+            this.logger.error(
+              `Error generando facturas para contrato ${contrato.id_contrato}: ${error.message}`,
+            );
+          }
         }
       }
 
@@ -997,7 +1053,7 @@ export class OrdenesTrabajoService {
       }
 
       return ordenActualizada;
-    });
+    }, { maxWait: 10000, timeout: 60000 });
 
     const logMessage = orden.id_ticket
       ? `Orden ${orden.codigo} cerrada con resultado ${cerrarDto.resultado}. Ticket #${orden.id_ticket} cerrado automáticamente.`

@@ -40,15 +40,6 @@ export class CreateContratoDto {
   id_direccion_servicio: number;
 
   @ApiProperty({
-    description: 'ID de la orden de trabajo de instalación (opcional)',
-    example: 1,
-    required: false,
-  })
-  @IsOptional()
-  @IsInt()
-  id_orden_trabajo?: number;
-
-  @ApiProperty({
     description: 'Fecha de venta del contrato',
     example: '2025-01-15',
     required: false,

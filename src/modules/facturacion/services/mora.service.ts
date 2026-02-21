@@ -23,10 +23,9 @@ export interface MoraConfig {
  * Factura vencida para cálculo de mora
  */
 export interface FacturaVencida {
-  id_dte: number;
-  codigo_generacion: string;
-  total_pagar: Decimal;
-  fecha_emision: Date;
+  id_factura: number;
+  codigo_generacion: string | null;
+  total: Decimal;
   fecha_vencimiento: Date;
   mora_acumulada: number; // Mora ya aplicada anteriormente
 }
@@ -39,7 +38,7 @@ export interface CalculoMoraResult {
   montoMora: number;
   diasAtraso: number;
   facturasAfectadas: Array<{
-    id_dte: number;
+    id_factura: number;
     montoOriginal: number;
     moraCalculada: number;
     diasAtraso: number;
@@ -112,38 +111,35 @@ export class MoraService {
     config: MoraConfig,
   ): Promise<FacturaVencida[]> {
     const hoy = new Date();
-    const fechaLimite = new Date(hoy);
-    fechaLimite.setDate(fechaLimite.getDate() - config.dias_gracia);
 
-    // Buscar DTEs procesados del contrato que estén vencidos
-    // Una factura se considera vencida si:
-    // - Estado es PROCESADO (no anulada)
-    // - Fecha de emisión + días de gracia < hoy
-    // - No está pagada (esto requeriría un modelo de pagos, por ahora asumimos no pagadas)
-    const facturas = await this.prisma.dte_emitidos.findMany({
+    // Buscar facturas del contrato que estén vencidas y pendientes de pago
+    // Usa facturaDirecta con fecha_vencimiento y estado_pago
+    const facturas = await this.prisma.facturaDirecta.findMany({
       where: {
         id_contrato: idContrato,
-        estado: 'PROCESADO',
-        fecha_emision: {
-          lt: fechaLimite,
+        estado_pago: 'PENDIENTE',
+        estado: 'ACTIVO',
+        fecha_vencimiento: {
+          lt: new Date(hoy.getTime() - config.dias_gracia * 24 * 60 * 60 * 1000),
         },
       },
       select: {
-        id_dte: true,
+        id_factura_directa: true,
         codigo_generacion: true,
-        total_pagar: true,
-        fecha_emision: true,
+        total: true,
+        fecha_vencimiento: true,
       },
     });
 
-    return facturas.map((f) => ({
-      id_dte: f.id_dte,
-      codigo_generacion: f.codigo_generacion,
-      total_pagar: f.total_pagar,
-      fecha_emision: f.fecha_emision,
-      fecha_vencimiento: this.calcularFechaVencimiento(f.fecha_emision, config.dias_gracia),
-      mora_acumulada: 0, // TODO: Obtener de un modelo de mora aplicada si existe
-    }));
+    return facturas
+      .filter((f) => f.fecha_vencimiento !== null)
+      .map((f) => ({
+        id_factura: f.id_factura_directa,
+        codigo_generacion: f.codigo_generacion,
+        total: f.total,
+        fecha_vencimiento: f.fecha_vencimiento!,
+        mora_acumulada: 0,
+      }));
   }
 
   /**
@@ -185,7 +181,7 @@ export class MoraService {
       const diasAtraso = this.calcularDiasAtraso(factura.fecha_vencimiento, hoy);
       maxDiasAtraso = Math.max(maxDiasAtraso, diasAtraso);
 
-      const montoOriginal = Number(factura.total_pagar);
+      const montoOriginal = Number(factura.total);
       let moraFactura = this.calcularMoraFactura(
         config,
         montoOriginal,
@@ -197,7 +193,7 @@ export class MoraService {
       moraFactura = this.aplicarTopes(config, moraFactura, montoOriginal);
 
       facturasAfectadas.push({
-        id_dte: factura.id_dte,
+        id_factura: factura.id_factura,
         montoOriginal,
         moraCalculada: moraFactura,
         diasAtraso,

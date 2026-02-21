@@ -207,6 +207,7 @@ model cliente {
   sms_historial     sms_historial[]
   contratos         atcContrato[]
   dte_emitidos      dte_emitidos[]
+  facturasDirectas  facturaDirecta[]
   // WhatsApp Chat
   whatsapp_chats    whatsapp_chat[]
   // Sesiones y logs de cliente
@@ -265,6 +266,7 @@ model clienteDatosFacturacion {
   fecha_creacion                 DateTime                        @default(now())
   fecha_ultima_actualizacion     DateTime                        @default(now()) @updatedAt
   dte_emitidos                   dte_emitidos[]
+  facturasDirectas               facturaDirecta[]
 }
 
 model clienteDirecciones {
@@ -1086,7 +1088,10 @@ model orden_trabajo {
   movimientos                movimientos_inventario[]
   series_asignadas           inventario_series[]
   sms_historial              sms_historial[]
-  contratos                  atcContrato[]
+  id_contrato                Int?
+  contrato                   atcContrato?             @relation(fields: [id_contrato], references: [id_contrato], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_trabajo_contrato")
+
+  @@index([id_contrato])
 }
 
 model ot_historial_estado {
@@ -2572,10 +2577,6 @@ model atcContrato {
   id_direccion_servicio Int
   direccionServicio     clienteDirecciones @relation(fields: [id_direccion_servicio], references: [id_cliente_direccion], onDelete: NoAction, onUpdate: NoAction, map: "fk_contrato_direccion")
 
-  // Vinculación con Orden de Trabajo de Instalación
-  id_orden_trabajo Int?
-  ordenTrabajo     orden_trabajo? @relation(fields: [id_orden_trabajo], references: [id_orden], onDelete: NoAction, onUpdate: NoAction, map: "fk_contrato_orden_trabajo")
-
   // Fechas del contrato
   fecha_venta           DateTime  @default(now())
   fecha_instalacion     DateTime?
@@ -2607,15 +2608,16 @@ model atcContrato {
   fecha_actualizacion DateTime @default(now()) @updatedAt
 
   // Relaciones
-  instalacion  atcContratoInstalacion?
-  dte_emitidos dte_emitidos[]
+  ordenesTrabajo  orden_trabajo[]
+  instalacion     atcContratoInstalacion?
+  dte_emitidos    dte_emitidos[]
+  facturasDirectas facturaDirecta[]
 
   @@index([id_cliente])
   @@index([id_plan])
   @@index([id_ciclo])
   @@index([estado])
   @@index([fecha_venta])
-  @@index([id_orden_trabajo])
   @@index([id_mora_config])
 }
 
@@ -3999,7 +4001,7 @@ model facturaDirecta {
   id_factura_directa Int    @id @default(autoincrement())
 
   // === NUMERACIÓN ===
-  numero_factura     String // Número secuencial (padded a 10 dígitos)
+  numero_factura     String? // Nullable: se asigna al firmar. Número secuencial (padded a 10 dígitos)
 
   // === FECHAS ===
   fecha_creacion     DateTime @default(now())
@@ -4014,17 +4016,35 @@ model facturaDirecta {
   cliente_telefono   String?
   cliente_correo     String?
 
-  // === RELACIÓN CON CLIENTE (opcional, para trazabilidad) ===
+  // === RELACIÓN CON CLIENTE DIRECTO (opcional, para ventas directas) ===
   id_cliente_directo Int?
   clienteDirecto     clienteDirecto? @relation(fields: [id_cliente_directo], references: [id_cliente_directo], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_cliente")
 
+  // === CONTRATO (facturas proyectadas de servicio recurrente) ===
+  id_contrato            Int?
+  contrato               atcContrato? @relation(fields: [id_contrato], references: [id_contrato], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_contrato")
+
+  id_cliente             Int?
+  cliente                cliente? @relation(fields: [id_cliente], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_cliente_contrato")
+
+  id_cliente_facturacion Int?
+  clienteFacturacion     clienteDatosFacturacion? @relation(fields: [id_cliente_facturacion], references: [id_cliente_datos_facturacion], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_datos_facturacion")
+
+  // === DATOS DE CUOTA/PERIODO ===
+  fecha_vencimiento      DateTime?
+  periodo_inicio         DateTime?
+  periodo_fin            DateTime?
+  numero_cuota           Int?
+  total_cuotas           Int?
+  es_instalacion         Boolean  @default(false)
+
   // === TIPO DE FACTURA (DTE) ===
-  id_tipo_factura    Int
-  tipoFactura        facturasTipos @relation(fields: [id_tipo_factura], references: [id_tipo_factura], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_tipo")
+  id_tipo_factura    Int?
+  tipoFactura        facturasTipos? @relation(fields: [id_tipo_factura], references: [id_tipo_factura], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_tipo")
 
   // === BLOQUE DE NUMERACIÓN ===
-  id_bloque          Int
-  bloque             facturasBloques @relation(fields: [id_bloque], references: [id_bloque], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_bloque")
+  id_bloque          Int?
+  bloque             facturasBloques? @relation(fields: [id_bloque], references: [id_bloque], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_bloque")
 
   // === MONTOS TOTALES ===
   subtotal           Decimal @default(0) @db.Decimal(12, 2)
@@ -4088,8 +4108,8 @@ model facturaDirecta {
   notasCredito       facturaDirecta[] @relation("factura_nota")
 
   // === DTE (Documento Tributario Electrónico) ===
-  codigo_generacion  String? @unique @db.Char(36) // UUID v4 del DTE
-  numero_control     String? @unique @db.VarChar(31) // DTE-XX-YYYYYYYY-ZZZZZZZZZZZZZZZ
+  codigo_generacion  String? @db.Char(36) // UUID v4 del DTE
+  numero_control     String? @db.VarChar(31) // DTE-XX-YYYYYYYY-ZZZZZZZZZZZZZZZ
   dte_json           String? @db.Text // JSON completo del DTE
   dte_firmado        String? @db.Text // DTE firmado (JWS)
   sello_recepcion    String? @db.VarChar(50) // Sello de MH (40 chars)
@@ -4136,6 +4156,8 @@ model facturaDirecta {
   // === ÍNDICES ===
   @@index([numero_factura])
   @@index([id_cliente_directo])
+  @@index([id_contrato])
+  @@index([id_cliente])
   @@index([id_tipo_factura])
   @@index([id_sucursal])
   @@index([estado_dte])

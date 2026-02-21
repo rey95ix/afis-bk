@@ -39,7 +39,7 @@ import {
 } from '../dte/builders';
 import { DteSignerService } from '../dte/signer';
 import { MhTransmitterService, TransmisionResult } from '../dte/transmitter';
-import { TipoDte, Ambiente, DteDocument, TipoAnulacion } from '../interfaces';
+import { TipoDte, Ambiente, DteDocument } from '../interfaces';
 import { estado_dte, facturaDirecta, Prisma } from '@prisma/client';
 import { MailService } from '../../mail/mail.service';
 import { MovimientosBancariosService } from '../../bancos/movimientos-bancarios/movimientos-bancarios.service';
@@ -305,7 +305,7 @@ export class FacturaDirectaService {
 
         // Crear movimientos bancarios para pagos no-efectivo (contado)
         if ((dto.condicion_operacion || 1) === 1) {
-          await this.crearMovimientosBancarios(facturaCreada.id_factura_directa, dto, idUsuario, facturaCreada.numero_factura);
+          await this.crearMovimientosBancarios(facturaCreada.id_factura_directa, dto, idUsuario, facturaCreada.numero_factura || '');
         }
 
         return {
@@ -2857,5 +2857,408 @@ export class FacturaDirectaService {
         );
       }
     })();
+  }
+
+  // ====================================================================
+  // FACTURAS PROYECTADAS DE CONTRATO
+  // ====================================================================
+
+  /**
+   * Genera todas las facturas proyectadas para un contrato recién activado.
+   * Las facturas se crean como BORRADOR sin firmar ni enviar a MH.
+   *
+   * @param idContrato ID del contrato
+   * @param userId ID del usuario que genera
+   * @param idSucursal ID de sucursal (opcional, se usa la primera activa si no se especifica)
+   * @param tx Cliente de transacción Prisma (opcional)
+   * @returns IDs de facturas creadas e ID de factura de instalación si aplica
+   */
+  async generarFacturasContrato(
+    idContrato: number,
+    userId: number,
+    idSucursal?: number,
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ facturaIds: number[]; instalacionId?: number }> {
+    const db = tx || this.prisma;
+
+    // 1. Cargar contrato con relaciones necesarias
+    const contrato = await db.atcContrato.findUnique({
+      where: { id_contrato: idContrato },
+      include: {
+        cliente: {
+          include: {
+            datosfacturacion: {
+              where: { estado: 'ACTIVO' },
+              take: 1,
+            },
+          },
+        },
+        plan: true,
+        ciclo: true,
+      },
+    });
+
+    if (!contrato) {
+      throw new NotFoundException(`Contrato ${idContrato} no encontrado`);
+    }
+
+    if (contrato.estado !== 'INSTALADO_ACTIVO') {
+      throw new BadRequestException(
+        `Contrato ${idContrato} no está en estado INSTALADO_ACTIVO (estado: ${contrato.estado})`,
+      );
+    }
+
+    if (!contrato.plan) {
+      throw new BadRequestException(`Contrato ${idContrato} no tiene plan asignado`);
+    }
+
+    if (!contrato.ciclo) {
+      throw new BadRequestException(`Contrato ${idContrato} no tiene ciclo de facturación`);
+    }
+
+    const datosFacturacion = contrato.cliente?.datosfacturacion?.[0];
+    if (!datosFacturacion) {
+      throw new BadRequestException(
+        `Cliente del contrato ${idContrato} no tiene datos de facturación activos`,
+      );
+    }
+
+    // 2. Verificar idempotencia: si ya tiene facturas proyectadas, skip
+    const facturasExistentes = await db.facturaDirecta.count({
+      where: { id_contrato: idContrato },
+    });
+
+    if (facturasExistentes > 0) {
+      this.logger.warn(
+        `Contrato ${idContrato} ya tiene ${facturasExistentes} facturas. Saltando generación.`,
+      );
+      return { facturaIds: [] };
+    }
+
+    // 3. Obtener sucursal
+    const sucursal = idSucursal
+      ? await db.sucursales.findUnique({ where: { id_sucursal: idSucursal } })
+      : await db.sucursales.findFirst({ where: { estado: 'ACTIVO' } });
+
+    if (!sucursal) {
+      throw new BadRequestException('No hay sucursal disponible para generar facturas');
+    }
+
+    // 4. Calcular fecha_fin_contrato y actualizar
+    const fechaInicio = contrato.fecha_inicio_contrato || new Date();
+    const mesesContrato = contrato.meses_contrato || contrato.plan.meses_contrato || 12;
+    const fechaFinContrato = new Date(fechaInicio);
+    fechaFinContrato.setMonth(fechaFinContrato.getMonth() + mesesContrato);
+
+    await db.atcContrato.update({
+      where: { id_contrato: idContrato },
+      data: { fecha_fin_contrato: fechaFinContrato },
+    });
+
+    // 5. Extraer datos del plan
+    const precioBase = Number(contrato.plan.precio);
+    const aplicaIva = contrato.plan.aplica_iva;
+    const porcentajeIva = Number(contrato.plan.porcentaje_iva || 13);
+    const costoInstalacion = Number(contrato.costo_instalacion || 0);
+    const facturarInstalacionSeparada = contrato.facturar_instalacion_separada;
+
+    // 6. Snapshot de datos de facturación del cliente
+    const clienteSnapshot = {
+      cliente_nombre: datosFacturacion.nombre_empresa,
+      cliente_nit: datosFacturacion.nit,
+      cliente_nrc: datosFacturacion.nrc,
+      cliente_direccion: datosFacturacion.direccion_facturacion,
+      cliente_telefono: datosFacturacion.telefono,
+      cliente_correo: datosFacturacion.correo_electronico,
+    };
+
+    const facturaIds: number[] = [];
+    let instalacionId: number | undefined;
+
+    // 7. Generar facturas de cuotas mensuales
+    for (let cuota = 1; cuota <= mesesContrato; cuota++) {
+      const { periodoInicio, periodoFin, fechaVencimiento } = this.calcularFechasPeriodo(
+        fechaInicio,
+        cuota,
+        contrato.ciclo,
+      );
+
+      // Líneas de detalle
+      const detalles: Array<{
+        num_item: number;
+        nombre: string;
+        descripcion: string;
+        cantidad: number;
+        uni_medida: number;
+        precio_unitario: number;
+        precio_sin_iva: number;
+        precio_con_iva: number;
+        tipo_detalle: any;
+        venta_gravada: number;
+        venta_exenta: number;
+        subtotal: number;
+        iva: number;
+        total: number;
+      }> = [];
+
+      let numItem = 1;
+
+      // Línea de servicio mensual
+      const precioSinIva = aplicaIva ? redondearMonto(precioBase / (1 + porcentajeIva / 100)) : precioBase;
+      const ivaServicio = aplicaIva ? redondearMonto(precioBase - precioSinIva) : 0;
+
+      detalles.push({
+        num_item: numItem++,
+        nombre: `${contrato.plan.nombre} - Cuota ${cuota}/${mesesContrato}`,
+        descripcion: `Servicio ${contrato.plan.nombre} - Período ${periodoInicio.toLocaleDateString('es-SV')} al ${periodoFin.toLocaleDateString('es-SV')}`,
+        cantidad: 1,
+        uni_medida: 99,
+        precio_unitario: redondearMonto(precioSinIva, DECIMALES_ITEM),
+        precio_sin_iva: redondearMonto(precioSinIva, DECIMALES_ITEM),
+        precio_con_iva: redondearMonto(precioBase, DECIMALES_ITEM),
+        tipo_detalle: aplicaIva ? 'GRAVADO' : 'EXENTA',
+        venta_gravada: aplicaIva ? redondearMonto(precioSinIva) : 0,
+        venta_exenta: aplicaIva ? 0 : redondearMonto(precioBase),
+        subtotal: redondearMonto(precioSinIva),
+        iva: redondearMonto(ivaServicio),
+        total: redondearMonto(precioBase),
+      });
+
+      // Si cuota 1 y NO facturar_instalacion_separada, incluir instalación
+      if (cuota === 1 && !facturarInstalacionSeparada && costoInstalacion > 0) {
+        const instalacionSinIva = aplicaIva
+          ? redondearMonto(costoInstalacion / (1 + porcentajeIva / 100))
+          : costoInstalacion;
+        const ivaInstalacion = aplicaIva ? redondearMonto(costoInstalacion - instalacionSinIva) : 0;
+
+        detalles.push({
+          num_item: numItem++,
+          nombre: 'Instalación del servicio',
+          descripcion: `Costo de instalación - ${contrato.plan.nombre}`,
+          cantidad: 1,
+          uni_medida: 99,
+          precio_unitario: redondearMonto(instalacionSinIva, DECIMALES_ITEM),
+          precio_sin_iva: redondearMonto(instalacionSinIva, DECIMALES_ITEM),
+          precio_con_iva: redondearMonto(costoInstalacion, DECIMALES_ITEM),
+          tipo_detalle: aplicaIva ? 'GRAVADO' : 'EXENTA',
+          venta_gravada: aplicaIva ? redondearMonto(instalacionSinIva) : 0,
+          venta_exenta: aplicaIva ? 0 : redondearMonto(costoInstalacion),
+          subtotal: redondearMonto(instalacionSinIva),
+          iva: redondearMonto(ivaInstalacion),
+          total: redondearMonto(costoInstalacion),
+        });
+      }
+
+      // Calcular totales de la factura
+      const totalGravada = redondearMonto(detalles.reduce((s, d) => s + d.venta_gravada, 0));
+      const totalExenta = redondearMonto(detalles.reduce((s, d) => s + d.venta_exenta, 0));
+      const subtotal = redondearMonto(totalGravada + totalExenta);
+      const ivaTotal = redondearMonto(detalles.reduce((s, d) => s + d.iva, 0));
+      const total = redondearMonto(subtotal + ivaTotal);
+
+      const factura = await db.facturaDirecta.create({
+        data: {
+          // Sin numero_factura, bloque ni tipo (se asignan al firmar)
+          numero_factura: null,
+          id_bloque: null,
+          id_tipo_factura: null,
+
+          // Contrato y cliente
+          id_contrato: idContrato,
+          id_cliente: contrato.id_cliente,
+          id_cliente_facturacion: datosFacturacion.id_cliente_datos_facturacion,
+          ...clienteSnapshot,
+
+          // Período
+          periodo_inicio: periodoInicio,
+          periodo_fin: periodoFin,
+          fecha_vencimiento: fechaVencimiento,
+          numero_cuota: cuota,
+          total_cuotas: mesesContrato,
+          es_instalacion: false,
+
+          // Montos
+          subtotal: subtotal,
+          subTotalVentas: subtotal,
+          totalGravada: totalGravada,
+          totalExenta: totalExenta,
+          iva: ivaTotal,
+          total: total,
+
+          // Condición crédito
+          condicion_operacion: 2,
+
+          // Estado
+          estado_dte: 'BORRADOR',
+          estado_pago: 'PENDIENTE',
+
+          // Auditoría
+          id_sucursal: sucursal.id_sucursal,
+          id_usuario: userId,
+
+          // Detalle
+          detalles: {
+            create: detalles.map((d) => ({
+              num_item: d.num_item,
+              nombre: d.nombre,
+              descripcion: d.descripcion,
+              cantidad: d.cantidad,
+              uni_medida: d.uni_medida,
+              precio_unitario: d.precio_unitario,
+              precio_sin_iva: d.precio_sin_iva,
+              precio_con_iva: d.precio_con_iva,
+              tipo_detalle: d.tipo_detalle,
+              venta_gravada: d.venta_gravada,
+              venta_exenta: d.venta_exenta,
+              subtotal: d.subtotal,
+              iva: d.iva,
+              total: d.total,
+            })),
+          },
+        },
+      });
+
+      facturaIds.push(factura.id_factura_directa);
+    }
+
+    // 8. Si facturar_instalacion_separada y hay costo, crear factura aparte
+    if (facturarInstalacionSeparada && costoInstalacion > 0) {
+      const instalacionSinIva = aplicaIva
+        ? redondearMonto(costoInstalacion / (1 + porcentajeIva / 100))
+        : costoInstalacion;
+      const ivaInstalacion = aplicaIva ? redondearMonto(costoInstalacion - instalacionSinIva) : 0;
+
+      const totalGravada = aplicaIva ? redondearMonto(instalacionSinIva) : 0;
+      const totalExenta = aplicaIva ? 0 : redondearMonto(costoInstalacion);
+      const subtotal = redondearMonto(totalGravada + totalExenta);
+      const total = redondearMonto(subtotal + ivaInstalacion);
+
+      const { periodoInicio, periodoFin, fechaVencimiento } = this.calcularFechasPeriodo(
+        fechaInicio,
+        1,
+        contrato.ciclo,
+      );
+
+      const facturaInstalacion = await db.facturaDirecta.create({
+        data: {
+          numero_factura: null,
+          id_bloque: null,
+          id_tipo_factura: null,
+
+          id_contrato: idContrato,
+          id_cliente: contrato.id_cliente,
+          id_cliente_facturacion: datosFacturacion.id_cliente_datos_facturacion,
+          ...clienteSnapshot,
+
+          periodo_inicio: periodoInicio,
+          periodo_fin: periodoFin,
+          fecha_vencimiento: fechaVencimiento,
+          numero_cuota: null,
+          total_cuotas: null,
+          es_instalacion: true,
+
+          subtotal: subtotal,
+          subTotalVentas: subtotal,
+          totalGravada: totalGravada,
+          totalExenta: totalExenta,
+          iva: ivaInstalacion,
+          total: total,
+
+          condicion_operacion: 2,
+
+          estado_dte: 'BORRADOR',
+          estado_pago: 'PENDIENTE',
+
+          id_sucursal: sucursal.id_sucursal,
+          id_usuario: userId,
+
+          detalles: {
+            create: [
+              {
+                num_item: 1,
+                nombre: 'Instalación del servicio',
+                descripcion: `Costo de instalación - ${contrato.plan.nombre}`,
+                cantidad: 1,
+                uni_medida: 99,
+                precio_unitario: redondearMonto(instalacionSinIva, DECIMALES_ITEM),
+                precio_sin_iva: redondearMonto(instalacionSinIva, DECIMALES_ITEM),
+                precio_con_iva: redondearMonto(costoInstalacion, DECIMALES_ITEM),
+                tipo_detalle: aplicaIva ? 'GRAVADO' : 'EXENTA',
+                venta_gravada: totalGravada,
+                venta_exenta: totalExenta,
+                subtotal: subtotal,
+                iva: ivaInstalacion,
+                total: total,
+              },
+            ],
+          },
+        },
+      });
+
+      instalacionId = facturaInstalacion.id_factura_directa;
+      facturaIds.push(instalacionId);
+    }
+
+    this.logger.log(
+      `Contrato ${idContrato}: generadas ${facturaIds.length} facturas proyectadas` +
+        (instalacionId ? ` (incluye factura de instalación #${instalacionId})` : ''),
+    );
+
+    return { facturaIds, instalacionId };
+  }
+
+  /**
+   * Calcula las fechas de periodo e inicio/fin para una cuota dada.
+   * Maneja edge cases como día 31 en meses cortos.
+   */
+  private calcularFechasPeriodo(
+    fechaInicioContrato: Date,
+    cuota: number,
+    ciclo: { dia_corte: number; dia_vencimiento: number; periodo_inicio: number; periodo_fin: number },
+  ): { periodoInicio: Date; periodoFin: Date; fechaVencimiento: Date } {
+    // Calcular el mes base: mes de inicio + (cuota - 1)
+    const baseDate = new Date(fechaInicioContrato);
+    baseDate.setMonth(baseDate.getMonth() + (cuota - 1));
+
+    const year = baseDate.getFullYear();
+    const month = baseDate.getMonth(); // 0-indexed
+
+    // Periodo inicio: día periodo_inicio del mes actual
+    const periodoInicio = this.crearFechaSegura(year, month, ciclo.periodo_inicio);
+
+    // Periodo fin: día periodo_fin del mes actual (o siguiente si periodo_fin < periodo_inicio)
+    let periodoFinMonth = month;
+    let periodoFinYear = year;
+    if (ciclo.periodo_fin < ciclo.periodo_inicio) {
+      // El período cruza al mes siguiente
+      periodoFinMonth = month + 1;
+      if (periodoFinMonth > 11) {
+        periodoFinMonth = 0;
+        periodoFinYear = year + 1;
+      }
+    }
+    const periodoFin = this.crearFechaSegura(periodoFinYear, periodoFinMonth, ciclo.periodo_fin);
+
+    // Fecha vencimiento: día vencimiento del mes siguiente al período
+    let vencimientoMonth = month + 1;
+    let vencimientoYear = year;
+    if (vencimientoMonth > 11) {
+      vencimientoMonth = 0;
+      vencimientoYear = year + 1;
+    }
+    const fechaVencimiento = this.crearFechaSegura(vencimientoYear, vencimientoMonth, ciclo.dia_vencimiento);
+
+    return { periodoInicio, periodoFin, fechaVencimiento };
+  }
+
+  /**
+   * Crea una fecha manejando días que no existen en ciertos meses
+   * (ej: día 31 en febrero → último día de febrero)
+   */
+  private crearFechaSegura(year: number, month: number, day: number): Date {
+    // Obtener el último día del mes
+    const ultimoDia = new Date(year, month + 1, 0).getDate();
+    const diaFinal = Math.min(day, ultimoDia);
+    return new Date(year, month, diaFinal);
   }
 }

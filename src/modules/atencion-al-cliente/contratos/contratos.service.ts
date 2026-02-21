@@ -9,6 +9,7 @@ import {
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { CreateContratoDto } from './dto/create-contrato.dto';
 import { UpdateContratoDto } from './dto/update-contrato.dto';
+import { CambiarEstadoContratoDto } from './dto/cambiar-estado-contrato.dto';
 import { atcContrato } from '@prisma/client';
 import { PaginationDto, PaginatedResult } from 'src/common/dto';
 import { OrdenesTrabajoService } from '../ordenes-trabajo/ordenes-trabajo.service';
@@ -312,16 +313,15 @@ export class ContratosService {
   async remove(id: number, id_usuario: number): Promise<atcContrato> {
     const contrato = await this.findOne(id);
 
-    // Cancelar la Orden de Trabajo asociada si existe
-    if (contrato.id_orden_trabajo) {
+    // Cancelar las Órdenes de Trabajo asociadas que no estén en estado final
+    const ordenesAsociadas = await this.prisma.orden_trabajo.findMany({
+      where: { id_contrato: id, estado: { notIn: ['COMPLETADA', 'CANCELADA'] } },
+    });
+    for (const orden of ordenesAsociadas) {
       try {
-        await this.ordenesTrabajoService.cancelarOrden(
-          contrato.id_orden_trabajo,
-          id_usuario,
-        );
+        await this.ordenesTrabajoService.cancelarOrden(orden.id_orden, id_usuario);
       } catch (error) {
-        // Si falla la cancelación de la OT, logueamos pero continuamos con la cancelación del contrato
-        console.error(`Error al cancelar OT ${contrato.id_orden_trabajo}:`, error);
+        console.error(`Error al cancelar OT ${orden.codigo}:`, error);
       }
     }
 
@@ -335,10 +335,43 @@ export class ContratosService {
     await this.prisma.logAction(
       'CANCELAR_CONTRATO',
       id_usuario,
-      `Contrato cancelado: ${contrato.codigo}${contrato.id_orden_trabajo ? ` - OT cancelada: ${contrato.id_orden_trabajo}` : ''}`,
+      `Contrato cancelado: ${contrato.codigo}${ordenesAsociadas.length > 0 ? ` - ${ordenesAsociadas.length} OT(s) cancelada(s)` : ''}`,
     );
 
     return updatedContrato;
+  }
+
+  async cambiarEstado(
+    id: number,
+    dto: CambiarEstadoContratoDto,
+    id_usuario: number,
+  ): Promise<atcContrato> {
+    const contrato = await this.findOne(id);
+
+    // Validar que no esté en un estado terminal
+    const estadosTerminales = ['CANCELADO', 'BAJA_DEFINITIVA'];
+    if (estadosTerminales.includes(contrato.estado)) {
+      throw new BadRequestException(
+        `No se puede cambiar el estado de un contrato en estado ${contrato.estado}`,
+      );
+    }
+
+    const estadoAnterior = contrato.estado;
+
+    const contratoActualizado = await this.prisma.atcContrato.update({
+      where: { id_contrato: id },
+      data: { estado: dto.estado },
+      include: this.getIncludeRelations(),
+    });
+
+    // Registrar en el log
+    await this.prisma.logAction(
+      'CAMBIAR_ESTADO_CONTRATO',
+      id_usuario,
+      `Contrato ${contrato.codigo}: ${estadoAnterior} → ${dto.estado}${dto.comentario ? ` - ${dto.comentario}` : ''}`,
+    );
+
+    return contratoActualizado;
   }
 
   // ==================== CONTRATOS PENDIENTES DE FIRMA ====================
@@ -590,13 +623,14 @@ export class ContratosService {
     const objectName = `contratos-firmados/${contrato.codigo}/${Date.now()}_${archivo.originalname}`;
     const { url } = await this.minioService.uploadFile(archivo, objectName);
 
-    // Crear la Orden de Trabajo de Instalación
+    // Crear la Orden de Trabajo de Instalación (vinculada al contrato)
     const ordenInstalacion = await this.ordenesTrabajoService.create(
       {
         tipo: TipoOrden.INSTALACION,
         id_cliente: contrato.id_cliente,
         id_direccion_servicio: contrato.id_direccion_servicio,
         observaciones_tecnico: `Instalación para contrato ${contrato.codigo}${observaciones ? ` - ${observaciones}` : ''}`,
+        id_contrato: id,
       },
       id_usuario,
     );
@@ -607,7 +641,6 @@ export class ContratosService {
       data: {
         estado: 'PENDIENTE_INSTALACION',
         url_contrato_firmado: url,
-        id_orden_trabajo: ordenInstalacion.id_orden,
       },
       include: this.getIncludeRelations(),
     });
@@ -667,13 +700,14 @@ export class ContratosService {
           colonias: true,
         },
       },
-      ordenTrabajo: {
+      ordenesTrabajo: {
         select: {
           id_orden: true,
           codigo: true,
           tipo: true,
           estado: true,
         },
+        orderBy: { fecha_creacion: 'desc' as const },
       },
       usuarioCreador: {
         select: {

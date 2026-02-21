@@ -19,6 +19,7 @@ import { ContratosService } from './contratos.service';
 import { CreateContratoDto } from './dto/create-contrato.dto';
 import { UpdateContratoDto } from './dto/update-contrato.dto';
 import { MarcarFirmadoDto } from './dto/marcar-firmado.dto';
+import { CambiarEstadoContratoDto } from './dto/cambiar-estado-contrato.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -133,6 +134,27 @@ export class ContratosController {
     });
 
     res.end(pdfBuffer);
+  }
+
+  @RequirePermissions('atencion_cliente.contratos:editar')
+  @Post(':id/cambiar-estado')
+  @ApiOperation({
+    summary: 'Cambiar estado de un contrato',
+    description: 'Cambia el estado de un contrato existente. No permite cambios desde estados terminales (CANCELADO, BAJA_DEFINITIVA).',
+  })
+  @ApiParam({ name: 'id', description: 'ID del contrato', type: Number })
+  @ApiResponse({
+    status: 200,
+    description: 'Estado del contrato actualizado exitosamente.',
+  })
+  @ApiResponse({ status: 400, description: 'Estado inválido o contrato en estado terminal.' })
+  @ApiResponse({ status: 404, description: 'Contrato no encontrado.' })
+  cambiarEstado(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() cambiarEstadoDto: CambiarEstadoContratoDto,
+    @GetUser() usuario,
+  ) {
+    return this.contratosService.cambiarEstado(id, cambiarEstadoDto, usuario.id_usuario);
   }
 
   @RequirePermissions('atencion_cliente.contratos:editar')

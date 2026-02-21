@@ -59,4 +59,9 @@ export class CreateOrdenDto {
   @IsString()
   @IsOptional()
   observaciones_tecnico?: string;
+
+  @ApiPropertyOptional({ description: 'ID del contrato asociado', example: 1 })
+  @IsInt()
+  @IsOptional()
+  id_contrato?: number;
 }

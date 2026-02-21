@@ -129,3 +129,64 @@ ADD COLUMN     "id_movimiento_bancario" INTEGER,
 ADD COLUMN     "metodo_pago" TEXT,
 ADD COLUMN     "monto_pagado" DOUBLE PRECISION DEFAULT 0,
 ADD COLUMN     "pago_registrado" BOOLEAN NOT NULL DEFAULT false;
+
+-- Invertir relación atcContrato ↔ orden_trabajo
+-- Mover FK de atcContrato.id_orden_trabajo a orden_trabajo.id_contrato
+
+-- 1. Agregar nueva columna en orden_trabajo
+ALTER TABLE "orden_trabajo" ADD COLUMN "id_contrato" INTEGER;
+
+-- 2. Migrar datos existentes (transferir la relación)
+UPDATE "orden_trabajo" ot
+SET "id_contrato" = c."id_contrato"
+FROM "atcContrato" c
+WHERE c."id_orden_trabajo" = ot."id_orden";
+
+-- 3. Agregar FK constraint
+ALTER TABLE "orden_trabajo" ADD CONSTRAINT "fk_orden_trabajo_contrato"
+  FOREIGN KEY ("id_contrato") REFERENCES "atcContrato"("id_contrato")
+  ON DELETE NO ACTION ON UPDATE NO ACTION;
+
+-- 4. Crear índice
+CREATE INDEX "orden_trabajo_id_contrato_idx" ON "orden_trabajo"("id_contrato");
+
+-- 5. Eliminar FK e índice viejos en atcContrato
+DROP INDEX IF EXISTS "atcContrato_id_orden_trabajo_idx";
+ALTER TABLE "atcContrato" DROP CONSTRAINT IF EXISTS "fk_contrato_orden_trabajo";
+
+-- 6. Eliminar columna vieja
+ALTER TABLE "atcContrato" DROP COLUMN "id_orden_trabajo";
+-- DropIndex
+DROP INDEX "facturaDirecta_codigo_generacion_key";
+
+-- DropIndex
+DROP INDEX "facturaDirecta_numero_control_key";
+
+-- AlterTable
+ALTER TABLE "facturaDirecta" ADD COLUMN     "es_instalacion" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "fecha_vencimiento" TIMESTAMP(3),
+ADD COLUMN     "id_cliente" INTEGER,
+ADD COLUMN     "id_cliente_facturacion" INTEGER,
+ADD COLUMN     "id_contrato" INTEGER,
+ADD COLUMN     "numero_cuota" INTEGER,
+ADD COLUMN     "periodo_fin" TIMESTAMP(3),
+ADD COLUMN     "periodo_inicio" TIMESTAMP(3),
+ADD COLUMN     "total_cuotas" INTEGER,
+ALTER COLUMN "numero_factura" DROP NOT NULL,
+ALTER COLUMN "id_tipo_factura" DROP NOT NULL,
+ALTER COLUMN "id_bloque" DROP NOT NULL;
+
+-- CreateIndex
+CREATE INDEX "facturaDirecta_id_contrato_idx" ON "facturaDirecta"("id_contrato");
+
+-- CreateIndex
+CREATE INDEX "facturaDirecta_id_cliente_idx" ON "facturaDirecta"("id_cliente");
+
+-- AddForeignKey
+ALTER TABLE "facturaDirecta" ADD CONSTRAINT "fk_factura_directa_contrato" FOREIGN KEY ("id_contrato") REFERENCES "atcContrato"("id_contrato") ON DELETE NO ACTION ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "facturaDirecta" ADD CONSTRAINT "fk_factura_directa_cliente_contrato" FOREIGN KEY ("id_cliente") REFERENCES "cliente"("id_cliente") ON DELETE NO ACTION ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "facturaDirecta" ADD CONSTRAINT "fk_factura_directa_datos_facturacion" FOREIGN KEY ("id_cliente_facturacion") REFERENCES "clienteDatosFacturacion"("id_cliente_datos_facturacion") ON DELETE NO ACTION ON UPDATE NO ACTION;

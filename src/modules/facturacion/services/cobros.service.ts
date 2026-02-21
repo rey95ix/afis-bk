@@ -34,6 +34,8 @@ import { estado_dte } from '@prisma/client';
  */
 export interface CrearCobroResult {
   success: boolean;
+  idFactura?: number;
+  /** @deprecated Usar idFactura */
   idDte?: number;
   codigoGeneracion?: string;
   numeroControl?: string;
@@ -165,10 +167,11 @@ export class CobrosService {
       );
 
       if (!signResult.success) {
-        await this.actualizarEstadoDte(dteCreado.id_dte, 'BORRADOR', signResult.error);
+        await this.actualizarEstadoDte(dteCreado.id_factura_directa, 'BORRADOR', signResult.error);
         return {
           success: false,
-          idDte: dteCreado.id_dte,
+          idFactura: dteCreado.id_factura_directa,
+          idDte: dteCreado.id_factura_directa,
           codigoGeneracion,
           numeroControl,
           estado: 'BORRADOR',
@@ -177,11 +180,11 @@ export class CobrosService {
       }
 
       // Actualizar con DTE firmado
-      await this.prisma.dte_emitidos.update({
-        where: { id_dte: dteCreado.id_dte },
+      await this.prisma.facturaDirecta.update({
+        where: { id_factura_directa: dteCreado.id_factura_directa },
         data: {
           dte_firmado: signResult.documentoFirmado,
-          estado: 'FIRMADO',
+          estado_dte: 'FIRMADO',
         },
       });
 
@@ -201,7 +204,7 @@ export class CobrosService {
       );
 
       // ==================== PASO 9: ACTUALIZAR ESTADO FINAL ====================
-      await this.actualizarConRespuestaMh(dteCreado.id_dte, transmitResult);
+      await this.actualizarConRespuestaMh(dteCreado.id_factura_directa, transmitResult);
 
       // Actualizar correlativo del bloque
       await this.prisma.facturasBloques.update({
@@ -213,7 +216,8 @@ export class CobrosService {
         this.logger.log(`DTE procesado exitosamente. Sello: ${transmitResult.selloRecibido}`);
         return {
           success: true,
-          idDte: dteCreado.id_dte,
+          idFactura: dteCreado.id_factura_directa,
+          idDte: dteCreado.id_factura_directa,
           codigoGeneracion,
           numeroControl,
           estado: 'PROCESADO',
@@ -223,7 +227,8 @@ export class CobrosService {
       } else {
         return {
           success: false,
-          idDte: dteCreado.id_dte,
+          idFactura: dteCreado.id_factura_directa,
+          idDte: dteCreado.id_factura_directa,
           codigoGeneracion,
           numeroControl,
           estado: 'RECHAZADO',
@@ -467,7 +472,7 @@ export class CobrosService {
   }
 
   /**
-   * Guarda el DTE como borrador en la BD
+   * Guarda el DTE como borrador en facturaDirecta
    */
   private async guardarBorrador(
     documento: DteDocument,
@@ -481,78 +486,82 @@ export class CobrosService {
   ) {
     const { generalData, datosFacturacion, contrato, sucursal } = datos;
 
-    return this.prisma.dte_emitidos.create({
+    // Obtener tipo de factura y bloque
+    const tipoFactura = await this.prisma.facturasTipos.findFirst({
+      where: { codigo: tipoDte },
+    });
+    const bloque = datos.bloque;
+
+    return this.prisma.facturaDirecta.create({
       data: {
-        // Identificación
-        codigo_generacion: codigoGeneracion,
-        numero_control: numeroControl,
-        tipo_dte: tipoDte,
-        version: tipoDte === '03' ? 3 : 1,
-        ambiente: generalData.ambiente || '00',
-        tipo_modelo: 1,
-        tipo_operacion: 1,
+        // Numeración
+        numero_factura: (bloque.actual + 1).toString().padStart(10, '0'),
 
-        // Fechas
-        fecha_emision: new Date(),
-        hora_emision: new Date().toTimeString().split(' ')[0],
-        tipo_moneda: 'USD',
+        // Tipo de factura y bloque
+        id_tipo_factura: tipoFactura?.id_tipo_factura,
+        id_bloque: bloque.id_bloque,
 
-        // Receptor snapshot
-        receptor_tipo_documento: datosFacturacion.dTETipoDocumentoIdentificacion?.codigo,
-        receptor_num_documento: datosFacturacion.nit,
-        receptor_nrc: datosFacturacion.nrc,
-        receptor_nombre: datosFacturacion.nombre_empresa,
-        receptor_cod_actividad: datosFacturacion.dTEActividadEconomica?.codigo,
-        receptor_desc_actividad: datosFacturacion.dTEActividadEconomica?.nombre,
-        receptor_telefono: datosFacturacion.telefono,
-        receptor_correo: datosFacturacion.correo_electronico,
-        receptor_departamento: datosFacturacion.departamento?.codigo,
-        receptor_municipio: datosFacturacion.municipio?.codigo,
-        receptor_complemento: datosFacturacion.direccion_facturacion,
+        // Snapshot del cliente
+        cliente_nombre: datosFacturacion.nombre_empresa,
+        cliente_nit: datosFacturacion.nit,
+        cliente_nrc: datosFacturacion.nrc,
+        cliente_direccion: datosFacturacion.direccion_facturacion,
+        cliente_telefono: datosFacturacion.telefono,
+        cliente_correo: datosFacturacion.correo_electronico,
 
-        // Relaciones
+        // Relaciones con contrato/cliente
+        id_contrato: contrato.id_contrato,
         id_cliente: contrato.id_cliente,
         id_cliente_facturacion: datosFacturacion.id_cliente_datos_facturacion,
-        id_contrato: contrato.id_contrato,
-        id_sucursal: sucursal.id_sucursal,
+
+        // DTE
+        codigo_generacion: codigoGeneracion,
+        numero_control: numeroControl,
+        dte_json: JSON.stringify(documento),
 
         // Totales
-        total_no_sujetas: totales.totalNoSuj,
-        total_exentas: totales.totalExenta,
-        total_gravadas: totales.totalGravada,
-        subtotal_ventas: totales.totalNoSuj + totales.totalExenta + totales.totalGravada,
-        total_iva: totales.totalIva,
-        total_pagar: totales.totalPagar,
+        totalNoSuj: totales.totalNoSuj,
+        totalExenta: totales.totalExenta,
+        totalGravada: totales.totalGravada,
+        subtotal: totales.totalNoSuj + totales.totalExenta + totales.totalGravada,
+        subTotalVentas: totales.totalNoSuj + totales.totalExenta + totales.totalGravada,
+        iva: totales.totalIva,
+        total: totales.totalPagar,
         total_letras: (documento.resumen as any).totalLetras,
 
         // Condición de operación
         condicion_operacion: dto.condicionOperacion || 1,
-        pagos_json: dto.pagos ? JSON.stringify(dto.pagos) : null,
-        num_pago_electronico: dto.numPagoElectronico,
-
-        // JSON completo
-        dte_json: JSON.stringify(documento),
 
         // Estado
-        estado: 'BORRADOR',
+        estado_dte: 'BORRADOR',
+        estado_pago: dto.condicionOperacion === 2 ? 'PENDIENTE' : 'PAGADO',
 
-        // Auditoría
-        id_usuario_crea: idUsuario,
+        // Sucursal y usuario
+        id_sucursal: sucursal.id_sucursal,
+        id_usuario: idUsuario,
 
         // Detalle de items
-        detalle: {
+        detalles: {
           create: dto.items.map((item, index) => ({
             num_item: index + 1,
-            tipo_item: item.tipoItem,
             codigo: item.codigo,
+            nombre: item.descripcion,
             descripcion: item.descripcion,
             cantidad: item.cantidad,
             uni_medida: item.uniMedida,
             precio_unitario: item.precioUnitario,
-            monto_descuento: item.descuento || 0,
+            precio_sin_iva: item.esGravado ? item.precioUnitario : item.precioUnitario,
+            precio_con_iva: item.esGravado ? item.precioUnitario * 1.13 : item.precioUnitario,
+            tipo_detalle: item.esGravado ? 'GRAVADO' : (item.esExento ? 'EXENTA' : 'NOSUJETO'),
+            descuento: item.descuento || 0,
             venta_gravada: item.esGravado ? item.cantidad * item.precioUnitario : 0,
             venta_exenta: item.esExento ? item.cantidad * item.precioUnitario : 0,
-            venta_no_sujeta: item.esNoSujeto ? item.cantidad * item.precioUnitario : 0,
+            venta_nosujeto: item.esNoSujeto ? item.cantidad * item.precioUnitario : 0,
+            subtotal: item.cantidad * item.precioUnitario,
+            iva: item.esGravado ? item.cantidad * item.precioUnitario * 0.13 : 0,
+            total: item.esGravado
+              ? item.cantidad * item.precioUnitario * 1.13
+              : item.cantidad * item.precioUnitario,
             id_catalogo: item.idCatalogo,
           })),
         },
@@ -561,69 +570,68 @@ export class CobrosService {
   }
 
   /**
-   * Actualiza el estado del DTE
+   * Actualiza el estado del DTE en facturaDirecta
    */
   private async actualizarEstadoDte(
-    idDte: number,
+    idFactura: number,
     estado: estado_dte,
     error?: string,
   ) {
-    await this.prisma.dte_emitidos.update({
-      where: { id_dte: idDte },
+    await this.prisma.facturaDirecta.update({
+      where: { id_factura_directa: idFactura },
       data: {
-        estado,
-        ultimo_error: error,
-        intentos_transmision: { increment: 1 },
+        estado_dte: estado,
+        ultimo_error_dte: error,
+        intentos_dte: { increment: 1 },
       },
     });
   }
 
   /**
-   * Actualiza el DTE con la respuesta de MH
+   * Actualiza el DTE con la respuesta de MH en facturaDirecta
    */
   private async actualizarConRespuestaMh(
-    idDte: number,
+    idFactura: number,
     result: TransmisionResult,
   ) {
-    await this.prisma.dte_emitidos.update({
-      where: { id_dte: idDte },
+    await this.prisma.facturaDirecta.update({
+      where: { id_factura_directa: idFactura },
       data: {
-        estado: result.success ? 'PROCESADO' : 'RECHAZADO',
+        estado_dte: result.success ? 'PROCESADO' : 'RECHAZADO',
         sello_recepcion: result.selloRecibido,
-        fecha_recepcion: result.fechaProcesamiento,
-        codigo_msg: result.codigoMsg,
-        descripcion_msg: result.descripcionMsg,
+        fecha_recepcion_mh: result.fechaProcesamiento,
+        codigo_msg_mh: result.codigoMsg,
+        descripcion_msg_mh: result.descripcionMsg,
         observaciones_mh: result.observaciones?.join('\n'),
-        ultimo_error: result.error,
-        intentos_transmision: { increment: 1 },
+        ultimo_error_dte: result.error,
+        intentos_dte: { increment: 1 },
       },
     });
   }
 
   /**
-   * Obtiene un DTE por su ID
+   * Obtiene una factura por su ID
    */
-  async obtenerPorId(idDte: number) {
-    const dte = await this.prisma.dte_emitidos.findUnique({
-      where: { id_dte: idDte },
+  async obtenerPorId(idFactura: number) {
+    const factura = await this.prisma.facturaDirecta.findUnique({
+      where: { id_factura_directa: idFactura },
       include: {
-        detalle: true,
+        detalles: true,
         cliente: true,
         contrato: true,
         sucursal: true,
-        anulaciones: true,
       },
     });
 
-    if (!dte) {
-      throw new NotFoundException(`DTE ${idDte} no encontrado`);
+    if (!factura) {
+      throw new NotFoundException(`Factura ${idFactura} no encontrada`);
     }
 
-    return dte;
+    return factura;
   }
 
   /**
-   * Lista DTEs con filtros y paginación
+   * Lista facturas con filtros y paginación
    */
   async listar(filtros: {
     idContrato?: number;
@@ -642,16 +650,16 @@ export class CobrosService {
 
     if (where.idContrato) whereClause.id_contrato = where.idContrato;
     if (where.idCliente) whereClause.id_cliente = where.idCliente;
-    if (where.tipoDte) whereClause.tipo_dte = where.tipoDte;
-    if (where.estado) whereClause.estado = where.estado;
+    if (where.tipoDte) whereClause.tipoFactura = { codigo: where.tipoDte };
+    if (where.estado) whereClause.estado_dte = where.estado;
     if (where.fechaDesde || where.fechaHasta) {
-      whereClause.fecha_emision = {};
-      if (where.fechaDesde) whereClause.fecha_emision.gte = where.fechaDesde;
-      if (where.fechaHasta) whereClause.fecha_emision.lte = where.fechaHasta;
+      whereClause.fecha_creacion = {};
+      if (where.fechaDesde) whereClause.fecha_creacion.gte = where.fechaDesde;
+      if (where.fechaHasta) whereClause.fecha_creacion.lte = where.fechaHasta;
     }
 
     const [items, total] = await Promise.all([
-      this.prisma.dte_emitidos.findMany({
+      this.prisma.facturaDirecta.findMany({
         where: whereClause,
         include: {
           cliente: { select: { titular: true } },
@@ -661,7 +669,7 @@ export class CobrosService {
         skip,
         take: limit,
       }),
-      this.prisma.dte_emitidos.count({ where: whereClause }),
+      this.prisma.facturaDirecta.count({ where: whereClause }),
     ]);
 
     return {
