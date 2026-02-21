@@ -74,6 +74,19 @@ export class MovimientosBancariosController {
   }
 
   @RequirePermissions('bancos.movimientos:ver')
+  @Get('resumen-cuenta/:id')
+  @ApiOperation({ summary: 'Obtener resumen consolidado de movimientos de una cuenta' })
+  @ApiResponse({ status: 200, description: 'Retorna el resumen de entradas y salidas.' })
+  @ApiResponse({ status: 404, description: 'Cuenta bancaria no encontrada.' })
+  getResumenCuenta(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('fecha_desde') fechaDesde?: string,
+    @Query('fecha_hasta') fechaHasta?: string,
+  ) {
+    return this.movimientosBancariosService.getResumenCuenta(id, fechaDesde, fechaHasta);
+  }
+
+  @RequirePermissions('bancos.movimientos:ver')
   @Get(':id')
   @ApiOperation({ summary: 'Obtener detalle de un movimiento bancario' })
   @ApiResponse({ status: 200, description: 'Retorna el movimiento bancario.' })

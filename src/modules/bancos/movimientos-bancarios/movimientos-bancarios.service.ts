@@ -463,6 +463,61 @@ export class MovimientosBancariosService {
     };
   }
 
+  async getResumenCuenta(
+    id_cuenta: number,
+    fecha_desde?: string,
+    fecha_hasta?: string,
+  ) {
+    const cuenta = await this.prisma.cuenta_bancaria.findUnique({
+      where: { id_cuenta_bancaria: id_cuenta },
+    });
+
+    if (!cuenta) {
+      throw new NotFoundException(`Cuenta bancaria con ID ${id_cuenta} no encontrada`);
+    }
+
+    const where: any = {
+      id_cuenta_bancaria: id_cuenta,
+      estado_movimiento: 'ACTIVO',
+    };
+
+    if (fecha_desde || fecha_hasta) {
+      where.fecha_movimiento = {};
+      if (fecha_desde) {
+        where.fecha_movimiento.gte = new Date(fecha_desde);
+      }
+      if (fecha_hasta) {
+        const fechaFin = new Date(fecha_hasta);
+        fechaFin.setHours(23, 59, 59, 999);
+        where.fecha_movimiento.lte = fechaFin;
+      }
+    }
+
+    const [entradas, salidas] = await Promise.all([
+      this.prisma.movimiento_bancario.aggregate({
+        where: { ...where, tipo_movimiento: 'ENTRADA' },
+        _sum: { monto: true },
+        _count: { id_movimiento: true },
+      }),
+      this.prisma.movimiento_bancario.aggregate({
+        where: { ...where, tipo_movimiento: 'SALIDA' },
+        _sum: { monto: true },
+        _count: { id_movimiento: true },
+      }),
+    ]);
+
+    const totalEntradas = Number(entradas._sum.monto || 0);
+    const totalSalidas = Number(salidas._sum.monto || 0);
+
+    return {
+      total_entradas: totalEntradas,
+      total_salidas: totalSalidas,
+      cambio_neto: totalEntradas - totalSalidas,
+      cantidad_entradas: entradas._count.id_movimiento,
+      cantidad_salidas: salidas._count.id_movimiento,
+    };
+  }
+
   async findOne(id: number) {
     const movimiento = await this.prisma.movimiento_bancario.findUnique({
       where: { id_movimiento: id },

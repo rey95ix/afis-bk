@@ -793,7 +793,6 @@ export class OrdenesTrabajoService {
 
         if (ordenCompleta && ordenCompleta.cliente.telefono1 && ordenCompleta.tecnico_asignado) {
           const nombreTecnico = `${ordenCompleta.tecnico_asignado.nombres} ${ordenCompleta.tecnico_asignado.apellidos}`;
-
           await this.smsService.enviarNotificacionTecnicoEnCamino(
             ordenCompleta.cliente.telefono1,
             nombreTecnico,
@@ -809,7 +808,6 @@ export class OrdenesTrabajoService {
         console.error('Error al enviar SMS de técnico en camino:', error);
       }
     }
-
     return result;
   }
 

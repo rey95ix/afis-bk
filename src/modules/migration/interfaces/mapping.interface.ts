@@ -121,7 +121,7 @@ export interface ConnectionValidation {
 export const ESTADO_CLIENTE_MAP: Record<number, string> = {
   1: 'ACTIVO',
   0: 'INACTIVO',
-  2: 'SUSPENDIDO',
+  2: 'INACTIVO',
 };
 
 export const ESTADO_CONTRATO_MAP: Record<number, string> = {
