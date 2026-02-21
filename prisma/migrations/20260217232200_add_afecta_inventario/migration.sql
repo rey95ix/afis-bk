@@ -122,3 +122,10 @@ ALTER TABLE "pago_cxp" ADD CONSTRAINT "fk_pago_cxp" FOREIGN KEY ("id_cxp") REFER
 
 -- AddForeignKey
 ALTER TABLE "pago_cxp" ADD CONSTRAINT "fk_pago_cxp_usuario" FOREIGN KEY ("id_usuario") REFERENCES "usuarios"("id_usuario") ON DELETE NO ACTION ON UPDATE NO ACTION;
+-- AlterTable
+ALTER TABLE "compras" ADD COLUMN     "fecha_pago" TIMESTAMP(3),
+ADD COLUMN     "id_cuenta_bancaria_pago" INTEGER,
+ADD COLUMN     "id_movimiento_bancario" INTEGER,
+ADD COLUMN     "metodo_pago" TEXT,
+ADD COLUMN     "monto_pagado" DOUBLE PRECISION DEFAULT 0,
+ADD COLUMN     "pago_registrado" BOOLEAN NOT NULL DEFAULT false;

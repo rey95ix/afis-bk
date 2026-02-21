@@ -72,7 +72,7 @@ export class CreateProveedorDto {
 
   @ApiProperty({ description: 'Correo contacto 1', required: false, example: 'juan.perez@proveedor.com' })
   @IsOptional()
-  @IsEmail({}, { message: 'El correo de contacto 1 debe tener un formato válido.' })
+  // @IsEmail({}, { message: 'El correo de contacto 1 debe tener un formato válido.' })
   correo_contac_1?: string;
 
   @ApiProperty({ description: 'Nombre contacto 2', required: false, example: 'María López' })
@@ -87,7 +87,7 @@ export class CreateProveedorDto {
 
   @ApiProperty({ description: 'Correo contacto 2', required: false, example: 'maria.lopez@proveedor.com' })
   @IsOptional()
-  @IsEmail({}, { message: 'El correo de contacto 2 debe tener un formato válido.' })
+  // @IsEmail({}, { message: 'El correo de contacto 2 debe tener un formato válido.' })
   correo_contac_2?: string;
 
   @ApiProperty({ description: 'ID actividad económica', required: false, example: 1 })

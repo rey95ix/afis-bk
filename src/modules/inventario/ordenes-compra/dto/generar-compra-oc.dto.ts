@@ -183,4 +183,9 @@ export class GenerarCompraOcDto {
   @IsOptional()
   @IsDateString()
   cheque_fecha_emision?: string;
+
+  @ApiPropertyOptional({ description: 'Número/referencia de transferencia bancaria' })
+  @IsOptional()
+  @IsString()
+  transferencia_numero?: string;
 }

@@ -13,6 +13,7 @@ import {
 import { ProveedoresService } from './proveedores.service';
 import { CreateProveedorDto } from './dto/create-proveedor.dto';
 import { UpdateProveedorDto } from './dto/update-proveedor.dto';
+import { DteEmisorDto } from './dto/dte-emisor.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -42,6 +43,18 @@ export class ProveedoresController {
     @GetUser() user: any,
   ) {
     return this.proveedoresService.create(createProveedorDto,user.id_usuario);
+  }
+
+  @RequirePermissions('inventario.proveedores:crear')
+  @Post('buscar-o-crear-desde-dte')
+  @ApiOperation({ summary: 'Buscar proveedor por NIT o crearlo desde datos de emisor DTE' })
+  @ApiResponse({ status: 200, description: 'Proveedor encontrado o creado.' })
+  @ApiResponse({ status: 400, description: 'Datos del emisor inválidos.' })
+  findOrCreateFromDte(
+    @Body() dteEmisorDto: DteEmisorDto,
+    @GetUser() user: any,
+  ) {
+    return this.proveedoresService.findOrCreateFromDte(dteEmisorDto, user.id_usuario);
   }
 
   @RequirePermissions('inventario.proveedores:ver')

@@ -592,6 +592,7 @@ export class OrdenesCompraService {
       cheque_numero?: string;
       cheque_beneficiario?: string;
       cheque_fecha_emision?: string;
+      transferencia_numero?: string;
     };
     monto: number;
     ordenCodigo: string;
@@ -632,9 +633,10 @@ export class OrdenesCompraService {
           monto,
           modulo_origen: 'COMPRAS',
           documento_origen_id: documentoOrigenId,
-          descripcion: `Pago OC #${ordenCodigo} - Transferencia`,
+          descripcion: `Pago OC #${ordenCodigo} - Transferencia ${dto.transferencia_numero || ''}`.trim(),
           transferencia: {
             fecha_transferencia: new Date().toISOString(),
+            codigo_autorizacion: dto.transferencia_numero,
           },
         },
         idUsuario,

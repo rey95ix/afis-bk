@@ -901,6 +901,14 @@ model compras {
   // Cuenta por pagar (si la compra es a crédito)
   cuentaPorPagar      cuenta_por_pagar?
 
+  // Pago
+  pago_registrado         Boolean   @default(false)
+  metodo_pago             String?
+  id_cuenta_bancaria_pago Int?
+  id_movimiento_bancario  Int?
+  monto_pagado            Float?    @default(0)
+  fecha_pago              DateTime?
+
   @@index([id_tipo_factura], name: "fk_compras_tipo_factura_id")
   @@index([id_sucursal], name: "fk_compras_sucursal_id")
   @@index([id_bodega], name: "fk_compras_bodega_id")

@@ -68,7 +68,7 @@ export class CreateCompraDetalleDto {
     description: 'Costo unitario del producto',
     example: 25.5,
   })
-  @IsNumber({ maxDecimalPlaces: 6 })
+  @IsNumber({ maxDecimalPlaces: 10 })
   @Min(0)
   @Type(() => Number)
   costo_unitario: number;

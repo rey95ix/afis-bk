@@ -42,4 +42,9 @@ export class EmitirOrdenCompraDto {
   @IsOptional()
   @IsDateString()
   cheque_fecha_emision?: string;
+
+  @ApiPropertyOptional({ description: 'Número de transferencia (si método = TRANSFERENCIA)' })
+  @IsOptional()
+  @IsString()
+  transferencia_numero?: string;
 }

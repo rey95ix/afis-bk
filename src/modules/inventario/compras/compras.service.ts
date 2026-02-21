@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { CxpService } from 'src/modules/cxp/cxp.service';
+import { MovimientosBancariosService } from '../../bancos/movimientos-bancarios/movimientos-bancarios.service';
 import { CreateCompraDto } from './dto/create-compra.dto';
 import { UpdateCompraDto } from './dto/update-compra.dto';
 import { FilterCompraDto } from './dto/filter-compra.dto';
@@ -27,13 +28,19 @@ export class ComprasService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cxpService: CxpService,
+    private readonly movimientosBancariosService: MovimientosBancariosService,
   ) { }
 
   /**
    * Crea una nueva compra con sus detalles
    */
   async create(createCompraDto: CreateCompraDto, id_usuario: number) {
-    const { detalles, id_estante, id_bodega, fecha_factura, ...compraData } = createCompraDto;
+    const {
+      detalles, id_estante, id_bodega, fecha_factura, es_credito,
+      registrar_pago, metodo_pago, id_cuenta_bancaria,
+      cheque_numero, cheque_beneficiario, cheque_fecha_emision, transferencia_numero,
+      ...compraData
+    } = createCompraDto;
 
     // Determinar si hay líneas que afectan inventario
     const hasInventoryLines = detalles.some(d => d.afecta_inventario !== false);
@@ -103,6 +110,11 @@ export class ComprasService {
           iva: calculated.iva,
           total: calculated.total,
           fecha_factura: convertToUTC(fecha_factura),
+          // Auto-recepcionar si no hay líneas de inventario
+          ...(!hasInventoryLines && {
+            recepcionada: true,
+            fecha_recepcion: new Date(),
+          }),
           ComprasDetalle: {
             create: detalles.map((detalle) => ({
               id_catalogo: detalle.id_catalogo,
@@ -169,8 +181,31 @@ export class ComprasService {
         },
       });
 
+      // Si se debe registrar pago y NO es crédito
+      if (registrar_pago && !es_credito) {
+        const idMovimiento = await this.registrarPagoCompra({
+          dto: { metodo_pago, id_cuenta_bancaria, cheque_numero, cheque_beneficiario, cheque_fecha_emision, transferencia_numero },
+          monto: calculated.total,
+          facturaNumero: createCompraDto.numero_factura,
+          documentoOrigenId: nuevaCompra.id_compras,
+          idUsuario: id_usuario,
+        });
+
+        await prisma.compras.update({
+          where: { id_compras: nuevaCompra.id_compras },
+          data: {
+            pago_registrado: true,
+            metodo_pago,
+            id_cuenta_bancaria_pago: id_cuenta_bancaria || null,
+            id_movimiento_bancario: idMovimiento,
+            monto_pagado: calculated.total,
+            fecha_pago: new Date(),
+          },
+        });
+      }
+
       // Si es compra a crédito, crear cuenta por pagar dentro de la transacción
-      if (createCompraDto.es_credito && (createCompraDto.dias_credito || 0) > 0) {
+      if (es_credito && (compraData.dias_credito || 0) > 0) {
         if (!nuevaCompra.id_sucursal) {
           throw new BadRequestException(
             'La compra debe tener una sucursal asignada para registrar crédito',
@@ -767,6 +802,101 @@ export class ComprasService {
 
       return { message: 'Compra recepcionada exitosamente' };
     });
+  }
+
+  // =============================================
+  // Helper: Registrar pago bancario de compra
+  // =============================================
+
+  private async registrarPagoCompra(params: {
+    dto: {
+      metodo_pago?: string;
+      id_cuenta_bancaria?: number;
+      cheque_numero?: string;
+      cheque_beneficiario?: string;
+      cheque_fecha_emision?: string;
+      transferencia_numero?: string;
+    };
+    monto: number;
+    facturaNumero: string;
+    documentoOrigenId: number;
+    idUsuario: number;
+  }): Promise<number | null> {
+    const { dto, monto, facturaNumero, documentoOrigenId, idUsuario } = params;
+
+    if (!dto.metodo_pago) {
+      throw new BadRequestException(
+        'El método de pago es requerido cuando se registra un pago',
+      );
+    }
+
+    if (monto <= 0) {
+      throw new BadRequestException(
+        'El monto debe ser mayor a cero para registrar un pago',
+      );
+    }
+
+    // EFECTIVO no genera movimiento bancario
+    if (dto.metodo_pago === 'EFECTIVO') {
+      return null;
+    }
+
+    if (!dto.id_cuenta_bancaria) {
+      throw new BadRequestException(
+        'La cuenta bancaria es requerida para el método de pago seleccionado',
+      );
+    }
+
+    if (dto.metodo_pago === 'TRANSFERENCIA') {
+      const movimiento = await this.movimientosBancariosService.crearMovimiento(
+        {
+          id_cuenta_bancaria: dto.id_cuenta_bancaria,
+          tipo_movimiento: 'SALIDA',
+          metodo: 'TRANSFERENCIA',
+          monto,
+          modulo_origen: 'COMPRAS',
+          documento_origen_id: documentoOrigenId,
+          descripcion: `Pago Compra #${facturaNumero} - Transferencia ${dto.transferencia_numero || ''}`.trim(),
+          transferencia: {
+            fecha_transferencia: new Date().toISOString(),
+            codigo_autorizacion: dto.transferencia_numero,
+          },
+        },
+        idUsuario,
+      );
+      return movimiento!.id_movimiento;
+    }
+
+    if (dto.metodo_pago === 'CHEQUE') {
+      if (!dto.cheque_numero || !dto.cheque_beneficiario) {
+        throw new BadRequestException(
+          'El número de cheque y beneficiario son requeridos para el método CHEQUE',
+        );
+      }
+
+      const movimiento = await this.movimientosBancariosService.crearMovimiento(
+        {
+          id_cuenta_bancaria: dto.id_cuenta_bancaria,
+          tipo_movimiento: 'SALIDA',
+          metodo: 'CHEQUE',
+          monto,
+          modulo_origen: 'COMPRAS',
+          documento_origen_id: documentoOrigenId,
+          descripcion: `Pago Compra #${facturaNumero} - Cheque ${dto.cheque_numero}`,
+          cheque: {
+            numero_cheque: dto.cheque_numero,
+            beneficiario: dto.cheque_beneficiario,
+            fecha_emision: dto.cheque_fecha_emision || new Date().toISOString(),
+          },
+        },
+        idUsuario,
+      );
+      return movimiento!.id_movimiento;
+    }
+
+    throw new BadRequestException(
+      `Método de pago no soportado: ${dto.metodo_pago}`,
+    );
   }
 
   /**

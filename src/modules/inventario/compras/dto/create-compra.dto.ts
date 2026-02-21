@@ -292,6 +292,70 @@ export class CreateCompraDto {
   es_credito?: boolean;
 
   @ApiProperty({
+    description: 'Indica si se debe registrar el pago al crear la compra',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  registrar_pago?: boolean;
+
+  @ApiProperty({
+    description: 'Método de pago (EFECTIVO, TRANSFERENCIA, CHEQUE)',
+    example: 'TRANSFERENCIA',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  metodo_pago?: string;
+
+  @ApiProperty({
+    description: 'ID de la cuenta bancaria para pago',
+    example: 1,
+    required: false,
+  })
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  id_cuenta_bancaria?: number;
+
+  @ApiProperty({
+    description: 'Número de cheque',
+    example: 'CHQ-001',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  cheque_numero?: string;
+
+  @ApiProperty({
+    description: 'Beneficiario del cheque',
+    example: 'Proveedor XYZ',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  cheque_beneficiario?: string;
+
+  @ApiProperty({
+    description: 'Fecha de emisión del cheque',
+    example: '2025-01-15',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  cheque_fecha_emision?: string;
+
+  @ApiProperty({
+    description: 'Número/referencia de transferencia bancaria',
+    example: 'TRF-001234',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  transferencia_numero?: string;
+
+  @ApiProperty({
     description: 'Detalles de los productos de la compra',
     type: [CreateCompraDetalleDto],
   })
