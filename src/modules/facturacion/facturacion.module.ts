@@ -8,11 +8,11 @@ import { AuthModule } from '../auth/auth.module';
 import { CiclosController } from './ciclos/ciclos.controller';
 import { CiclosService } from './ciclos/ciclos.service';
 
-// Controllers - Cobros y Anulaciones
-import { CobrosController, AnulacionesController } from './controllers';
+// Controllers - Cobros, Anulaciones y Contrato Pagos
+import { CobrosController, AnulacionesController, ContratoPagosController } from './controllers';
 
-// Services - Cobros, Anulaciones y Mora
-import { CobrosService, AnulacionesService, MoraService } from './services';
+// Services - Cobros, Anulaciones, Mora y Contrato Pagos
+import { CobrosService, AnulacionesService, MoraService, ContratoPagosService } from './services';
 
 // DTE Builders
 import { FcBuilderService } from './dte/builders/fc-builder.service';
@@ -56,6 +56,7 @@ import { BancosModule } from '../bancos/bancos.module';
     CiclosController,
     CobrosController,
     AnulacionesController,
+    ContratoPagosController,
     // Nuevos controllers para facturación directa
     ClientesDirectosController,
     FacturaDirectaController,
@@ -64,10 +65,11 @@ import { BancosModule } from '../bancos/bancos.module';
     // Ciclos (existente)
     CiclosService,
 
-    // Main Services - Cobros y Anulaciones
+    // Main Services - Cobros, Anulaciones, Mora y Contrato Pagos
     CobrosService,
     AnulacionesService,
     MoraService,
+    ContratoPagosService,
 
     // DTE Builders
     FcBuilderService,
@@ -94,6 +96,7 @@ import { BancosModule } from '../bancos/bancos.module';
     CobrosService,
     AnulacionesService,
     MoraService,
+    ContratoPagosService,
     // Nuevos exports
     ClientesDirectosService,
     FacturaDirectaService,

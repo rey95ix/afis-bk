@@ -24,7 +24,7 @@ const METODO_PAGO_A_BANCARIO: Record<string, string> = {
 export class CxcService {
   private readonly logger = new Logger(CxcService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   /**
    * Crear una cuenta por cobrar (llamado desde facturación al crear factura a crédito)
@@ -32,10 +32,13 @@ export class CxcService {
   async crearCuentaPorCobrar(
     data: {
       id_factura_directa: number;
-      id_cliente_directo: number;
+      id_cliente_directo?: number;
+      id_cliente?: number;
+      id_contrato?: number;
       monto_total: number | Prisma.Decimal;
       dias_credito: number;
       fecha_emision: Date;
+      fecha_vencimiento?: Date;
       id_sucursal: number;
       id_usuario: number;
       observaciones?: string;
@@ -44,8 +47,8 @@ export class CxcService {
   ) {
     const client = tx || this.prisma;
 
-    if (!data.id_cliente_directo) {
-      throw new BadRequestException('Se requiere un cliente registrado para crear una CxC');
+    if (!data.id_cliente_directo && !data.id_cliente) {
+      throw new BadRequestException('Se requiere un cliente (directo o de contrato) para crear una CxC');
     }
 
     const montoTotal = new Prisma.Decimal(data.monto_total.toString());
@@ -54,13 +57,20 @@ export class CxcService {
     }
 
     const fechaEmision = new Date(data.fecha_emision);
-    const fechaVencimiento = new Date(fechaEmision);
-    fechaVencimiento.setDate(fechaVencimiento.getDate() + data.dias_credito);
+    const fechaVencimiento = data.fecha_vencimiento
+      ? new Date(data.fecha_vencimiento)
+      : (() => {
+        const fv = new Date(fechaEmision);
+        fv.setDate(fv.getDate() + data.dias_credito);
+        return fv;
+      })();
 
     const cxc = await (client as any).cuenta_por_cobrar.create({
       data: {
         id_factura_directa: data.id_factura_directa,
-        id_cliente_directo: data.id_cliente_directo,
+        id_cliente_directo: data.id_cliente_directo || null,
+        id_cliente: data.id_cliente || null,
+        id_contrato: data.id_contrato || null,
         monto_total: montoTotal,
         saldo_pendiente: montoTotal,
         total_abonado: 0,
@@ -83,6 +93,37 @@ export class CxcService {
 
     this.logger.log(`CxC #${cxc.id_cxc} creada para factura #${data.id_factura_directa}`);
     return cxc;
+  }
+
+  /**
+   * Crear CxC para una factura proyectada de contrato
+   */
+  async crearCxcParaFacturaContrato(
+    factura: {
+      id_factura_directa: number;
+      id_cliente: number;
+      id_contrato: number;
+      total: Prisma.Decimal | number;
+      fecha_vencimiento: Date;
+    },
+    idSucursal: number,
+    idUsuario: number,
+    tx?: Prisma.TransactionClient,
+  ) {
+    return this.crearCuentaPorCobrar(
+      {
+        id_factura_directa: factura.id_factura_directa,
+        id_cliente: factura.id_cliente,
+        id_contrato: factura.id_contrato,
+        monto_total: factura.total,
+        dias_credito: 0,
+        fecha_emision: new Date(),
+        fecha_vencimiento: factura.fecha_vencimiento,
+        id_sucursal: idSucursal,
+        id_usuario: idUsuario,
+      },
+      tx,
+    );
   }
 
   /**
@@ -348,6 +389,11 @@ export class CxcService {
     const skip = (page - 1) * limit;
 
     const where: any = {};
+
+    // Solo mostrar CxC cuya factura ya fue procesada por MH y no esté anulada
+    where.facturaDirecta = {
+      is: { estado_dte: 'PROCESADO', estado: 'ACTIVO' }
+    };
 
     if (dto.id_cliente_directo) {
       where.id_cliente_directo = dto.id_cliente_directo;
@@ -666,6 +712,9 @@ export class CxcService {
     const pendientes = await this.prisma.cuenta_por_cobrar.aggregate({
       where: {
         ...where,
+        facturaDirecta: {
+          is: { estado_dte: 'PROCESADO', estado: 'ACTIVO' }
+        },
         estado: { in: ['PENDIENTE', 'PAGADA_PARCIAL', 'VENCIDA'] },
       },
       _count: true,

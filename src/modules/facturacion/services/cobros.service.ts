@@ -720,6 +720,7 @@ export class CobrosService {
               titular: true,
               dui: true,
               nit: true,
+              correo_electronico: true,
             },
           },
           plan: {
@@ -760,6 +761,7 @@ export class CobrosService {
             nombre: contrato.cliente.titular,
             dui: contrato.cliente.dui,
             nit: contrato.cliente.nit,
+            correo: contrato.cliente.correo_electronico,
           },
           plan: {
             id: contrato.plan?.id_plan || 0,

@@ -190,3 +190,35 @@ ALTER TABLE "facturaDirecta" ADD CONSTRAINT "fk_factura_directa_cliente_contrato
 
 -- AddForeignKey
 ALTER TABLE "facturaDirecta" ADD CONSTRAINT "fk_factura_directa_datos_facturacion" FOREIGN KEY ("id_cliente_facturacion") REFERENCES "clienteDatosFacturacion"("id_cliente_datos_facturacion") ON DELETE NO ACTION ON UPDATE NO ACTION;
+-- AlterEnum
+-- This migration adds more than one value to an enum.
+-- With PostgreSQL versions 11 and earlier, this is not possible
+-- in a single migration. This can be worked around by creating
+-- multiple migrations, each migration adding only one value to
+-- the enum.
+
+
+ALTER TYPE "estado_pago_factura" ADD VALUE 'VENCIDA';
+ALTER TYPE "estado_pago_factura" ADD VALUE 'EN_ACUERDO';
+
+-- AlterTable
+ALTER TABLE "cuenta_por_cobrar" ADD COLUMN     "fecha_acuerdo_pago" TIMESTAMP(3),
+ADD COLUMN     "fecha_vencimiento_original" TIMESTAMP(3),
+ADD COLUMN     "id_cliente" INTEGER,
+ADD COLUMN     "id_contrato" INTEGER,
+ALTER COLUMN "id_cliente_directo" DROP NOT NULL;
+
+-- AlterTable
+ALTER TABLE "facturaDirecta" ADD COLUMN     "monto_mora" DECIMAL(12,2) NOT NULL DEFAULT 0;
+
+-- CreateIndex
+CREATE INDEX "cuenta_por_cobrar_id_cliente_idx" ON "cuenta_por_cobrar"("id_cliente");
+
+-- CreateIndex
+CREATE INDEX "cuenta_por_cobrar_id_contrato_idx" ON "cuenta_por_cobrar"("id_contrato");
+
+-- AddForeignKey
+ALTER TABLE "cuenta_por_cobrar" ADD CONSTRAINT "fk_cxc_cliente" FOREIGN KEY ("id_cliente") REFERENCES "cliente"("id_cliente") ON DELETE NO ACTION ON UPDATE NO ACTION;
+
+-- AddForeignKey
+ALTER TABLE "cuenta_por_cobrar" ADD CONSTRAINT "fk_cxc_contrato" FOREIGN KEY ("id_contrato") REFERENCES "atcContrato"("id_contrato") ON DELETE NO ACTION ON UPDATE NO ACTION;

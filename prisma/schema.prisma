@@ -213,6 +213,8 @@ model cliente {
   // Sesiones y logs de cliente
   sesiones          cliente_sesiones[]
   logs              cliente_log[]
+  // Cuentas por cobrar de contratos
+  cuentasPorCobrar  cuenta_por_cobrar[] @relation("cxc_cliente")
 
   // Índices para búsqueda rápida en auth
   @@index([correo_electronico])
@@ -2608,10 +2610,11 @@ model atcContrato {
   fecha_actualizacion DateTime @default(now()) @updatedAt
 
   // Relaciones
-  ordenesTrabajo  orden_trabajo[]
-  instalacion     atcContratoInstalacion?
-  dte_emitidos    dte_emitidos[]
+  ordenesTrabajo   orden_trabajo[]
+  instalacion      atcContratoInstalacion?
+  dte_emitidos     dte_emitidos[]
   facturasDirectas facturaDirecta[]
+  cuentasPorCobrar cuenta_por_cobrar[]
 
   @@index([id_cliente])
   @@index([id_plan])
@@ -3889,9 +3892,11 @@ enum tipo_detalle_factura {
 
 // Estado de pago de la factura
 enum estado_pago_factura {
-  PAGADO    // Pagado en su totalidad
-  PENDIENTE // Pendiente de pago (crédito) - No usado en esta implementación
-  PARCIAL   // Pago parcial - No usado en esta implementación
+  PAGADO     // Pagado en su totalidad
+  PENDIENTE  // Pendiente de pago (crédito)
+  PARCIAL    // Pago parcial
+  VENCIDA    // Factura vencida (pasó fecha vencimiento sin pago completo)
+  EN_ACUERDO // Factura con acuerdo de pago vigente
 }
 
 // Estado general de la factura directa
@@ -4122,6 +4127,9 @@ model facturaDirecta {
   estado_dte         estado_dte @default(BORRADOR)
   intentos_dte       Int @default(0) // Intentos de transmisión
   ultimo_error_dte   String? @db.Text // Último error
+
+  // === MORA ===
+  monto_mora         Decimal @default(0) @db.Decimal(12, 2)  // Mora acumulada aplicada a esta factura
 
   // === ESTADO DE LA FACTURA ===
   estado             estado_factura_directa @default(ACTIVO)
@@ -4394,9 +4402,17 @@ model cuenta_por_cobrar {
   id_factura_directa         Int                      @unique
   facturaDirecta             facturaDirecta           @relation(fields: [id_factura_directa], references: [id_factura_directa], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_factura_directa")
 
-  // === RELACIÓN CON CLIENTE ===
-  id_cliente_directo         Int
-  clienteDirecto             clienteDirecto           @relation(fields: [id_cliente_directo], references: [id_cliente_directo], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_cliente_directo")
+  // === RELACIÓN CON CLIENTE DIRECTO (ventas directas) ===
+  id_cliente_directo         Int?
+  clienteDirecto             clienteDirecto?          @relation(fields: [id_cliente_directo], references: [id_cliente_directo], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_cliente_directo")
+
+  // === RELACIÓN CON CLIENTE DE CONTRATO ===
+  id_cliente                 Int?
+  cliente                    cliente?                 @relation("cxc_cliente", fields: [id_cliente], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_cliente")
+
+  // === RELACIÓN CON CONTRATO ===
+  id_contrato                Int?
+  contrato                   atcContrato?             @relation(fields: [id_contrato], references: [id_contrato], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_contrato")
 
   // === MONTOS ===
   monto_total                Decimal                  @db.Decimal(12, 2)
@@ -4424,6 +4440,10 @@ model cuenta_por_cobrar {
   id_usuario_crea            Int
   usuarioCrea                usuarios                 @relation("cxc_usuario_crea", fields: [id_usuario_crea], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_usuario_crea")
 
+  // === ACUERDO DE PAGO ===
+  fecha_acuerdo_pago         DateTime?                // Fecha límite del acuerdo de pago
+  fecha_vencimiento_original DateTime?                // Vencimiento original antes del acuerdo
+
   // === OBSERVACIONES ===
   observaciones              String?                  @db.Text
 
@@ -4437,6 +4457,8 @@ model cuenta_por_cobrar {
   // === ÍNDICES ===
   @@index([id_factura_directa])
   @@index([id_cliente_directo])
+  @@index([id_cliente])
+  @@index([id_contrato])
   @@index([estado])
   @@index([fecha_vencimiento])
   @@index([id_sucursal])

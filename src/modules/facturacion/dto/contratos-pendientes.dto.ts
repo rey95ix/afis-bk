@@ -57,6 +57,7 @@ export interface ClienteInfo {
   nombre: string;
   dui: string | null;
   nit: string | null;
+  correo: string | null;
 }
 
 /**

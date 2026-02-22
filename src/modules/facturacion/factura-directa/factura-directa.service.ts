@@ -983,6 +983,14 @@ export class FacturaDirectaService {
 
     const where: Prisma.facturaDirectaWhereInput = {};
 
+    // Excluir facturas proyectadas de contratos sin datos DTE
+    where.NOT = {
+      id_cliente: { gt: 0 },
+      id_cliente_directo: null,
+      codigo_generacion: null,
+      numero_control: null,
+    };
+
     // Búsqueda general
     if (q) {
       where.OR = [
@@ -2867,6 +2875,222 @@ export class FacturaDirectaService {
    * Genera todas las facturas proyectadas para un contrato recién activado.
    * Las facturas se crean como BORRADOR sin firmar ni enviar a MH.
    *
+   * Firma y envía a MH una factura proyectada que ya está 100% pagada.
+   * Asigna bloque, numero_factura, construye DTE, firma y transmite.
+   */
+  async firmarYEnviarFactura(
+    idFactura: number,
+    idUsuario: number,
+  ): Promise<CrearFacturaDirectaResult> {
+    this.logger.log(`Iniciando firma diferida para factura #${idFactura}`);
+
+    // 1. Cargar factura con relaciones
+    const factura = await this.prisma.facturaDirecta.findUnique({
+      where: { id_factura_directa: idFactura },
+      include: {
+        contrato: {
+          include: { cliente: { include: { datosfacturacion: { where: { estado: 'ACTIVO' }, take: 1 } } } },
+        },
+        detalles: { orderBy: { num_item: 'asc' } },
+        sucursal: {
+          include: {
+            Municipio: { include: { Departamento: true } },
+            DTETipoEstablecimiento: true,
+          },
+        },
+        clienteDirecto: {
+          include: {
+            tipoDocumento: true,
+            actividadEconomica: true,
+            municipio: { include: { Departamento: true } },
+          },
+        },
+      },
+    });
+
+    if (!factura) {
+      throw new NotFoundException(`Factura #${idFactura} no encontrada`);
+    }
+
+    if (factura.estado_dte === 'PROCESADO') {
+      this.logger.warn(`Factura #${idFactura} ya fue procesada en MH`);
+      return {
+        success: true,
+        idFactura,
+        codigoGeneracion: factura.codigo_generacion || undefined,
+        numeroControl: factura.numero_control || undefined,
+        estado: 'PROCESADO',
+        selloRecibido: factura.sello_recepcion || undefined,
+      };
+    }
+
+    // 2. Obtener generalData y sucursal
+    const generalData = await this.prisma.generalData.findFirst();
+    if (!generalData || !generalData.nit || !generalData.nrc) {
+      throw new InternalServerErrorException('No hay datos de empresa configurados (NIT/NRC)');
+    }
+
+    const sucursal = factura.sucursal;
+
+    // 3. Determinar tipo de DTE (FC o CCF según datos de facturación)
+    const datosFacturacion = factura.contrato?.cliente?.datosfacturacion?.[0];
+    const tieneNitNrc = datosFacturacion?.nit && datosFacturacion?.nrc;
+    const tipoDte: TipoDte = tieneNitNrc ? '03' : '01';
+
+    // 4. Obtener tipo de factura y bloque
+    const tipoFactura = await this.prisma.facturasTipos.findFirst({
+      where: { codigo: tipoDte },
+    });
+    if (!tipoFactura) {
+      throw new BadRequestException(`Tipo de factura ${tipoDte} no encontrado`);
+    }
+
+    const bloque = await this.prisma.facturasBloques.findFirst({
+      where: {
+        id_sucursal: sucursal.id_sucursal,
+        estado: 'ACTIVO',
+        Tipo: { codigo: tipoDte },
+      },
+      include: { Tipo: true },
+    });
+
+    if (!bloque) {
+      throw new BadRequestException(`No hay bloques de facturas para tipo ${tipoDte} en la sucursal`);
+    }
+
+    if (bloque.actual >= bloque.hasta) {
+      throw new BadRequestException(`El bloque de facturas ${bloque.serie} está agotado`);
+    }
+
+    // 5. Generar identificación
+    const codigoGeneracion = factura.codigo_generacion || uuidv4().toUpperCase();
+    const numeroControl = this.generarNumeroControl(tipoDte, sucursal, bloque);
+    const numeroFactura = (bloque.actual + 1).toString().padStart(10, '0');
+
+    // 6. Construir DTE
+    const emisor = this.construirEmisorActualizado(generalData, sucursal);
+    const items = this.convertirDetallesAItems(factura.detalles);
+
+    // Receptor: usar snapshot de la factura o cliente directo
+    let receptor: ReceptorData;
+    if (factura.clienteDirecto) {
+      receptor = this.construirReceptorActualizado(factura, tipoDte);
+    } else {
+      // Para facturas de contrato, construir receptor desde datos de facturación
+      receptor = {
+        tipoDocumento: tieneNitNrc ? '36' : null,
+        numDocumento: this.sanitizarIdentificador(factura.cliente_nit) || null,
+        nit: this.sanitizarIdentificador(factura.cliente_nit) || null,
+        nrc: this.sanitizarIdentificador(factura.cliente_nrc) || '',
+        nombre: factura.cliente_nombre || '',
+        codActividad: null,
+        descActividad: null,
+        nombreComercial: null,
+        telefono: factura.cliente_telefono || null,
+        correo: factura.cliente_correo || null,
+        departamento: null,
+        municipio: null,
+        complemento: factura.cliente_direccion || null,
+      };
+    }
+
+    const buildParams: BuildDteParams = {
+      ambiente: (generalData.ambiente || '00') as Ambiente,
+      version: tipoDte === '03' ? this.ccfBuilder.getVersion() : this.fcBuilder.getVersion(),
+      numeroControl,
+      codigoGeneracion,
+      emisor,
+      receptor,
+      items,
+      condicionOperacion: 1, // Contado (ya está pagada)
+    };
+
+    const builder = tipoDte === '03' ? this.ccfBuilder : this.fcBuilder;
+    const { documento, totales } = builder.build(buildParams);
+
+    // 7. Actualizar factura con datos del DTE
+    await this.prisma.facturaDirecta.update({
+      where: { id_factura_directa: idFactura },
+      data: {
+        numero_factura: numeroFactura,
+        id_bloque: bloque.id_bloque,
+        id_tipo_factura: tipoFactura.id_tipo_factura,
+        codigo_generacion: codigoGeneracion,
+        numero_control: numeroControl,
+        dte_json: JSON.stringify(documento),
+        total_letras: numeroALetras(totales.totalPagar),
+      },
+    });
+
+    // 8. Firmar DTE
+    const signResult = await this.signer.firmar(generalData.nit!, documento);
+    if (!signResult.success) {
+      await this.actualizarEstadoDte(idFactura, 'BORRADOR', signResult.error);
+      return {
+        success: false,
+        idFactura,
+        codigoGeneracion,
+        numeroControl,
+        estado: 'BORRADOR',
+        error: `Error al firmar: ${signResult.error}`,
+      };
+    }
+
+    await this.prisma.facturaDirecta.update({
+      where: { id_factura_directa: idFactura },
+      data: { dte_firmado: signResult.documentoFirmado, estado_dte: 'FIRMADO' },
+    });
+
+    // 9. Transmitir a MH
+    const transmitResult = await this.transmitter.transmitirDte(
+      {
+        ambiente: generalData.ambiente as Ambiente,
+        idEnvio: 1,
+        version: tipoFactura.version || builder.getVersion(),
+        tipoDte,
+        documento: signResult.documentoFirmado!,
+        codigoGeneracion,
+      },
+      generalData.nit!,
+    );
+
+    // 10. Actualizar estado final
+    await this.actualizarConRespuestaMh(idFactura, transmitResult);
+
+    // Actualizar correlativo del bloque
+    await this.prisma.facturasBloques.update({
+      where: { id_bloque: bloque.id_bloque },
+      data: { actual: bloque.actual + 1 },
+    });
+
+    if (transmitResult.success) {
+      this.logger.log(`Factura #${idFactura} firmada y transmitida. Sello: ${transmitResult.selloRecibido}`);
+      this.enviarFacturaPorCorreoAsync(idFactura);
+
+      return {
+        success: true,
+        idFactura,
+        codigoGeneracion,
+        numeroControl,
+        numeroFactura,
+        estado: 'PROCESADO',
+        selloRecibido: transmitResult.selloRecibido,
+        totalPagar: totales.totalPagar,
+      };
+    } else {
+      return {
+        success: false,
+        idFactura,
+        codigoGeneracion,
+        numeroControl,
+        estado: 'RECHAZADO',
+        error: transmitResult.error,
+        errores: transmitResult.observaciones,
+      };
+    }
+  }
+
+  /**
    * @param idContrato ID del contrato
    * @param userId ID del usuario que genera
    * @param idSucursal ID de sucursal (opcional, se usa la primera activa si no se especifica)
@@ -3118,6 +3342,20 @@ export class FacturaDirectaService {
         },
       });
 
+      // Auto-crear CxC para la factura proyectada
+      await this.cxcService.crearCxcParaFacturaContrato(
+        {
+          id_factura_directa: factura.id_factura_directa,
+          id_cliente: contrato.id_cliente,
+          id_contrato: idContrato,
+          total: factura.total,
+          fecha_vencimiento: fechaVencimiento,
+        },
+        sucursal.id_sucursal,
+        userId,
+        db as any,
+      );
+
       facturaIds.push(factura.id_factura_directa);
     }
 
@@ -3196,6 +3434,21 @@ export class FacturaDirectaService {
       });
 
       instalacionId = facturaInstalacion.id_factura_directa;
+
+      // Auto-crear CxC para factura de instalación
+      await this.cxcService.crearCxcParaFacturaContrato(
+        {
+          id_factura_directa: facturaInstalacion.id_factura_directa,
+          id_cliente: contrato.id_cliente,
+          id_contrato: idContrato,
+          total: facturaInstalacion.total,
+          fecha_vencimiento: fechaVencimiento,
+        },
+        sucursal.id_sucursal,
+        userId,
+        db as any,
+      );
+
       facturaIds.push(instalacionId);
     }
 
