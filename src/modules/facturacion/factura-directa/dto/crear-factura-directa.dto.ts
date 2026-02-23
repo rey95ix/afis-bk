@@ -185,6 +185,23 @@ export class CrearFacturaDirectaDto {
   @IsInt()
   id_cuenta_transferencia?: number;
 
+  // === ABONO INICIAL (solo crédito) ===
+  @ApiPropertyOptional({ description: 'Monto del abono inicial (solo crédito)' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  abono_monto?: number;
+
+  @ApiPropertyOptional({ description: 'Medio de pago del abono', enum: ['EFECTIVO', 'TARJETA', 'CHEQUE', 'TRANSFERENCIA', 'DEPOSITO'] })
+  @IsOptional()
+  @IsString()
+  abono_medio_pago?: string;
+
+  @ApiPropertyOptional({ description: 'Cuenta bancaria para abono (CHEQUE/TRANSFERENCIA/DEPOSITO)' })
+  @IsOptional()
+  @IsInt()
+  abono_id_cuenta_bancaria?: number;
+
   // === RETENCIONES ===
   @ApiPropertyOptional({ description: 'IVA retenido por el cliente', default: 0 })
   @IsOptional()

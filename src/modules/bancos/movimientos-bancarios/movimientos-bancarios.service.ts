@@ -10,6 +10,7 @@ import { CreateAjusteDto } from './dto/create-ajuste.dto';
 import { AnularMovimientoDto } from './dto/anular-movimiento.dto';
 import { FilterMovimientoBancarioDto } from './dto/filter-movimiento-bancario.dto';
 import { Prisma } from '@prisma/client';
+import { convertToUTC } from 'src/common/helpers';
 
 @Injectable()
 export class MovimientosBancariosService {
@@ -409,13 +410,13 @@ export class MovimientosBancariosService {
     if (fecha_desde || fecha_hasta) {
       where.fecha_movimiento = {};
       if (fecha_desde) {
-        where.fecha_movimiento.gte = new Date(fecha_desde);
+        where.fecha_movimiento.gte = convertToUTC(fecha_desde);
       }
       if (fecha_hasta) {
         // Incluir todo el día de fecha_hasta
-        const fechaFin = new Date(fecha_hasta);
-        fechaFin.setHours(23, 59, 59, 999);
-        where.fecha_movimiento.lte = fechaFin;
+        // const fechaFin = new Date(fecha_hasta);
+        // fechaFin.setHours(23, 59, 59, 999);
+        where.fecha_movimiento.lte = convertToUTC(fecha_hasta,"fin");
       }
     }
 
@@ -484,12 +485,10 @@ export class MovimientosBancariosService {
     if (fecha_desde || fecha_hasta) {
       where.fecha_movimiento = {};
       if (fecha_desde) {
-        where.fecha_movimiento.gte = new Date(fecha_desde);
+        where.fecha_movimiento.gte = convertToUTC(fecha_desde);
       }
-      if (fecha_hasta) {
-        const fechaFin = new Date(fecha_hasta);
-        fechaFin.setHours(23, 59, 59, 999);
-        where.fecha_movimiento.lte = fechaFin;
+      if (fecha_hasta) { 
+        where.fecha_movimiento.lte = convertToUTC(fecha_hasta,"fin");
       }
     }
 

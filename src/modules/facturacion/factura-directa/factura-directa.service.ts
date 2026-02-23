@@ -288,7 +288,7 @@ export class FacturaDirectaService {
         // Crear CxC si es factura a crédito
         if ((dto.condicion_operacion || 1) === 2 && dto.id_cliente_directo) {
           try {
-            await this.cxcService.crearCuentaPorCobrar({
+            const cxc = await this.cxcService.crearCuentaPorCobrar({
               id_factura_directa: facturaCreada.id_factura_directa,
               id_cliente_directo: dto.id_cliente_directo,
               monto_total: totales.totalPagar,
@@ -297,6 +297,32 @@ export class FacturaDirectaService {
               id_sucursal: datos.sucursal.id_sucursal,
               id_usuario: idUsuario,
             });
+
+            // Registrar abono inicial si se proporcionó
+            if ((dto.abono_monto ?? 0) > 0 && dto.abono_medio_pago) {
+              try {
+                // Mapear TARJETA → DEPOSITO cuando hay cuenta bancaria (patrón existente)
+                let metodoPago = dto.abono_medio_pago as any;
+                if (metodoPago === 'TARJETA' && dto.abono_id_cuenta_bancaria) {
+                  metodoPago = 'DEPOSITO';
+                }
+
+                await this.cxcService.registrarAbono(
+                  cxc.id_cxc,
+                  {
+                    monto: dto.abono_monto,
+                    metodo_pago: metodoPago,
+                    id_cuenta_bancaria: dto.abono_id_cuenta_bancaria || undefined,
+                    observaciones: `Abono inicial al crear factura #${facturaCreada.numero_factura || facturaCreada.id_factura_directa}`,
+                  } as any,
+                  idUsuario,
+                );
+                this.logger.log(`Abono inicial de $${dto.abono_monto} registrado para CxC #${cxc.id_cxc}`);
+              } catch (abonoError) {
+                this.logger.error(`Error al registrar abono inicial para CxC #${cxc.id_cxc}: ${abonoError.message}`);
+                // No bloquear la factura si falla el abono
+              }
+            }
           } catch (error) {
             this.logger.error(`Error al crear CxC para factura #${facturaCreada.id_factura_directa}: ${error.message}`);
             // No bloquear la factura si falla la CxC
@@ -2226,6 +2252,15 @@ export class FacturaDirectaService {
     for (const pago of pagos) {
       if (pago.monto > 0 && pago.idCuenta) {
         try {
+          const hoy = new Date().toISOString().split('T')[0];
+          const detalles: Record<string, any> = {};
+          if (pago.metodo === 'TRANSFERENCIA') {
+            detalles.transferencia = { fecha_transferencia: hoy };
+          } else if (pago.metodo === 'CHEQUE') {
+            detalles.cheque = { numero_cheque: 'N/A', beneficiario: 'Pago factura', fecha_emision: hoy };
+          } else if (pago.metodo === 'DEPOSITO') {
+            detalles.deposito = { tipo_deposito: 'EFECTIVO', fecha_deposito: hoy };
+          }
           await this.movimientosBancariosService.crearMovimiento(
             {
               id_cuenta_bancaria: pago.idCuenta,
@@ -2235,6 +2270,7 @@ export class FacturaDirectaService {
               modulo_origen: 'VENTAS',
               documento_origen_id: idFactura,
               descripcion: `Pago ${pago.label} - Factura directa #${numeroFactura}`,
+              ...detalles,
             },
             idUsuario,
           );
