@@ -178,6 +178,14 @@ export class CreateOrdenCompraDto {
   @IsDateString()
   fecha_entrega_esperada?: string;
 
+  @ApiPropertyOptional({
+    description: 'ID del usuario encargado de dar seguimiento',
+    example: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  id_usuario_encargado?: number;
+
   @ApiProperty({
     description: 'Detalle de los productos a comprar',
     type: [CreateOrdenCompraDetalleDto],

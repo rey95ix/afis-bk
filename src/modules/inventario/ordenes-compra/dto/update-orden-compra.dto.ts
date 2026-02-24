@@ -171,6 +171,13 @@ export class UpdateOrdenCompraDto {
   fecha_entrega_esperada?: string;
 
   @ApiPropertyOptional({
+    description: 'ID del usuario encargado de dar seguimiento',
+  })
+  @IsOptional()
+  @IsInt()
+  id_usuario_encargado?: number;
+
+  @ApiPropertyOptional({
     description: 'Detalle de los productos',
     type: [UpdateOrdenCompraDetalleDto],
   })

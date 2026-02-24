@@ -39,6 +39,7 @@ import { OrdenesCompraService } from './ordenes-compra/ordenes-compra.service';
 import { MinioModule } from '../minio/minio.module';
 import { BancosModule } from '../bancos/bancos.module';
 import { CxpModule } from '../cxp/cxp.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { CxpModule } from '../cxp/cxp.module';
     MinioModule,
     BancosModule,
     CxpModule,
+    MailModule,
     ScheduleModule.forRoot(),
   ],
   controllers: [

@@ -17,6 +17,7 @@ import { Prisma, usuarios } from '@prisma/client';
 import { convertToUTC } from 'src/common/helpers';
 import { MovimientosBancariosService } from '../../bancos/movimientos-bancarios/movimientos-bancarios.service';
 import { CxpService } from '../../cxp/cxp.service';
+import { MailService } from '../../mail/mail.service';
 
 @Injectable()
 export class OrdenesCompraService {
@@ -24,6 +25,7 @@ export class OrdenesCompraService {
     private prisma: PrismaService,
     private movimientosBancariosService: MovimientosBancariosService,
     private cxpService: CxpService,
+    private mailService: MailService,
   ) {}
 
   // =============================================
@@ -60,6 +62,14 @@ export class OrdenesCompraService {
       },
     },
     usuario_aprueba: {
+      select: {
+        id_usuario: true,
+        nombres: true,
+        apellidos: true,
+        usuario: true,
+      },
+    },
+    usuario_encargado: {
       select: {
         id_usuario: true,
         nombres: true,
@@ -187,6 +197,7 @@ export class OrdenesCompraService {
         fecha_entrega_esperada: dto.fecha_entrega_esperada
           ? new Date(dto.fecha_entrega_esperada)
           : null,
+        id_usuario_encargado: dto.id_usuario_encargado,
         id_usuario_crea: user.id_usuario,
         subtotal: calculated.subtotal,
         descuento: calculated.descuento,
@@ -389,6 +400,7 @@ export class OrdenesCompraService {
         fecha_entrega_esperada: dto.fecha_entrega_esperada
           ? new Date(dto.fecha_entrega_esperada)
           : undefined,
+        id_usuario_encargado: dto.id_usuario_encargado,
         ...(calculated && {
           subtotal: calculated.subtotal,
           descuento: calculated.descuento,
@@ -518,6 +530,21 @@ export class OrdenesCompraService {
       user.id_usuario,
       `Orden de compra aprobada: ${orden.codigo}`,
     );
+
+    // Enviar email al usuario encargado si existe
+    if (ordenAprobada.id_usuario_encargado && ordenAprobada.usuario_encargado) {
+      try {
+        const encargado = ordenAprobada.usuario_encargado;
+        await this.mailService.sendOrdenCompraAprobada(
+          encargado.usuario, // email (usuario es el correo)
+          `${encargado.nombres} ${encargado.apellidos}`,
+          ordenAprobada.codigo,
+          dto.observaciones_aprobacion,
+        );
+      } catch (error) {
+        console.error('Error al enviar email de OC aprobada:', error);
+      }
+    }
 
     return ordenAprobada;
   }

@@ -145,6 +145,7 @@ model usuarios {
   // Órdenes de compra
   ordenes_compra_crea            ordenes_compra[]                @relation("usuario_crea_orden_compra")
   ordenes_compra_aprueba         ordenes_compra[]                @relation("usuario_aprueba_orden_compra")
+  ordenes_compra_encargado       ordenes_compra[]                @relation("usuario_encargado_orden_compra")
 }
 
 model cliente {
@@ -4639,6 +4640,8 @@ model ordenes_compra {
   usuario_crea        usuarios              @relation("usuario_crea_orden_compra", fields: [id_usuario_crea], references: [id_usuario])
   id_usuario_aprueba  Int?
   usuario_aprueba     usuarios?             @relation("usuario_aprueba_orden_compra", fields: [id_usuario_aprueba], references: [id_usuario])
+  id_usuario_encargado Int?
+  usuario_encargado   usuarios?             @relation("usuario_encargado_orden_compra", fields: [id_usuario_encargado], references: [id_usuario])
 
   // Observaciones workflow
   motivo              String?               @db.Text
