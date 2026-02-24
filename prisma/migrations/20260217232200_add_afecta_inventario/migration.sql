@@ -222,3 +222,10 @@ ALTER TABLE "cuenta_por_cobrar" ADD CONSTRAINT "fk_cxc_cliente" FOREIGN KEY ("id
 
 -- AddForeignKey
 ALTER TABLE "cuenta_por_cobrar" ADD CONSTRAINT "fk_cxc_contrato" FOREIGN KEY ("id_contrato") REFERENCES "atcContrato"("id_contrato") ON DELETE NO ACTION ON UPDATE NO ACTION;
+-- AlterTable
+ALTER TABLE "abono_cxc" ADD COLUMN     "comprobante_url" VARCHAR(500);
+-- AlterTable
+ALTER TABLE "ordenes_compra" ADD COLUMN     "id_usuario_encargado" INTEGER;
+
+-- AddForeignKey
+ALTER TABLE "ordenes_compra" ADD CONSTRAINT "ordenes_compra_id_usuario_encargado_fkey" FOREIGN KEY ("id_usuario_encargado") REFERENCES "usuarios"("id_usuario") ON DELETE SET NULL ON UPDATE CASCADE;
