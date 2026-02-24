@@ -2813,15 +2813,15 @@ export class FacturaDirectaService {
         this.logger.warn(`Error parseando dte_json, se enviará sin firma/sello`);
       }
 
-      // Enviar correo
-      await this.mailService.sendFacturaEmail(
-        emailDestino,
-        factura.cliente_nombre || 'Cliente',
-        factura.numero_control,
-        factura.codigo_generacion || '',
-        pdfBuffer,
-        dteJsonCompleto,
-      );
+      // TODO: DESCOMENTAR ESTO //Enviar correo
+      // await this.mailService.sendFacturaEmail(
+      //   emailDestino,
+      //   factura.cliente_nombre || 'Cliente',
+      //   factura.numero_control,
+      //   factura.codigo_generacion || '',
+      //   pdfBuffer,
+      //   dteJsonCompleto,
+      // );
 
       this.logger.log(`Factura ${idFactura}: Correo reenviado a ${emailDestino}`);
       return { success: true, message: `Correo enviado a ${emailDestino}` };
@@ -2882,15 +2882,15 @@ export class FacturaDirectaService {
           );
         }
 
-        // Enviar correo
-        await this.mailService.sendFacturaEmail(
-          emailDestino,
-          factura.cliente_nombre || 'Cliente',
-          factura.numero_control,
-          factura.codigo_generacion || '',
-          pdfBuffer,
-          dteJsonCompleto,
-        );
+        // TODO: DESCOMENTAR ESTO //Enviar correo
+        // await this.mailService.sendFacturaEmail(
+        //   emailDestino,
+        //   factura.cliente_nombre || 'Cliente',
+        //   factura.numero_control,
+        //   factura.codigo_generacion || '',
+        //   pdfBuffer,
+        //   dteJsonCompleto,
+        // );
 
         this.logger.log(
           `Factura ${idFactura}: DTE enviado por correo a ${emailDestino}`,

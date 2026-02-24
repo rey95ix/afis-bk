@@ -221,6 +221,61 @@ export class MailService {
     `;
   }
 
+  /**
+   * Enviar notificación de orden de compra aprobada al encargado
+   */
+  async sendOrdenCompraAprobada(
+    email: string,
+    nombre: string,
+    codigoOC: string,
+    observaciones?: string,
+  ) {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #16a34a; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+          .info-box { background: #ffffff; border-left: 4px solid #16a34a; padding: 15px; margin: 20px 0; border-radius: 4px; }
+          .info-box p { margin: 5px 0; }
+          .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Orden de Compra Aprobada</h1>
+          </div>
+          <div class="content">
+            <h2>Hola ${nombre},</h2>
+            <p>Se le informa que la siguiente orden de compra ha sido <strong>aprobada</strong> y requiere su seguimiento:</p>
+            <div class="info-box">
+              <p><strong>Código OC:</strong> ${codigoOC}</p>
+              ${observaciones ? `<p><strong>Observaciones:</strong> ${observaciones}</p>` : ''}
+            </div>
+            <p>Por favor ingrese al sistema para revisar los detalles y dar seguimiento a esta orden de compra.</p>
+          </div>
+          <div class="footer">
+            <p>Este es un correo automático, por favor no responda a este mensaje.</p>
+            <p>&copy; ${new Date().getFullYear()} AFIS. Todos los derechos reservados.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendMail(
+      email,
+      `Orden de Compra Aprobada - ${codigoOC}`,
+      `La orden de compra ${codigoOC} ha sido aprobada y requiere su seguimiento.${observaciones ? ` Observaciones: ${observaciones}` : ''}`,
+      html,
+    );
+  }
+
   private async sendMail(
     to: string,
     subject: string,
@@ -281,12 +336,12 @@ export class MailService {
 
     const attachments: EmailAttachment[] = [
       {
-        filename: `DTE-${numeroControl}.pdf`,
+        filename: `${codigoGeneracion}.pdf`,
         content: pdfBuffer,
         contentType: 'application/pdf',
       },
       {
-        filename: `DTE-${numeroControl}.json`,
+        filename: `${codigoGeneracion}.json`,
         content: dteJson,
         contentType: 'application/json',
       },

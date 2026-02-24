@@ -8,6 +8,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CxcService } from '../../cxc/cxc.service';
 import { MoraService, MoraConfig } from './mora.service';
 import { FacturaDirectaService } from '../factura-directa/factura-directa.service';
+import { MinioService } from '../../minio/minio.service';
+import { ComprobanteAnalyzerService } from '../../whatsapp-chat/validacion-comprobante/comprobante-analyzer.service';
 import { Prisma } from '@prisma/client';
 import { RegistrarPagoContratoDto } from '../dto/contrato-pagos.dto';
 
@@ -81,7 +83,29 @@ export class ContratoPagosService {
     private readonly cxcService: CxcService,
     private readonly moraService: MoraService,
     private readonly facturaDirectaService: FacturaDirectaService,
+    private readonly minioService: MinioService,
+    private readonly comprobanteAnalyzer: ComprobanteAnalyzerService,
   ) {}
+
+  /**
+   * Analizar comprobante de pago: sube imagen a MinIO y extrae datos con IA
+   */
+  async analizarComprobante(file: Express.Multer.File) {
+    const timestamp = Date.now();
+    const objectName = `comprobantes-pago/${timestamp}-${file.originalname}`;
+
+    const { url } = await this.minioService.uploadFile(file, objectName);
+
+    const resultado = await this.comprobanteAnalyzer.extractComprobanteData(
+      file.buffer,
+      file.mimetype,
+    );
+
+    return {
+      ...resultado,
+      comprobanteUrl: url,
+    };
+  }
 
   /**
    * Obtener facturas de un contrato con estado de pago y CxC
@@ -219,6 +243,7 @@ export class ContratoPagosService {
               saldo_posterior: saldoPosterior,
               metodo_pago: dto.metodoPago,
               referencia: dto.referencia,
+              comprobante_url: dto.comprobanteUrl,
               fecha_pago: new Date(),
               id_usuario: idUsuario,
               observaciones: dto.observaciones,

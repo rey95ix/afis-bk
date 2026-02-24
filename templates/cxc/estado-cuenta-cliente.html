@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Estado de Cuenta - {{:cliente.nombre}}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 9pt;
+      color: #333;
+      padding: 20px 25px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #1565C0;
+      padding-bottom: 10px;
+    }
+    .header h1 {
+      font-size: 16pt;
+      color: #1565C0;
+      margin-bottom: 3px;
+    }
+    .header h2 {
+      font-size: 10pt;
+      color: #666;
+      font-weight: normal;
+    }
+    .empresa-info {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 15px;
+      font-size: 9pt;
+    }
+    .empresa-info div {
+      flex: 1;
+    }
+    .empresa-info .label {
+      color: #888;
+      font-size: 8pt;
+    }
+    .cliente-box {
+      background: #E3F2FD;
+      border: 1px solid #BBDEFB;
+      border-radius: 4px;
+      padding: 10px 15px;
+      margin-bottom: 15px;
+    }
+    .cliente-box .nombre {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #1565C0;
+    }
+    .cliente-box .nit {
+      font-size: 9pt;
+      color: #555;
+      margin-top: 2px;
+    }
+    .resumen-grid {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .resumen-card {
+      flex: 1;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .resumen-card .label {
+      font-size: 8pt;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .resumen-card .value {
+      font-size: 13pt;
+      font-weight: bold;
+    }
+    .resumen-card.deuda .value { color: #1565C0; }
+    .resumen-card.vencido .value { color: #C62828; }
+    .resumen-card.aldia .value { color: #2E7D32; }
+    .resumen-card.pendientes .value { color: #E65100; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+      margin-bottom: 10px;
+    }
+    th {
+      background: #1565C0;
+      color: white;
+      padding: 6px 8px;
+      text-align: center;
+      font-weight: bold;
+      font-size: 8pt;
+    }
+    td {
+      padding: 5px 8px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    .text-right {
+      text-align: right;
+    }
+    .text-center {
+      text-align: center;
+    }
+    .fw-bold {
+      font-weight: bold;
+    }
+    .text-danger {
+      color: #C62828;
+    }
+    .text-success {
+      color: #2E7D32;
+    }
+    .totals-row td {
+      font-weight: bold;
+      background: #E3F2FD;
+      border-top: 2px solid #1565C0;
+      padding: 7px 8px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 7pt;
+      font-weight: bold;
+      color: white;
+    }
+    .badge-pendiente { background: #FFA726; }
+    .badge-parcial { background: #42A5F5; }
+    .badge-pagada { background: #66BB6A; }
+    .badge-vencida { background: #EF5350; }
+    .footer {
+      margin-top: 20px;
+      padding-top: 8px;
+      border-top: 1px solid #ddd;
+      font-size: 8pt;
+      color: #999;
+      display: flex;
+      justify-content: space-between;
+    }
+    .section-title {
+      font-size: 10pt;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 8px;
+      padding-bottom: 3px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <h1>Estado de Cuenta</h1>
+    <h2>{{:empresa.nombre}}</h2>
+  </div>
+
+  <!-- Empresa Info -->
+  <div class="empresa-info">
+    <div>
+      <span class="label">NIT:</span> {{:empresa.nit}}<br>
+      <span class="label">NRC:</span> {{:empresa.nrc}}
+    </div>
+    <div style="text-align: right;">
+      <span class="label">Fecha de Generacion:</span> {{:fechaGeneracion}}
+    </div>
+  </div>
+
+  <!-- Cliente -->
+  <div class="cliente-box">
+    <div class="nombre">{{:cliente.nombre}}</div>
+    {{if cliente.nit}}
+    <div class="nit">NIT: {{:cliente.nit}}</div>
+    {{/if}}
+  </div>
+
+  <!-- Resumen -->
+  <div class="resumen-grid">
+    <div class="resumen-card deuda">
+      <div class="label">Deuda Total</div>
+      <div class="value">${{:resumen.total_deuda}}</div>
+    </div>
+    <div class="resumen-card vencido">
+      <div class="label">Total Vencido</div>
+      <div class="value">${{:resumen.total_vencido}}</div>
+    </div>
+    <div class="resumen-card aldia">
+      <div class="label">Al Dia</div>
+      <div class="value">${{:resumen.total_al_dia}}</div>
+    </div>
+    <div class="resumen-card pendientes">
+      <div class="label">CxC Pendientes</div>
+      <div class="value">{{:resumen.num_cxc_pendientes}}</div>
+    </div>
+  </div>
+
+  <!-- Tabla de CxC -->
+  <div class="section-title">Detalle de Cuentas por Cobrar</div>
+  <table>
+    <thead>
+      <tr>
+        <th>N&deg; Factura</th>
+        <th>Monto Total</th>
+        <th>Total Abonado</th>
+        <th>Saldo Pendiente</th>
+        <th>Fecha Emision</th>
+        <th>Fecha Vencimiento</th>
+        <th>Estado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{if cuentas.length === 0}}
+      <tr>
+        <td colspan="7" class="text-center" style="padding: 20px; color: #999;">No hay cuentas por cobrar registradas</td>
+      </tr>
+      {{/if}}
+      {{for cuentas}}
+      <tr>
+        <td class="text-center fw-bold">{{:numero_factura}}</td>
+        <td class="text-right">${{:monto_total}}</td>
+        <td class="text-right text-success">${{:total_abonado}}</td>
+        <td class="text-right {{if esVencida}}text-danger{{/if}} fw-bold">${{:saldo_pendiente}}</td>
+        <td class="text-center">{{:fecha_emision}}</td>
+        <td class="text-center">{{:fecha_vencimiento}}</td>
+        <td class="text-center">
+          <span class="badge {{:badgeClass}}">{{:estadoLabel}}</span>
+        </td>
+      </tr>
+      {{/for}}
+      {{if cuentas.length > 0}}
+      <tr class="totals-row">
+        <td>TOTALES</td>
+        <td class="text-right">${{:totales.monto_total}}</td>
+        <td class="text-right">${{:totales.total_abonado}}</td>
+        <td class="text-right">${{:totales.saldo_pendiente}}</td>
+        <td colspan="3"></td>
+      </tr>
+      {{/if}}
+    </tbody>
+  </table>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>Documento generado automaticamente - {{:empresa.nombre}}</span>
+    <span>{{:fechaGeneracion}}</span>
+  </div>
+</body>
+</html>

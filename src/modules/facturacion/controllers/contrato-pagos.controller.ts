@@ -7,8 +7,12 @@ import {
   Body,
   ParseIntPipe,
   Request,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { ContratoPagosService } from '../services/contrato-pagos.service';
@@ -88,6 +92,25 @@ export class ContratoPagosController {
       idFactura,
       req.user.id_usuario,
     );
+    return { data: resultado };
+  }
+
+  @Post('analizar-comprobante')
+  @ApiOperation({ summary: 'Analizar imagen de comprobante de pago con IA' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  async analizarComprobante(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('Debe enviar una imagen del comprobante');
+    }
+
+    const resultado = await this.contratoPagosService.analizarComprobante(file);
     return { data: resultado };
   }
 }

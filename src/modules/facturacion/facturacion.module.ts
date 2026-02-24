@@ -50,8 +50,12 @@ import { CxcModule } from '../cxc/cxc.module';
 // Bancos (movimientos bancarios para pagos no-efectivo)
 import { BancosModule } from '../bancos/bancos.module';
 
+// OpenAI + Comprobante Analyzer (reutilizado de whatsapp-chat)
+import { OpenaiModule } from '../openai/openai.module';
+import { ComprobanteAnalyzerService } from '../whatsapp-chat/validacion-comprobante/comprobante-analyzer.service';
+
 @Module({
-  imports: [PrismaModule, AuthModule, ConfigModule, LibrosIvaModule, MailModule, CxcModule, BancosModule],
+  imports: [PrismaModule, AuthModule, ConfigModule, LibrosIvaModule, MailModule, CxcModule, BancosModule, OpenaiModule],
   controllers: [
     CiclosController,
     CobrosController,
@@ -90,6 +94,9 @@ import { BancosModule } from '../bancos/bancos.module';
 
     // Factura Directa (nuevo)
     FacturaDirectaService,
+
+    // Comprobante Analyzer (reutilizado de whatsapp-chat)
+    ComprobanteAnalyzerService,
   ],
   exports: [
     CiclosService,

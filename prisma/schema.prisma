@@ -4479,6 +4479,7 @@ model abono_cxc {
   // === PAGO ===
   metodo_pago                metodo_pago_abono
   referencia                 String?                  @db.VarChar(200)
+  comprobante_url            String?                  @db.VarChar(500)
   fecha_pago                 DateTime                 @default(now())
   id_movimiento_bancario     Int?
 

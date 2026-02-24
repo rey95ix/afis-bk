@@ -56,9 +56,10 @@ export class MessageService {
     }
 
     // Generar nombre unico para el archivo
-    const timestamp = Date.now();
-    const extension = file.originalname.split('.').pop() || '';
-    const objectName = `whatsapp-chat/${chatId}/${timestamp}-${file.originalname}`;
+    const now = new Date();
+    const timestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}${String(now.getMilliseconds()).padStart(3, '0')}`;
+    const extension = file.originalname.split('.').pop() || ''; 
+    const objectName = `whatsapp-chat/${chatId}/${timestamp}.${extension}`;
 
     try {
       const result = await this.minioService.uploadFile(file, objectName);

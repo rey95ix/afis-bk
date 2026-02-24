@@ -6,6 +6,7 @@ import {
   Body,
   Param,
   Query,
+  Res,
   ParseIntPipe,
 } from '@nestjs/common';
 import {
@@ -14,10 +15,12 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { Auth, GetUser } from 'src/modules/auth/decorators';
 import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { CxcService } from './cxc.service';
+import { CxcPdfService } from './cxc-pdf.service';
 import { ConsultarCxcDto, CrearAbonoDto, AnularAbonoDto } from './dto';
 
 @ApiTags('Cuentas por Cobrar')
@@ -25,7 +28,10 @@ import { ConsultarCxcDto, CrearAbonoDto, AnularAbonoDto } from './dto';
 @Controller('cxc/cuentas-por-cobrar')
 @Auth()
 export class CxcController {
-  constructor(private readonly cxcService: CxcService) {}
+  constructor(
+    private readonly cxcService: CxcService,
+    private readonly cxcPdfService: CxcPdfService,
+  ) {}
 
   @RequirePermissions('cxc.cuentas:ver')
   @Get()
@@ -49,6 +55,25 @@ export class CxcController {
   @ApiResponse({ status: 200, description: 'Resumen general de CxC' })
   obtenerResumen(@Query('id_sucursal', new ParseIntPipe({ optional: true })) id_sucursal?: number) {
     return this.cxcService.obtenerResumenGeneral(id_sucursal);
+  }
+
+  @RequirePermissions('cxc.cuentas:ver')
+  @Get('cliente/:id/pdf')
+  @ApiOperation({ summary: 'Descargar estado de cuenta PDF de un cliente' })
+  @ApiResponse({ status: 200, description: 'PDF del estado de cuenta' })
+  @ApiResponse({ status: 404, description: 'Cliente no encontrado' })
+  async descargarEstadoCuentaPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.cxcPdfService.generateEstadoCuentaPdf(id);
+    const filename = this.cxcPdfService.getFilename(`Cliente_${id}`);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${filename}"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 
   @RequirePermissions('cxc.cuentas:ver')

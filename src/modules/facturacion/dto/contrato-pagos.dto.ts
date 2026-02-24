@@ -37,6 +37,12 @@ export class RegistrarPagoContratoDto {
   @IsString()
   @MaxLength(500)
   observaciones?: string;
+
+  @ApiPropertyOptional({ description: 'URL del comprobante de pago (imagen en MinIO)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  comprobanteUrl?: string;
 }
 
 export class RegistrarAcuerdoPagoDto {
