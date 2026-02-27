@@ -95,6 +95,20 @@ export class ContratoPagosController {
     return { data: resultado };
   }
 
+  @Get(':idContrato/estado-cuenta')
+  @ApiOperation({ summary: 'Obtener estado de cuenta completo de un contrato' })
+  async obtenerEstadoCuenta(@Param('idContrato', ParseIntPipe) idContrato: number) {
+    const data = await this.contratoPagosService.obtenerEstadoCuentaContrato(idContrato);
+    return { data };
+  }
+
+  @Get(':idContrato/abonos')
+  @ApiOperation({ summary: 'Obtener historial de abonos de un contrato' })
+  async obtenerAbonos(@Param('idContrato', ParseIntPipe) idContrato: number) {
+    const data = await this.contratoPagosService.obtenerAbonosContrato(idContrato);
+    return { data };
+  }
+
   @Post('analizar-comprobante')
   @ApiOperation({ summary: 'Analizar imagen de comprobante de pago con IA' })
   @ApiConsumes('multipart/form-data')

@@ -561,6 +561,195 @@ export class ContratoPagosService {
   }
 
   // ============================================
+  // ESTADO DE CUENTA
+  // ============================================
+
+  /**
+   * Obtener estado de cuenta completo de un contrato
+   */
+  async obtenerEstadoCuentaContrato(idContrato: number) {
+    const contrato = await this.prisma.atcContrato.findUnique({
+      where: { id_contrato: idContrato },
+      include: {
+        cliente: {
+          include: {
+            direcciones: {
+              where: { usar_para_facturacion: true, estado: 'ACTIVO' },
+              take: 1,
+              include: {
+                colonias: true,
+                municipio: true,
+                departamento: true,
+              },
+            },
+            datosfacturacion: {
+              where: { estado: 'ACTIVO' },
+              take: 1,
+            },
+          },
+        },
+        plan: {
+          include: {
+            tipoPlan: {
+              include: {
+                tipoServicio: true,
+              },
+            },
+          },
+        },
+        ciclo: true,
+        direccionServicio: {
+          include: {
+            colonias: true,
+            municipio: true,
+            departamento: true,
+          },
+        },
+        instalacion: true,
+      },
+    });
+
+    if (!contrato) {
+      throw new NotFoundException(`Contrato #${idContrato} no encontrado`);
+    }
+
+    const abonosAgg = await this.prisma.abono_cxc.aggregate({
+      where: {
+        cuentaPorCobrar: { id_contrato: idContrato },
+        activo: true,
+      },
+      _sum: { monto: true },
+      _count: { id_abono: true },
+    });
+
+    const dirFacturacion = contrato.cliente.direcciones[0] || null;
+    const datosFacturacion = contrato.cliente.datosfacturacion[0] || null;
+    const dirServicio = contrato.direccionServicio;
+
+    return {
+      cliente: {
+        id: contrato.cliente.id_cliente,
+        nombre: contrato.cliente.titular,
+        estado: contrato.cliente.estado,
+        dui: contrato.cliente.dui,
+        nit: contrato.cliente.nit,
+        correo: contrato.cliente.correo_electronico,
+        telefono1: contrato.cliente.telefono1,
+        telefono2: contrato.cliente.telefono2,
+        codigoCliente: contrato.cliente.id_cliente,
+        direccionFacturacion: dirFacturacion?.direccion || null,
+        coloniaFacturacion: dirFacturacion?.colonias?.nombre || null,
+        municipioFacturacion: dirFacturacion?.municipio?.nombre || null,
+        departamentoFacturacion: dirFacturacion?.departamento?.nombre || null,
+        tipoFactura: datosFacturacion?.tipo || null,
+        nrc: datosFacturacion?.nrc || null,
+      },
+      contrato: {
+        id: contrato.id_contrato,
+        codigo: contrato.codigo,
+        estado: contrato.estado,
+        fechaVenta: contrato.fecha_venta?.toISOString() || null,
+        fechaInstalacion: contrato.fecha_instalacion?.toISOString() || null,
+        fechaInicioContrato: contrato.fecha_inicio_contrato?.toISOString() || null,
+        fechaFinContrato: contrato.fecha_fin_contrato?.toISOString() || null,
+        mesesContrato: contrato.meses_contrato,
+        costoInstalacion: contrato.costo_instalacion ? Number(contrato.costo_instalacion) : null,
+        direccionServicio: dirServicio?.direccion || null,
+        coloniaServicio: dirServicio?.colonias?.nombre || null,
+        municipioServicio: dirServicio?.municipio?.nombre || null,
+        departamentoServicio: dirServicio?.departamento?.nombre || null,
+      },
+      plan: {
+        id: contrato.plan.id_plan,
+        nombre: contrato.plan.nombre,
+        precio: Number(contrato.plan.precio),
+        tipoServicio: contrato.plan.tipoPlan?.tipoServicio?.nombre || null,
+        tipoPlan: contrato.plan.tipoPlan?.nombre || null,
+        velocidadBajada: contrato.plan.velocidad_bajada,
+        velocidadSubida: contrato.plan.velocidad_subida,
+      },
+      ciclo: {
+        id: contrato.ciclo.id_ciclo,
+        nombre: contrato.ciclo.nombre,
+        diaCorte: contrato.ciclo.dia_corte,
+        diaVencimiento: contrato.ciclo.dia_vencimiento,
+      },
+      instalacion: contrato.instalacion
+        ? {
+            fechaInstalacion: contrato.instalacion.fecha_instalacion?.toISOString() || null,
+            instalado: contrato.instalacion.instalado,
+            wifiNombre: contrato.instalacion.wifi_nombre,
+            macOnu: contrato.instalacion.mac_onu,
+            numeroSerieOnu: contrato.instalacion.numero_serie_onu,
+            potenciaOnu: contrato.instalacion.potencia_onu,
+          }
+        : null,
+      resumen: {
+        totalAbonos: Number(abonosAgg._sum.monto || 0),
+        cantidadAbonos: abonosAgg._count.id_abono,
+      },
+    };
+  }
+
+  /**
+   * Obtener historial de abonos de un contrato
+   */
+  async obtenerAbonosContrato(idContrato: number) {
+    const contrato = await this.prisma.atcContrato.findUnique({
+      where: { id_contrato: idContrato },
+    });
+
+    if (!contrato) {
+      throw new NotFoundException(`Contrato #${idContrato} no encontrado`);
+    }
+
+    const abonos = await this.prisma.abono_cxc.findMany({
+      where: {
+        cuentaPorCobrar: { id_contrato: idContrato },
+        activo: true,
+      },
+      include: {
+        usuario: {
+          select: { nombres: true, apellidos: true },
+        },
+        cuentaPorCobrar: {
+          include: {
+            facturaDirecta: {
+              select: {
+                numero_cuota: true,
+                periodo_inicio: true,
+                periodo_fin: true,
+                es_instalacion: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { fecha_pago: 'desc' },
+    });
+
+    return abonos.map((a) => ({
+      idAbono: a.id_abono,
+      monto: Number(a.monto),
+      saldoAnterior: Number(a.saldo_anterior),
+      saldoPosterior: Number(a.saldo_posterior),
+      metodoPago: a.metodo_pago,
+      referencia: a.referencia,
+      fechaPago: a.fecha_pago.toISOString(),
+      observaciones: a.observaciones,
+      usuario: a.usuario
+        ? `${a.usuario.nombres} ${a.usuario.apellidos}`
+        : null,
+      factura: {
+        numeroCuota: a.cuentaPorCobrar.facturaDirecta.numero_cuota,
+        periodoInicio: a.cuentaPorCobrar.facturaDirecta.periodo_inicio?.toISOString() || null,
+        periodoFin: a.cuentaPorCobrar.facturaDirecta.periodo_fin?.toISOString() || null,
+        esInstalacion: a.cuentaPorCobrar.facturaDirecta.es_instalacion,
+      },
+    }));
+  }
+
+  // ============================================
   // HELPERS PRIVADOS
   // ============================================
 

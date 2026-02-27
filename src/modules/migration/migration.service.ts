@@ -6,6 +6,7 @@ import { ClientesMigrationService } from './services/clientes.migration';
 import { ContratosMigrationService } from './services/contratos.migration';
 import { DocumentosMigrationService } from './services/documentos.migration';
 import { FacturacionMigrationService } from './services/facturacion.migration';
+import { FacturaDirectaService } from '../facturacion/factura-directa/factura-directa.service';
 import {
   TableMappings,
   MigrationStatus,
@@ -49,6 +50,7 @@ export class MigrationService {
     private readonly contratosMigration: ContratosMigrationService,
     private readonly documentosMigration: DocumentosMigrationService,
     private readonly facturacionMigration: FacturacionMigrationService,
+    private readonly facturaDirectaService: FacturaDirectaService,
   ) {}
 
   /**
@@ -248,6 +250,23 @@ export class MigrationService {
         );
       }
 
+      // Generar facturas pendientes después de migrar contratos
+      if (module === MigrationModule.CONTRATOS && !options.dryRun) {
+        const contratosActivos = await this.prisma.atcContrato.findMany({
+          where: { estado: 'INSTALADO_ACTIVO' },
+          select: { id_contrato: true },
+        });
+
+        if (contratosActivos.length > 0) {
+          const facturasResult = await this.generateFacturasForMigratedContratos(
+            contratosActivos.map(c => c.id_contrato),
+            1,
+          );
+          this.addLog('INFO', 'contratos',
+            `Facturas pendientes generadas para ${facturasResult.generated} contratos`);
+        }
+      }
+
       return result;
     } catch (error) {
       this.addLog(
@@ -363,6 +382,23 @@ export class MigrationService {
             throw new Error(`Errores en módulo ${module}`);
           }
         }
+
+        // Generar facturas pendientes después de migrar contratos
+        if (module === MigrationModule.CONTRATOS && !options.dryRun) {
+          const contratosActivos = await this.prisma.atcContrato.findMany({
+            where: { estado: 'INSTALADO_ACTIVO' },
+            select: { id_contrato: true },
+          });
+
+          if (contratosActivos.length > 0) {
+            const facturasResult = await this.generateFacturasForMigratedContratos(
+              contratosActivos.map(c => c.id_contrato),
+              1,
+            );
+            this.addLog('INFO', 'contratos',
+              `Facturas pendientes generadas para ${facturasResult.generated} contratos`);
+          }
+        }
       }
 
       this.status.totalProgress = 100;
@@ -465,6 +501,25 @@ export class MigrationService {
       result.contratos = contratosResult;
       allErrors.push(...(contratosResult.errors || []));
 
+      // 2.5 Generar facturas pendientes para contratos activos migrados
+      if (!migrationOptions.dryRun && contratosResult.ids.length > 0) {
+        try {
+          const facturasGen = await this.generateFacturasForMigratedContratos(
+            contratosResult.ids,
+            1,
+            idCustomer,
+          );
+          this.addLog('INFO', 'cliente-individual',
+            `Facturas generadas: ${facturasGen.generated} contratos procesados`);
+          if (facturasGen.errors.length > 0) {
+            allErrors.push(...facturasGen.errors);
+          }
+        } catch (error) {
+          this.addLog('WARN', 'cliente-individual',
+            `Error generando facturas: ${error instanceof Error ? error.message : error}`);
+        }
+      }
+
       // 3. Migrar documentos de los contratos (opcional, requiere contratos)
       if (options.includeDocumentos !== false && contratosResult.ids.length > 0) {
         const documentosResult = await this.migrateDocumentosForContratos(
@@ -540,6 +595,152 @@ export class MigrationService {
       this.logger.warn(`Error migrando documentos: ${error}`);
       return { total: 0, migrated: 0 };
     }
+  }
+
+  /**
+   * Genera facturas pendientes para contratos migrados con estado INSTALADO_ACTIVO.
+   * Calcula cuántos meses han pasado desde fecha_inicio_contrato y genera solo cuotas futuras.
+   */
+  private async generateFacturasForMigratedContratos(
+    contratoIds: number[],
+    userId: number,
+    mysqlCustomerId?: number,
+  ): Promise<{ total: number; generated: number; errors: MigrationError[] }> {
+    const errors: MigrationError[] = [];
+    let generated = 0;
+
+    for (const idContrato of contratoIds) {
+      try {
+        const contrato = await this.prisma.atcContrato.findUnique({
+          where: { id_contrato: idContrato },
+          select: {
+            id_contrato: true,
+            estado: true,
+            fecha_inicio_contrato: true,
+            meses_contrato: true,
+            plan: { select: { meses_contrato: true } },
+          },
+        });
+
+        if (!contrato || contrato.estado !== 'INSTALADO_ACTIVO') {
+          continue;
+        }
+
+        const fechaInicio = contrato.fecha_inicio_contrato;
+        const mesesContrato = contrato.meses_contrato || contrato.plan?.meses_contrato || 12;
+
+        if (!fechaInicio) {
+          this.logger.warn(`Contrato ${idContrato} sin fecha_inicio_contrato, saltando generación de facturas`);
+          continue;
+        }
+
+        // Calcular meses transcurridos
+        const hoy = new Date();
+        const diffMs = hoy.getTime() - fechaInicio.getTime();
+        const mesesTranscurridos = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 30.44));
+        const cuotaInicial = Math.min(mesesTranscurridos + 1, mesesContrato + 1);
+
+        if (cuotaInicial > mesesContrato) {
+          // Contrato vencido pero activo: generar 1 factura del siguiente mes
+          if (mysqlCustomerId) {
+            const lastBill = await this.mysql.queryOne(
+              `SELECT id_bill, periodo_start, periodo_end, bill_status, expiration_date FROM tbl_bill
+               WHERE id_customers = ? ORDER BY periodo_end DESC LIMIT 1`,
+              [mysqlCustomerId],
+            );
+
+            if (lastBill?.periodo_end) {
+              const lastPeriodEnd = new Date(lastBill.periodo_end);
+
+              // Obtener mora de la última factura MySQL si existe
+              let moraAmount = 0;
+              if (lastBill.id_bill) {
+                const moraDetail = await this.mysql.queryOne(
+                  `SELECT d.sub_total as mora_base,
+                          COALESCE((SELECT SUM(t.sub_total) FROM tbl_bill_details_taxes t
+                                    WHERE t.id_bill_details = d.id_details_bill), 0) as mora_iva
+                   FROM tbl_bill_details d
+                   WHERE d.id_bill = ? AND d.detail_type = 60003
+                   LIMIT 1`,
+                  [lastBill.id_bill],
+                );
+                if (moraDetail) {
+                  moraAmount = Number(moraDetail.mora_base || 0) + Number(moraDetail.mora_iva || 0);
+                }
+              }
+
+              // Determinar si la última factura está pendiente de pago
+              const isPending = lastBill.bill_status === 2;
+              const isExpired = lastBill.expiration_date
+                && new Date(lastBill.expiration_date) < new Date();
+
+              let startMonth: Date;
+              if (isPending || isExpired) {
+                // Factura pendiente: generar desde el mes de esa factura
+                startMonth = new Date(lastBill.periodo_start);
+                startMonth.setDate(1);
+              } else {
+                // Factura pagada: generar desde el mes siguiente
+                startMonth = new Date(lastPeriodEnd);
+                startMonth.setDate(1);
+                startMonth.setMonth(startMonth.getMonth() + 1);
+              }
+
+              // Calcular mes siguiente al último periodo (siempre generar hasta aquí)
+              const nextMonth = new Date(lastPeriodEnd);
+              nextMonth.setDate(1);
+              nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+              // Calcular cuotas correspondientes
+              const startDiff = (startMonth.getFullYear() - fechaInicio.getFullYear()) * 12
+                               + startMonth.getMonth() - fechaInicio.getMonth();
+              const startCuota = startDiff + 1;
+
+              const endDiff = (nextMonth.getFullYear() - fechaInicio.getFullYear()) * 12
+                             + nextMonth.getMonth() - fechaInicio.getMonth();
+              const endCuota = endDiff + 1;
+
+              const cuotaCount = endCuota - startCuota + 1;
+              this.logger.log(
+                `Contrato ${idContrato}: vencido pero activo. Generando ${cuotaCount} factura(s) cuota ${startCuota}${startCuota !== endCuota ? `-${endCuota}` : ''} (última MySQL: ${isPending || isExpired ? 'pendiente' : 'pagada'}${moraAmount > 0 ? `, mora: $${moraAmount.toFixed(2)}` : ''})`,
+              );
+              await this.facturaDirectaService.generarFacturasContrato(
+                idContrato, userId, undefined, undefined,
+                startCuota,
+                endCuota,
+                moraAmount > 0 ? { cuota: startCuota, monto: moraAmount } : undefined,
+              );
+              generated++;
+              continue;
+            }
+          }
+
+          this.logger.log(`Contrato ${idContrato}: todas las cuotas ya vencieron (${mesesTranscurridos} meses de ${mesesContrato})`);
+          continue;
+        }
+
+        this.logger.log(`Contrato ${idContrato}: generando cuotas desde ${cuotaInicial} hasta ${mesesContrato}`);
+
+        await this.facturaDirectaService.generarFacturasContrato(
+          idContrato,
+          userId,
+          undefined,
+          undefined,
+          cuotaInicial,
+        );
+
+        generated++;
+      } catch (error) {
+        this.logger.warn(`Error generando facturas para contrato ${idContrato}: ${error instanceof Error ? error.message : error}`);
+        errors.push({
+          table: 'facturaDirecta',
+          recordId: idContrato,
+          message: error instanceof Error ? error.message : 'Error generando facturas',
+        });
+      }
+    }
+
+    return { total: contratoIds.length, generated, errors };
   }
 
   /**

@@ -200,6 +200,7 @@ export class FacturaDirectaService {
         dto,
         totalesCalculados,
       );
+      console.log("buildParams",buildParams);
 
       // Soportamos FC (01), CCF (03) y FSE (14)
       if (tipoDte !== '01' && tipoDte !== '03' && tipoDte !== '14') {
@@ -212,6 +213,7 @@ export class FacturaDirectaService {
           ? this.ccfBuilder
           : this.fcBuilder;
       const { documento, totales } = builder.build(buildParams);
+      console.log("buildParams2",buildParams);
       this.logger.log(`DTE construido. Total a pagar: $${totales.totalPagar}`);
 
       // ==================== PASO 6: GUARDAR FACTURA ====================
@@ -226,7 +228,7 @@ export class FacturaDirectaService {
         dto,
         idUsuario,
       );
-
+      console.log("documento",documento); 
       // ==================== PASO 7: FIRMAR DTE ====================
       const signResult = await this.signer.firmar(
         datos.generalData.nit!,
@@ -1244,8 +1246,12 @@ export class FacturaDirectaService {
       items,
       condicionOperacion: factura.condicion_operacion || 1,
       observaciones: factura.observaciones || undefined,
+      // FSE: retenciones (desde los valores guardados en BD)
+      ivaRetenido: Number(factura.iva_retenido) || 0,
+      rentaRetenido: Number(factura.renta_retenido) || 0,
+      ivaPercibido: Number(factura.iva_percibido) || 0,
     };
-
+    console.log("buildParams",buildParams)
     // Seleccionar el builder apropiado
     const builder = tipoDte === '14'
       ? this.fseBuilder
@@ -1977,8 +1983,8 @@ export class FacturaDirectaService {
 
     // Preparar datos del emisor
     const emisor: EmisorData = {
-      nit: generalData.nit!,
-      nrc: generalData.nrc!,
+      nit: this.sanitizarIdentificador(generalData.nit) || '',
+      nrc: this.sanitizarIdentificador(generalData.nrc) || '',
       nombre: generalData.razon || generalData.nombre_sistema,
       codActividad: generalData.cod_actividad || '62010',
       descActividad: generalData.desc_actividad || 'Actividades de programación informática',
@@ -2002,8 +2008,8 @@ export class FacturaDirectaService {
       // FC: receptor puede ser null o simplificado
       receptor = {
         tipoDocumento: clienteDirecto?.tipoDocumento?.codigo || null,
-        numDocumento: dto.cliente_dui || dto.cliente_nit || clienteDirecto?.dui || clienteDirecto?.nit || null,
-        nit: dto.cliente_nit || clienteDirecto?.nit || null,
+        numDocumento: this.sanitizarIdentificador(dto.cliente_dui || dto.cliente_nit || clienteDirecto?.dui || clienteDirecto?.nit) || null,
+        nit: this.sanitizarIdentificador(dto.cliente_nit || clienteDirecto?.nit) || null,
         nrc: null, // FC no requiere NRC
         nombre: dto.cliente_nombre || clienteDirecto?.nombre || null,
         codActividad: null,
@@ -2019,7 +2025,7 @@ export class FacturaDirectaService {
       // FSE: sujetoExcluido - requiere documento pero NO NRC
       receptor = {
         tipoDocumento: dto.id_tipo_documento_cliente?.toString() || clienteDirecto?.tipoDocumento?.codigo || '13', // Default: DUI
-        numDocumento: dto.cliente_dui || dto.cliente_nit || clienteDirecto?.dui || clienteDirecto?.nit!,
+        numDocumento: this.sanitizarIdentificador(dto.cliente_dui || dto.cliente_nit || clienteDirecto?.dui || clienteDirecto?.nit) || '',
         nit: null,
         nrc: null,
         nombre: dto.cliente_nombre || clienteDirecto?.nombre!,
@@ -2036,9 +2042,9 @@ export class FacturaDirectaService {
       // CCF: receptor obligatorio con NIT y NRC
       receptor = {
         tipoDocumento: dto.id_tipo_documento_cliente?.toString() || clienteDirecto?.tipoDocumento?.codigo || '36',
-        numDocumento: dto.cliente_nit || clienteDirecto?.nit!,
-        nit: dto.cliente_nit || clienteDirecto?.nit!,
-        nrc: dto.cliente_nrc || clienteDirecto?.registro_nrc!,
+        numDocumento: this.sanitizarIdentificador(dto.cliente_nit || clienteDirecto?.nit) || '',
+        nit: this.sanitizarIdentificador(dto.cliente_nit || clienteDirecto?.nit) || '',
+        nrc: this.sanitizarIdentificador(dto.cliente_nrc || clienteDirecto?.registro_nrc) || '',
         nombre: dto.cliente_nombre || clienteDirecto?.nombre!,
         codActividad: clienteDirecto?.actividadEconomica?.codigo || null,
         descActividad: clienteDirecto?.actividadEconomica?.nombre || null,
@@ -3138,6 +3144,9 @@ export class FacturaDirectaService {
     userId: number,
     idSucursal?: number,
     tx?: Prisma.TransactionClient,
+    cuotaInicial?: number,
+    cuotaFinal?: number,
+    moraLegacy?: { cuota: number; monto: number },
   ): Promise<{ facturaIds: number[]; instalacionId?: number }> {
     const db = tx || this.prisma;
 
@@ -3236,7 +3245,9 @@ export class FacturaDirectaService {
     let instalacionId: number | undefined;
 
     // 7. Generar facturas de cuotas mensuales
-    for (let cuota = 1; cuota <= mesesContrato; cuota++) {
+    const primeraCuota = cuotaInicial || 1;
+    const ultimaCuota = cuotaFinal ?? mesesContrato;
+    for (let cuota = primeraCuota; cuota <= ultimaCuota; cuota++) {
       const { periodoInicio, periodoFin, fechaVencimiento } = this.calcularFechasPeriodo(
         fechaInicio,
         cuota,
@@ -3306,6 +3317,26 @@ export class FacturaDirectaService {
           subtotal: redondearMonto(instalacionSinIva),
           iva: redondearMonto(ivaInstalacion),
           total: redondearMonto(costoInstalacion),
+        });
+      }
+
+      // Línea de mora migrada (solo para cuota específica)
+      if (moraLegacy && moraLegacy.monto > 0 && cuota === moraLegacy.cuota) {
+        detalles.push({
+          num_item: numItem++,
+          nombre: 'Mora por atraso de pago (migrada)',
+          descripcion: 'Cargo por pago extemporáneo migrado del sistema anterior',
+          cantidad: 1,
+          uni_medida: 99,
+          precio_unitario: redondearMonto(moraLegacy.monto, DECIMALES_ITEM),
+          precio_sin_iva: redondearMonto(moraLegacy.monto, DECIMALES_ITEM),
+          precio_con_iva: redondearMonto(moraLegacy.monto, DECIMALES_ITEM),
+          tipo_detalle: 'EXENTA',
+          venta_gravada: 0,
+          venta_exenta: redondearMonto(moraLegacy.monto),
+          subtotal: redondearMonto(moraLegacy.monto),
+          iva: 0,
+          total: redondearMonto(moraLegacy.monto),
         });
       }
 
@@ -3395,8 +3426,8 @@ export class FacturaDirectaService {
       facturaIds.push(factura.id_factura_directa);
     }
 
-    // 8. Si facturar_instalacion_separada y hay costo, crear factura aparte
-    if (facturarInstalacionSeparada && costoInstalacion > 0) {
+    // 8. Si facturar_instalacion_separada y hay costo, crear factura aparte (solo si empezamos desde cuota 1)
+    if (facturarInstalacionSeparada && costoInstalacion > 0 && primeraCuota <= 1) {
       const instalacionSinIva = aplicaIva
         ? redondearMonto(costoInstalacion / (1 + porcentajeIva / 100))
         : costoInstalacion;
@@ -3490,7 +3521,7 @@ export class FacturaDirectaService {
 
     this.logger.log(
       `Contrato ${idContrato}: generadas ${facturaIds.length} facturas proyectadas` +
-        (instalacionId ? ` (incluye factura de instalación #${instalacionId})` : ''),
+      (instalacionId ? ` (incluye factura de instalación #${instalacionId})` : ''),
     );
 
     return { facturaIds, instalacionId };

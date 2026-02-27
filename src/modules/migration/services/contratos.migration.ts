@@ -19,6 +19,7 @@ import {
   mapEstadoContrato,
   generateContractCode,
   toDecimal,
+  parseDate,
 } from '../utils/transformers';
 
 @Injectable()
@@ -163,19 +164,23 @@ export class ContratosMigrationService {
           continue;
         }
 
+        // Consultar tasa de impuesto real desde MySQL y calcular precio CON IVA
+        const impuesto = await this.getTaxRateForPlan(plan.id_customers_plan);
+        const precioConIva = toDecimal(plan.pay * (1 + impuesto));
+
         const result = await this.prisma.atcPlan.upsert({
           where: { id_plan: plan.id_customers_plan },
           update: {
             nombre: cleanString(plan.name) || 'Plan sin nombre',
             descripcion: cleanStringOrNull(plan.description),
-            precio: toDecimal(plan.pay),
+            precio: precioConIva,
             meses_contrato: plan.month_contract || 12,
           },
           create: {
             id_plan: plan.id_customers_plan,
             nombre: cleanString(plan.name) || 'Plan sin nombre',
             descripcion: cleanStringOrNull(plan.description),
-            precio: toDecimal(plan.pay),
+            precio: precioConIva,
             id_tipo_plan: tipoPlanId,
             meses_contrato: plan.month_contract || 12,
           },
@@ -343,7 +348,11 @@ export class ContratosMigrationService {
                 id_ciclo: idCiclo,
                 id_direccion_servicio: idDireccion,
                 id_usuario_creador: this.DEFAULT_USER_ID,
-                fecha_venta: new Date(),
+                fecha_venta: service?.date_sale ? parseDate(service.date_sale) ?? new Date() : new Date(),
+                fecha_instalacion: service?.date_installation ? parseDate(service.date_installation) ?? undefined : undefined,
+                fecha_inicio_contrato: service?.date_contract_start ? parseDate(service.date_contract_start) ?? undefined : undefined,
+                fecha_fin_contrato: service?.date_contract_end ? parseDate(service.date_contract_end) ?? undefined : undefined,
+                meses_contrato: service?.contract_month || 12,
                 estado: mapEstadoContrato(contract.status_contract) as any,
               },
             });
@@ -358,7 +367,11 @@ export class ContratosMigrationService {
                 id_ciclo: idCiclo,
                 id_direccion_servicio: idDireccion,
                 id_usuario_creador: this.DEFAULT_USER_ID,
-                fecha_venta: new Date(),
+                fecha_venta: service?.date_sale ? parseDate(service.date_sale) ?? new Date() : new Date(),
+                fecha_instalacion: service?.date_installation ? parseDate(service.date_installation) ?? undefined : undefined,
+                fecha_inicio_contrato: service?.date_contract_start ? parseDate(service.date_contract_start) ?? undefined : undefined,
+                fecha_fin_contrato: service?.date_contract_end ? parseDate(service.date_contract_end) ?? undefined : undefined,
+                meses_contrato: service?.contract_month || 12,
                 estado: mapEstadoContrato(contract.status_contract) as any,
               },
             });
@@ -496,7 +509,11 @@ export class ContratosMigrationService {
             id_ciclo: idCiclo,
             id_direccion_servicio: idDireccion,
             id_usuario_creador: this.DEFAULT_USER_ID,
-            fecha_venta: new Date(),
+            fecha_venta: service?.date_sale ? parseDate(service.date_sale) ?? new Date() : new Date(),
+            fecha_instalacion: service?.date_installation ? parseDate(service.date_installation) ?? undefined : undefined,
+            fecha_inicio_contrato: service?.date_contract_start ? parseDate(service.date_contract_start) ?? undefined : undefined,
+            fecha_fin_contrato: service?.date_contract_end ? parseDate(service.date_contract_end) ?? undefined : undefined,
+            meses_contrato: service?.contract_month || 12,
             estado: mapEstadoContrato(contract.status_contract) as any,
           },
         });
@@ -544,25 +561,49 @@ export class ContratosMigrationService {
       return;
     }
 
+    // Consultar tasa de impuesto real desde MySQL y calcular precio CON IVA
+    const impuesto = await this.getTaxRateForPlan(plan.id_customers_plan);
+    const precioConIva = toDecimal(plan.pay * (1 + impuesto));
+
     const result = await this.prisma.atcPlan.upsert({
       where: { id_plan: plan.id_customers_plan },
       update: {
         nombre: cleanString(plan.name) || 'Plan sin nombre',
         descripcion: cleanStringOrNull(plan.description),
-        precio: toDecimal(plan.pay),
+        precio: precioConIva,
         meses_contrato: plan.month_contract || 12,
       },
       create: {
         id_plan: plan.id_customers_plan,
         nombre: cleanString(plan.name) || 'Plan sin nombre',
         descripcion: cleanStringOrNull(plan.description),
-        precio: toDecimal(plan.pay),
+        precio: precioConIva,
         id_tipo_plan: tipoPlanId,
         meses_contrato: plan.month_contract || 12,
       },
     });
 
     mappings.planes.set(plan.id_customers_plan, result.id_plan);
+  }
+
+  /**
+   * Consulta la tasa de impuesto desde MySQL para un plan específico
+   */
+  private async getTaxRateForPlan(idCustomersPlan: number): Promise<number> {
+    try {
+      const result = await this.mysql.query<RowDataPacket[]>(
+        `SELECT SUM(tbt.value) AS impuesto
+         FROM tbl_parameters_taxes tbt
+         JOIN tbl_customers_plan_taxes tcpt ON tbt.id_parameters_taxes = tcpt.id_parameters_taxes
+         WHERE tbt.status_taxes = 1 AND tcpt.id_customers_plan = ?`,
+        [idCustomersPlan],
+      );
+      const impuesto = result[0]?.impuesto;
+      return impuesto != null && !isNaN(Number(impuesto)) ? Number(impuesto) : 0.13;
+    } catch (e) {
+      this.logger.warn(`No se pudo obtener impuesto para plan ${idCustomersPlan}, usando 0.13 por defecto`);
+      return 0.13;
+    }
   }
 
   /**

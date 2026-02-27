@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '../prisma/prisma.module';
 import { MinioModule } from '../minio/minio.module';
 import { OpenaiModule } from '../openai/openai.module';
+import { FacturacionModule } from '../facturacion/facturacion.module';
 import { MigrationController } from './migration.controller';
 import { MigrationService } from './migration.service';
 import { MysqlConnectionService } from './services/mysql-connection.service';
@@ -13,7 +14,7 @@ import { DocumentosMigrationService } from './services/documentos.migration';
 import { FacturacionMigrationService } from './services/facturacion.migration';
 
 @Module({
-  imports: [ConfigModule, PrismaModule, MinioModule, OpenaiModule],
+  imports: [ConfigModule, PrismaModule, MinioModule, OpenaiModule, FacturacionModule],
   controllers: [MigrationController],
   providers: [
     MigrationService,
