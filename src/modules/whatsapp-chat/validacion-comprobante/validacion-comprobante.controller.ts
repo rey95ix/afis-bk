@@ -20,7 +20,7 @@ import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { Auth } from 'src/modules/auth/decorators';
 import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 import { ValidacionComprobanteService } from './validacion-comprobante.service';
-import { EnviarValidacionMultiDto, QueryValidacionDto, RechazarValidacionDto } from './dto';
+import { EnviarValidacionMultiDto, QueryValidacionDto, RechazarValidacionDto, UpdateBancoDto } from './dto';
 
 @ApiTags('WhatsApp Chat - Validación Comprobantes')
 @Controller('api/atencion-al-cliente/whatsapp-chat/validaciones')
@@ -60,6 +60,23 @@ export class ValidacionComprobanteController {
     @Request() req,
   ) {
     return this.service.enviarAValidacion(messageId, req.user.id_usuario);
+  }
+
+  @RequirePermissions('atencion_cliente.whatsapp_chat:ver')
+  @Patch(':id/banco')
+  @ApiOperation({
+    summary: 'Actualizar banco destino',
+    description: 'Actualiza el banco destino de una validación pendiente. Útil cuando la IA no pudo detectar el banco destino en transferencias 365.',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la validación' })
+  @ApiResponse({ status: 200, description: 'Banco actualizado exitosamente' })
+  @ApiResponse({ status: 400, description: 'La validación no está pendiente' })
+  @ApiResponse({ status: 404, description: 'Validación no encontrada' })
+  actualizarBanco(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateBancoDto,
+  ) {
+    return this.service.actualizarBanco(id, dto.banco);
   }
 
   @RequirePermissions('atencion_cliente.whatsapp_validaciones:ver')

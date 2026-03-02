@@ -24,3 +24,18 @@ ALTER TABLE "whatsapp_validacion_mensaje" ADD CONSTRAINT "fk_validacion_mensaje_
 
 -- AddForeignKey
 ALTER TABLE "whatsapp_validacion_mensaje" ADD CONSTRAINT "fk_validacion_mensaje_message" FOREIGN KEY ("id_message") REFERENCES "whatsapp_message"("id_message") ON DELETE CASCADE ON UPDATE NO ACTION;
+-- AlterTable
+ALTER TABLE "whatsapp_validacion_comprobante" ADD COLUMN     "banco_origen" VARCHAR(100),
+ADD COLUMN     "es_transferencia_365" BOOLEAN NOT NULL DEFAULT false;
+-- AlterTable
+ALTER TABLE "whatsapp_validacion_comprobante" ADD COLUMN     "nombre_cliente" VARCHAR(200);
+-- AlterTable
+ALTER TABLE "whatsapp_validacion_comprobante" ADD COLUMN     "id_cuenta_bancaria" INTEGER;
+
+-- CreateIndex
+CREATE INDEX "whatsapp_validacion_comprobante_id_cuenta_bancaria_idx" ON "whatsapp_validacion_comprobante"("id_cuenta_bancaria");
+
+-- AddForeignKey
+ALTER TABLE "whatsapp_validacion_comprobante" ADD CONSTRAINT "fk_validacion_comprobante_cuenta_bancaria" FOREIGN KEY ("id_cuenta_bancaria") REFERENCES "cuenta_bancaria"("id_cuenta_bancaria") ON DELETE SET NULL ON UPDATE NO ACTION;
+-- AlterEnum
+ALTER TYPE "modulo_origen_movimiento" ADD VALUE 'COBRANZA';

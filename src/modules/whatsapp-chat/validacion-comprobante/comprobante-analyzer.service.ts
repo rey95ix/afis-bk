@@ -15,10 +15,13 @@ INSTRUCCIONES:
 1. Extrae el MONTO transferido (número decimal, sin símbolos de moneda)
 2. Extrae la FECHA de la transacción (formato YYYY-MM-DD)
 3. Extrae el NÚMERO DE REFERENCIA o comprobante
-4. Identifica el BANCO emisor (ej: BAC, Bancoagrícola, Davivienda, Cuscatlán, Banco Promerica, Banco Industrial, etc.)
-5. Extrae CUENTA ORIGEN (últimos 4 dígitos si están visibles, formato ****XXXX)
-6. Extrae CUENTA DESTINO (últimos 4 dígitos si están visibles)
-7. Extrae NOMBRE DEL TITULAR de la cuenta origen
+4. Detecta si es una TRANSFERENCIA 365 (Transfer 365, Transferencia 365, ACH o transferencia interbancaria). Si menciona "Transfer 365", "Transferencia 365", "ACH" o indica que es una transferencia entre bancos diferentes, marca es_transferencia_365 como true.
+5. Identifica el BANCO DESTINO (banco receptor/beneficiario donde se recibe el pago). Este es el campo "banco". Para transferencias 365, es el banco que RECIBE el dinero. Si no puedes determinarlo, usa null.
+6. Identifica el BANCO ORIGEN (banco emisor/desde donde se envía). Solo relevante para transferencias 365. Si no es Transfer 365 o no puedes determinarlo, usa null.
+7. Extrae CUENTA ORIGEN (últimos 4 dígitos si están visibles, formato ****XXXX)
+8. Extrae CUENTA DESTINO: el número de cuenta COMPLETO del beneficiario/receptor si es visible en la imagen. Si solo se ven dígitos parciales, extrae lo que sea visible (ej: ****1234). Prioriza el número completo.
+9. Extrae NOMBRE DEL TITULAR de la cuenta origen
+10. Extrae el NOMBRE DEL CLIENTE si se proporciona texto adicional del operador. Este es diferente del nombre_titular (que viene de la imagen). Si no hay texto o no se menciona nombre de cliente, usa null.
 
 Si algún campo no es legible o no existe en la imagen, usa null.
 Evalúa tu confianza general:
@@ -27,7 +30,7 @@ Evalúa tu confianza general:
 - "baja": imagen borrosa o de mala calidad
 
 Responde ÚNICAMENTE con JSON válido, sin markdown ni backticks:
-{"monto": 150.00, "fecha_transaccion": "2025-01-14", "numero_referencia": "ABC123456", "banco": "BAC", "cuenta_origen": "****5678", "cuenta_destino": "****1234", "nombre_titular": "Juan Pérez", "confianza": "alta"}`;
+{"monto": 150.00, "fecha_transaccion": "2025-01-14", "numero_referencia": "ABC123456", "banco": "Bancoagrícola", "banco_origen": "BAC", "es_transferencia_365": true, "cuenta_origen": "****5678", "cuenta_destino": "00112345678", "nombre_titular": "Juan Pérez", "nombre_cliente": "Maria Lopez", "confianza": "alta"}`;
 
   constructor(private readonly openaiService: OpenaiService) {}
 
@@ -84,7 +87,9 @@ Responde ÚNICAMENTE con JSON válido, sin markdown ni backticks:
       let prompt = `Analiza estas ${imageCount} imágenes de comprobante(s) de transferencia bancaria de El Salvador. Las imágenes pueden ser partes del mismo comprobante o comprobantes complementarios. Combina la información de TODAS las imágenes para extraer los datos completos.`;
 
       if (textContext) {
-        prompt += `\nEl texto adicional del cliente se proporciona aparte. Úsalo como referencia complementaria pero prioriza los datos de las imágenes.`;
+        prompt += `\nEl texto adicional del cliente se proporciona aparte. Úsalo para:
+1. Extraer el NOMBRE DEL CLIENTE (nombre_cliente) si se menciona un nombre de persona.
+2. Como referencia complementaria para datos financieros, priorizando las imágenes.`;
       }
 
       prompt += `\n\n${this.EXTRACTION_PROMPT.replace('Analiza esta imagen de comprobante de transferencia bancaria de El Salvador.\n\n', '')}`;
@@ -142,7 +147,10 @@ Responde ÚNICAMENTE con JSON válido, sin markdown ni backticks:
       cuenta_origen: data.cuenta_origen || null,
       cuenta_destino: data.cuenta_destino || null,
       nombre_titular: data.nombre_titular || null,
+      nombre_cliente: data.nombre_cliente || null,
       confianza: this.parseConfianza(data.confianza),
+      es_transferencia_365: data.es_transferencia_365 === true,
+      banco_origen: data.banco_origen || null,
     };
   }
 
@@ -181,7 +189,10 @@ Responde ÚNICAMENTE con JSON válido, sin markdown ni backticks:
       cuenta_origen: null,
       cuenta_destino: null,
       nombre_titular: null,
+      nombre_cliente: null,
       confianza,
+      es_transferencia_365: false,
+      banco_origen: null,
     };
   }
 }

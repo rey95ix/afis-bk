@@ -58,8 +58,11 @@ import { MinioModule } from '../minio/minio.module';
 // OpenAI
 import { OpenaiModule } from '../openai/openai.module';
 
+// Bancos
+import { BancosModule } from '../bancos/bancos.module';
+
 @Module({
-  imports: [ConfigModule, PrismaModule, MinioModule, OpenaiModule, ScheduleModule.forRoot()],
+  imports: [ConfigModule, PrismaModule, MinioModule, OpenaiModule, ScheduleModule.forRoot(), BancosModule],
   controllers: [
     ChatController,
     MessageController,

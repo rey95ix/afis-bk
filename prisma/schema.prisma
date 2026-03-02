@@ -3331,7 +3331,14 @@ model whatsapp_validacion_comprobante {
   cuenta_origen              String?   @db.VarChar(50)
   cuenta_destino             String?   @db.VarChar(50)
   nombre_titular             String?   @db.VarChar(200)
+  nombre_cliente             String?   @db.VarChar(200)
   confianza                  String?   @db.VarChar(10) // alta, media, baja
+  es_transferencia_365       Boolean   @default(false)
+  banco_origen               String?   @db.VarChar(100)
+
+  // Cuenta bancaria destino (match automático)
+  id_cuenta_bancaria         Int?
+  cuenta_bancaria_destino    cuenta_bancaria? @relation("validacion_cuenta_destino", fields: [id_cuenta_bancaria], references: [id_cuenta_bancaria], onDelete: SetNull, onUpdate: NoAction, map: "fk_validacion_comprobante_cuenta_bancaria")
 
   // Estado de validación
   estado                     estado_validacion_comprobante @default(PENDIENTE)
@@ -3357,6 +3364,7 @@ model whatsapp_validacion_comprobante {
   @@index([fecha_creacion])
   @@index([id_chat])
   @@index([id_message])
+  @@index([id_cuenta_bancaria])
 }
 
 model whatsapp_validacion_mensaje {
@@ -4274,6 +4282,7 @@ enum modulo_origen_movimiento {
   MANUAL
   CUENTAS_POR_COBRAR
   CUENTAS_POR_PAGAR
+  COBRANZA
 }
 
 // ============= CUENTAS POR COBRAR =============
@@ -4337,6 +4346,7 @@ model cuenta_bancaria {
   facturas_tarjeta        facturaDirecta[] @relation("factura_cuenta_tarjeta")
   facturas_cheque         facturaDirecta[] @relation("factura_cuenta_cheque")
   facturas_transferencia  facturaDirecta[] @relation("factura_cuenta_transferencia")
+  validaciones_comprobante   whatsapp_validacion_comprobante[] @relation("validacion_cuenta_destino")
 
   @@index([id_banco])
   @@index([estado])
