@@ -3113,6 +3113,7 @@ model whatsapp_message {
   usuario_envia              usuarios?     @relation("whatsapp_message_usuario", fields: [id_usuario_envia], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_message_usuario")
   regla_ia                   whatsapp_ia_rule? @relation(fields: [id_regla_ia], references: [id_regla], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_message_regla_ia")
   validaciones_comprobante   whatsapp_validacion_comprobante[]
+  validacion_mensajes        whatsapp_validacion_mensaje[]
 
   @@index([id_chat])
   @@index([id_usuario_envia])
@@ -3350,10 +3351,27 @@ model whatsapp_validacion_comprobante {
   usuario_envia              usuarios @relation("validacion_comprobante_usuario_envia", fields: [id_usuario_envia], references: [id_usuario], onDelete: Restrict, onUpdate: NoAction, map: "fk_validacion_comprobante_usuario_envia")
   usuario_valida             usuarios? @relation("validacion_comprobante_usuario_valida", fields: [id_usuario_valida], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_validacion_comprobante_usuario_valida")
   usuario_aplica             usuarios? @relation("validacion_comprobante_usuario_aplica", fields: [id_usuario_aplica], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_validacion_comprobante_usuario_aplica")
+  mensajes_validacion        whatsapp_validacion_mensaje[]
 
   @@index([estado])
   @@index([fecha_creacion])
   @@index([id_chat])
+  @@index([id_message])
+}
+
+model whatsapp_validacion_mensaje {
+  id_validacion_mensaje  Int       @id @default(autoincrement())
+  id_validacion          Int
+  id_message             Int
+  tipo                   tipo_mensaje_whatsapp
+  orden                  Int       @default(0)
+  fecha_creacion         DateTime  @default(now())
+
+  validacion             whatsapp_validacion_comprobante @relation(fields: [id_validacion], references: [id_validacion], onDelete: Cascade, onUpdate: NoAction, map: "fk_validacion_mensaje_validacion")
+  message                whatsapp_message @relation(fields: [id_message], references: [id_message], onDelete: Cascade, onUpdate: NoAction, map: "fk_validacion_mensaje_message")
+
+  @@unique([id_validacion, id_message])
+  @@index([id_validacion])
   @@index([id_message])
 }
 

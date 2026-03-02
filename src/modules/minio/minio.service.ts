@@ -209,8 +209,8 @@ export class MinioService implements OnModuleInit {
   async getFile(objectName: string): Promise<Buffer> {
     try {
       const chunks: Buffer[] = [];
+      console.log(`Descargando archivo: ${objectName}`);
       const stream = await this.minioClient.getObject(this.bucketName, objectName);
-
       return new Promise((resolve, reject) => {
         stream.on('data', (chunk) => chunks.push(chunk));
         stream.on('end', () => resolve(Buffer.concat(chunks)));

@@ -66,6 +66,47 @@ Responde ÚNICAMENTE con JSON válido, sin markdown ni backticks:
   }
 
   /**
+   * Extrae datos de comprobante bancario a partir de múltiples imágenes y texto contextual
+   * @param images Array de imágenes (buffer + mimeType)
+   * @param textContext Texto adicional recopilado de mensajes de texto o captions
+   */
+  async extractComprobanteDataMulti(
+    images: Array<{ buffer: Buffer; mimeType: string }>,
+    textContext: string | null,
+  ): Promise<ComprobanteExtractionResult> {
+    if (!this.openaiService.isAvailable()) {
+      this.logger.warn('OpenAI no está configurado para análisis de comprobantes');
+      return this.getEmptyResult('baja');
+    }
+
+    try {
+      const imageCount = images.length;
+      let prompt = `Analiza estas ${imageCount} imágenes de comprobante(s) de transferencia bancaria de El Salvador. Las imágenes pueden ser partes del mismo comprobante o comprobantes complementarios. Combina la información de TODAS las imágenes para extraer los datos completos.`;
+
+      if (textContext) {
+        prompt += `\nEl texto adicional del cliente se proporciona aparte. Úsalo como referencia complementaria pero prioriza los datos de las imágenes.`;
+      }
+
+      prompt += `\n\n${this.EXTRACTION_PROMPT.replace('Analiza esta imagen de comprobante de transferencia bancaria de El Salvador.\n\n', '')}`;
+
+      this.logger.log(`Iniciando extracción multi-imagen (${imageCount} imágenes) con GPT-4 Vision...`);
+
+      const response = await this.openaiService.analyzeMultipleImages(
+        images,
+        textContext,
+        prompt,
+      );
+
+      this.logger.debug(`Respuesta de OpenAI (Comprobante Multi): ${response}`);
+
+      return this.parseResponse(response);
+    } catch (error) {
+      this.logger.error(`Error al analizar comprobante multi-imagen: ${error.message}`);
+      return this.getEmptyResult('baja');
+    }
+  }
+
+  /**
    * Parsea la respuesta de OpenAI
    */
   private parseResponse(response: string): ComprobanteExtractionResult {

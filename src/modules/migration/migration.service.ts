@@ -51,7 +51,7 @@ export class MigrationService {
     private readonly documentosMigration: DocumentosMigrationService,
     private readonly facturacionMigration: FacturacionMigrationService,
     private readonly facturaDirectaService: FacturaDirectaService,
-  ) {}
+  ) { }
 
   /**
    * Crea un objeto de mapeos vacío
@@ -651,7 +651,7 @@ export class MigrationService {
 
             if (lastBill?.periodo_end) {
               const lastPeriodEnd = new Date(lastBill.periodo_end);
-
+              console.log(lastPeriodEnd)
               // Obtener mora de la última factura MySQL si existe
               let moraAmount = 0;
               if (lastBill.id_bill) {
@@ -670,10 +670,12 @@ export class MigrationService {
               }
 
               // Determinar si la última factura está pendiente de pago
-              const isPending = lastBill.bill_status === 2;
+              this.logger.debug(
+                `Contrato ${idContrato}: lastBill status=${lastBill.bill_status} (type=${typeof lastBill.bill_status}), expiration=${lastBill.expiration_date}`,
+              );
+              const isPending = Number(lastBill.bill_status) === 1;
               const isExpired = lastBill.expiration_date
                 && new Date(lastBill.expiration_date) < new Date();
-
               let startMonth: Date;
               if (isPending || isExpired) {
                 // Factura pendiente: generar desde el mes de esa factura
@@ -693,11 +695,13 @@ export class MigrationService {
 
               // Calcular cuotas correspondientes
               const startDiff = (startMonth.getFullYear() - fechaInicio.getFullYear()) * 12
-                               + startMonth.getMonth() - fechaInicio.getMonth();
+                + startMonth.getMonth() - fechaInicio.getMonth();
+              console.log(startDiff, startMonth, fechaInicio)
               const startCuota = startDiff + 1;
 
               const endDiff = (nextMonth.getFullYear() - fechaInicio.getFullYear()) * 12
-                             + nextMonth.getMonth() - fechaInicio.getMonth();
+                + nextMonth.getMonth() - fechaInicio.getMonth();
+              console.log(endDiff, nextMonth, fechaInicio)
               const endCuota = endDiff + 1;
 
               const cuotaCount = endCuota - startCuota + 1;

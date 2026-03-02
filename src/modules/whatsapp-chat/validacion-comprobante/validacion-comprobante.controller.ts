@@ -20,7 +20,7 @@ import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { Auth } from 'src/modules/auth/decorators';
 import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 import { ValidacionComprobanteService } from './validacion-comprobante.service';
-import { QueryValidacionDto, RechazarValidacionDto } from './dto';
+import { EnviarValidacionMultiDto, QueryValidacionDto, RechazarValidacionDto } from './dto';
 
 @ApiTags('WhatsApp Chat - Validación Comprobantes')
 @Controller('api/atencion-al-cliente/whatsapp-chat/validaciones')
@@ -28,6 +28,22 @@ import { QueryValidacionDto, RechazarValidacionDto } from './dto';
 @Auth()
 export class ValidacionComprobanteController {
   constructor(private readonly service: ValidacionComprobanteService) {}
+
+  @RequirePermissions('atencion_cliente.whatsapp_chat:ver')
+  @Post('enviar-multi')
+  @ApiOperation({
+    summary: 'Enviar múltiples mensajes a validación',
+    description: 'Envía múltiples mensajes (imágenes + textos) como una sola validación de comprobante. Combina la información de todos los mensajes para extraer datos con IA.',
+  })
+  @ApiResponse({ status: 201, description: 'Mensajes enviados a validación exitosamente' })
+  @ApiResponse({ status: 400, description: 'Mensajes inválidos o ya enviados a validación' })
+  @ApiResponse({ status: 404, description: 'Uno o más mensajes no encontrados' })
+  enviarAValidacionMulti(
+    @Body() dto: EnviarValidacionMultiDto,
+    @Request() req,
+  ) {
+    return this.service.enviarAValidacionMulti(dto.messageIds, req.user.id_usuario);
+  }
 
   @RequirePermissions('atencion_cliente.whatsapp_chat:ver')
   @Post('enviar/:messageId')

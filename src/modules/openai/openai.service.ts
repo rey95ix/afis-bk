@@ -81,4 +81,56 @@ export class OpenaiService implements OnModuleInit {
       throw error;
     }
   }
+
+  /**
+   * Analiza múltiples imágenes usando GPT-4 Vision
+   * @param images Array de imágenes con buffer y mimeType
+   * @param textContext Texto contextual adicional (captions, mensajes de texto del cliente)
+   * @param prompt Instrucciones para el análisis
+   */
+  async analyzeMultipleImages(
+    images: Array<{ buffer: Buffer; mimeType: string }>,
+    textContext: string | null,
+    prompt: string,
+  ): Promise<string> {
+    if (!this.isConfigured) {
+      throw new Error('OpenAI no está configurado');
+    }
+
+    const content: Array<any> = [
+      { type: 'text', text: prompt },
+    ];
+
+    for (const image of images) {
+      const base64Image = image.buffer.toString('base64');
+      const imageMediaType = image.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+      content.push({
+        type: 'image_url',
+        image_url: {
+          url: `data:${imageMediaType};base64,${base64Image}`,
+          detail: 'high',
+        },
+      });
+    }
+
+    if (textContext) {
+      content.push({
+        type: 'text',
+        text: `Texto adicional enviado por el cliente: ${textContext}`,
+      });
+    }
+
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content }],
+        max_tokens: 800,
+      });
+
+      return response.choices[0]?.message?.content || '';
+    } catch (error) {
+      this.logger.error(`Error al analizar múltiples imágenes con OpenAI: ${error.message}`);
+      throw error;
+    }
+  }
 }

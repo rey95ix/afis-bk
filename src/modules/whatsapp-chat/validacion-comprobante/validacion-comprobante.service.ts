@@ -22,7 +22,7 @@ export class ValidacionComprobanteService {
     private readonly comprobanteAnalyzer: ComprobanteAnalyzerService,
     @Inject(forwardRef(() => WhatsAppChatGateway))
     private readonly chatGateway: WhatsAppChatGateway,
-  ) {}
+  ) { }
 
   /**
    * Enviar una imagen de mensaje a validación
@@ -60,12 +60,11 @@ export class ValidacionComprobanteService {
     // 3. Descargar imagen de MinIO
     let imageBuffer: Buffer;
     try {
-      console.log(message.url_media)
       let url = message.url_media.replace('https://docs.edal.group/clientes-documentos/', '');
-      url = url.split('?')[0]; // Eliminar parámetros de consulta si existen
-      message.url_media = url;
-      console.log(message.url_media)
-      imageBuffer = await this.minioService.getFile(message.url_media);
+      url = url.split('?')[0];
+      url = decodeURIComponent(url);
+      console.log(url)
+      imageBuffer = await this.minioService.getFile(url);
     } catch (error) {
       this.logger.error(`Error al descargar imagen de MinIO: ${error.message}`);
       throw new BadRequestException('No se pudo acceder a la imagen del mensaje');
@@ -126,6 +125,178 @@ export class ValidacionComprobanteService {
   }
 
   /**
+   * Enviar múltiples mensajes (imágenes + textos) como una sola validación
+   * @param messageIds IDs de los mensajes seleccionados
+   * @param userId ID del usuario que envía a validación
+   */
+  async enviarAValidacionMulti(messageIds: number[], userId: number) {
+    // 1. Fetch todos los mensajes
+    const messages = await this.prisma.whatsapp_message.findMany({
+      where: { id_message: { in: messageIds } },
+      include: { chat: true },
+      orderBy: { fecha_creacion: 'asc' },
+    });
+
+    if (messages.length !== messageIds.length) {
+      throw new NotFoundException('Uno o más mensajes no fueron encontrados');
+    }
+
+    // 2. Validar que todos pertenezcan al mismo chat
+    const chatIds = new Set(messages.map(m => m.id_chat));
+    if (chatIds.size > 1) {
+      throw new BadRequestException('Todos los mensajes deben pertenecer al mismo chat');
+    }
+    const idChat = messages[0].id_chat;
+
+    // 3. Validar que al menos uno sea IMAGEN con url_media
+    const imageMessages = messages.filter(m => m.tipo === 'IMAGEN' && m.url_media);
+    if (imageMessages.length === 0) {
+      throw new BadRequestException('Debe seleccionar al menos una imagen');
+    }
+
+    // 4. Validar tipos permitidos
+    const invalidMessages = messages.filter(m => m.tipo !== 'IMAGEN' && m.tipo !== 'TEXTO');
+    if (invalidMessages.length > 0) {
+      throw new BadRequestException('Solo se permiten mensajes de tipo IMAGEN o TEXTO');
+    }
+
+    // 5. Verificar que ninguno tenga validación existente (legacy id_message o junction table)
+    const existingValidations = await this.prisma.whatsapp_validacion_comprobante.findMany({
+      where: { id_message: { in: messageIds } },
+    });
+    if (existingValidations.length > 0) {
+      throw new BadRequestException('Uno o más mensajes ya fueron enviados a validación');
+    }
+
+    const existingJunction = await this.prisma.whatsapp_validacion_mensaje.findMany({
+      where: { id_message: { in: messageIds } },
+    });
+    if (existingJunction.length > 0) {
+      throw new BadRequestException('Uno o más mensajes ya están asociados a una validación existente');
+    }
+
+    // 6. Descargar imágenes de MinIO
+    const images: Array<{ buffer: Buffer; mimeType: string }> = [];
+    for (const msg of imageMessages) {
+      try {
+        let url = msg.url_media!.replace('https://docs.edal.group:443/clientes-documentos/', '');
+        url = url!.replace('https://docs.edal.group/clientes-documentos/', '');
+        url = url.split('?')[0];
+        url = decodeURIComponent(url);
+        const buffer = await this.minioService.getFile(url);
+        images.push({ buffer, mimeType: msg.tipo_media || 'image/jpeg' });
+      } catch (error) {
+        this.logger.error(`Error al descargar imagen ${msg.id_message} de MinIO: ${error.message}`);
+        throw new BadRequestException(`No se pudo acceder a la imagen del mensaje ${msg.id_message}`);
+      }
+    }
+
+    // 7. Recopilar texto de mensajes TEXTO y captions reales
+    const placeholders = ['[Imagen]', '[Video]', '[Audio]', '[Documento]'];
+    const textParts: string[] = [];
+    for (const msg of messages) {
+      if (msg.tipo === 'TEXTO' && msg.contenido) {
+        textParts.push(msg.contenido);
+      } else if (msg.tipo === 'IMAGEN' && msg.contenido && !placeholders.includes(msg.contenido)) {
+        textParts.push(msg.contenido);
+      }
+    }
+    const textContext = textParts.length > 0 ? textParts.join('\n') : null;
+
+    // 8. Llamar al analyzer
+    let extractionResult;
+    if (images.length === 1 && !textContext) {
+      extractionResult = await this.comprobanteAnalyzer.extractComprobanteData(
+        images[0].buffer,
+        images[0].mimeType,
+      );
+    } else {
+      extractionResult = await this.comprobanteAnalyzer.extractComprobanteDataMulti(
+        images,
+        textContext,
+      );
+    }
+
+    // 9. Crear validación + junction records en transacción
+    const firstImageId = imageMessages[0].id_message;
+    const validacion = await this.prisma.$transaction(async (tx) => {
+      const val = await tx.whatsapp_validacion_comprobante.create({
+        data: {
+          id_message: firstImageId,
+          id_chat: idChat,
+          monto: extractionResult.monto,
+          fecha_transaccion: extractionResult.fecha_transaccion
+            ? new Date(extractionResult.fecha_transaccion)
+            : null,
+          numero_referencia: extractionResult.numero_referencia,
+          banco: extractionResult.banco,
+          cuenta_origen: extractionResult.cuenta_origen,
+          cuenta_destino: extractionResult.cuenta_destino,
+          nombre_titular: extractionResult.nombre_titular,
+          confianza: extractionResult.confianza,
+          estado: 'PENDIENTE',
+          id_usuario_envia: userId,
+        },
+      });
+
+      // Crear registros en la tabla de unión
+      const junctionData = messages.map((msg, index) => ({
+        id_validacion: val.id_validacion,
+        id_message: msg.id_message,
+        tipo: msg.tipo as any,
+        orden: index,
+      }));
+
+      await tx.whatsapp_validacion_mensaje.createMany({ data: junctionData });
+
+      const result = await tx.whatsapp_validacion_comprobante.findUnique({
+        where: { id_validacion: val.id_validacion },
+        include: {
+          message: true,
+          mensajes_validacion: {
+            include: {
+              message: {
+                select: {
+                  id_message: true,
+                  url_media: true,
+                  contenido: true,
+                  tipo: true,
+                  fecha_creacion: true,
+                },
+              },
+            },
+            orderBy: { orden: 'asc' },
+          },
+          chat: {
+            select: {
+              id_chat: true,
+              telefono_cliente: true,
+              nombre_cliente: true,
+            },
+          },
+          usuario_envia: {
+            select: { id_usuario: true, nombres: true, apellidos: true },
+          },
+        },
+      });
+
+      return result!;
+    });
+
+    this.logger.log(`Validación multi-mensaje creada: ${validacion.id_validacion} con ${messages.length} mensajes`);
+
+    // Emitir evento WebSocket
+    this.chatGateway.server.emit('validacion:nueva', {
+      id_validacion: validacion.id_validacion,
+      id_chat: validacion.id_chat,
+      monto: validacion.monto,
+      banco: validacion.banco,
+    });
+
+    return validacion;
+  }
+
+  /**
    * Listar validaciones con filtros y paginación
    */
   async findAll(query: QueryValidacionDto) {
@@ -165,6 +336,20 @@ export class ValidacionComprobanteService {
               contenido: true,
               fecha_creacion: true,
             },
+          },
+          mensajes_validacion: {
+            include: {
+              message: {
+                select: {
+                  id_message: true,
+                  url_media: true,
+                  contenido: true,
+                  tipo: true,
+                  fecha_creacion: true,
+                },
+              },
+            },
+            orderBy: { orden: 'asc' },
           },
           chat: {
             select: {
@@ -230,6 +415,20 @@ export class ValidacionComprobanteService {
             contenido: true,
             fecha_creacion: true,
           },
+        },
+        mensajes_validacion: {
+          include: {
+            message: {
+              select: {
+                id_message: true,
+                url_media: true,
+                contenido: true,
+                tipo: true,
+                fecha_creacion: true,
+              },
+            },
+          },
+          orderBy: { orden: 'asc' },
         },
         chat: {
           select: {
