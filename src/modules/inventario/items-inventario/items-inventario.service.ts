@@ -309,7 +309,7 @@ export class ItemsInventarioService {
       id_estante,
       estado,
       page = 1,
-      limit = 100,
+      limit = 500,
       search,
     } = queryDto;
 
@@ -1648,7 +1648,7 @@ export class ItemsInventarioService {
     const {
       id_bodega,
       page = 1,
-      limit = 10,
+      limit = 500,
       search,
     } = queryDto;
 

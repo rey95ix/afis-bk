@@ -60,7 +60,7 @@ export class QuerySeriesDisponiblesDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  limit?: number = 100;
+  limit?: number = 500;
 
   @ApiPropertyOptional({
     description: 'Búsqueda por número de serie o MAC address',
