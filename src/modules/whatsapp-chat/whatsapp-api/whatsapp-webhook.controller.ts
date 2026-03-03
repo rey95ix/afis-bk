@@ -20,7 +20,7 @@ import { MessageService, WhatsAppErrorInfo } from '../message/message.service';
 import { RuleEngineService } from '../ia/rule-engine.service';
 import { OpenAIChatService } from '../ia/openai-chat.service';
 import { WhatsAppChatGateway } from '../whatsapp-chat.gateway';
-import { AssignmentService } from '../assignment/assignment.service';
+import { ValidacionComprobanteService } from '../validacion-comprobante/validacion-comprobante.service';
 
 /**
  * Mapeo de códigos de error de WhatsApp a mensajes en español
@@ -44,6 +44,7 @@ const INVALID_NUMBER_ERROR_CODES = new Set([131026, 131051]);
 @Controller('api/atencion-al-cliente/whatsapp-chat/webhook')
 export class WhatsAppWebhookController {
   private readonly logger = new Logger(WhatsAppWebhookController.name);
+  private readonly imageBuffer = new Map<number, { messageIds: number[]; timer: NodeJS.Timeout }>();
 
   constructor(
     private readonly whatsappApiService: WhatsAppApiService,
@@ -52,7 +53,7 @@ export class WhatsAppWebhookController {
     private readonly ruleEngineService: RuleEngineService,
     private readonly openaiChatService: OpenAIChatService,
     private readonly chatGateway: WhatsAppChatGateway,
-    private readonly assignmentService: AssignmentService,
+    private readonly validacionComprobanteService: ValidacionComprobanteService,
   ) { }
 
   /**
@@ -276,6 +277,11 @@ export class WhatsAppWebhookController {
         mediaType,
       );
 
+      // Auto-validación de comprobantes: acumular imágenes con debounce de 5s
+      if (tipo === 'IMAGEN') {
+        this.bufferImageForValidation(chat.id_chat, savedMessage.id_message);
+      }
+
       // Emitir nuevo mensaje via WebSocket
       this.chatGateway.emitNewMessage(chat.id_chat, savedMessage);
 
@@ -380,6 +386,42 @@ export class WhatsAppWebhookController {
       this.chatGateway.emitNumberInvalid(message.id_chat, chat.telefono_cliente, errorInfo);
     } catch (error) {
       this.logger.error(`Error handling invalid number: ${error.message}`);
+    }
+  }
+
+  /**
+   * Acumular imagen en buffer con debounce de 5s para auto-validación de comprobantes
+   */
+  private bufferImageForValidation(chatId: number, messageId: number) {
+    const existing = this.imageBuffer.get(chatId);
+
+    if (existing) {
+      existing.messageIds.push(messageId);
+      clearTimeout(existing.timer);
+      existing.timer = setTimeout(() => this.flushImageBuffer(chatId), 5000);
+    } else {
+      const timer = setTimeout(() => this.flushImageBuffer(chatId), 5000);
+      this.imageBuffer.set(chatId, { messageIds: [messageId], timer });
+    }
+
+    this.logger.log(`Image buffered for chat ${chatId}: ${this.imageBuffer.get(chatId)!.messageIds.length} image(s) pending`);
+  }
+
+  /**
+   * Disparar validación de comprobantes y limpiar buffer
+   */
+  private async flushImageBuffer(chatId: number) {
+    const entry = this.imageBuffer.get(chatId);
+    if (!entry || entry.messageIds.length === 0) return;
+
+    const messageIds = [...entry.messageIds];
+    this.imageBuffer.delete(chatId);
+
+    try {
+      this.logger.log(`Flushing image buffer for chat ${chatId}: ${messageIds.length} image(s) → enviarAValidacionMulti`);
+      await this.validacionComprobanteService.enviarAValidacionMulti(messageIds, 1);
+    } catch (error) {
+      this.logger.error(`Auto-validation failed for chat ${chatId}: ${error.message}`);
     }
   }
 

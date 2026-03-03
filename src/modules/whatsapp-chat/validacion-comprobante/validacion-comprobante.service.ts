@@ -80,6 +80,30 @@ export class ValidacionComprobanteService {
       mimeType,
     );
 
+    // 4.1 Verificar que sea un comprobante de transferencia
+    if (!extractionResult.es_comprobante) {
+      throw new BadRequestException('La imagen no es un comprobante de transferencia bancaria');
+    }
+
+    // 4.5 Verificar duplicado por numero_referencia + banco_origen
+    if (extractionResult.numero_referencia) {
+      const duplicateWhere: any = {
+        numero_referencia: extractionResult.numero_referencia,
+        estado: { notIn: ['RECHAZADO'] },
+      };
+      if (extractionResult.banco_origen) {
+        duplicateWhere.banco_origen = extractionResult.banco_origen;
+      }
+      const duplicate = await this.prisma.whatsapp_validacion_comprobante.findFirst({
+        where: duplicateWhere,
+      });
+      if (duplicate) {
+        throw new BadRequestException(
+          `Ya existe una validación (#${duplicate.id_validacion}) con referencia ${extractionResult.numero_referencia}`,
+        );
+      }
+    }
+
     // 5. Resolver cuenta bancaria destino
     const cuentaMatch = await this.resolverCuentaBancaria(extractionResult.cuenta_destino);
     const enrichedBanco = extractionResult.banco || cuentaMatch?.banco_nombre || null;
@@ -233,6 +257,30 @@ export class ValidacionComprobanteService {
         images,
         textContext,
       );
+    }
+
+    // 8.1 Verificar que sea un comprobante de transferencia
+    if (!extractionResult.es_comprobante) {
+      throw new BadRequestException('La imagen no es un comprobante de transferencia bancaria');
+    }
+
+    // 8.5 Verificar duplicado por numero_referencia + banco_origen
+    if (extractionResult.numero_referencia) {
+      const duplicateWhere: any = {
+        numero_referencia: extractionResult.numero_referencia,
+        estado: { notIn: ['RECHAZADO'] },
+      };
+      if (extractionResult.banco_origen) {
+        duplicateWhere.banco_origen = extractionResult.banco_origen;
+      }
+      const duplicate = await this.prisma.whatsapp_validacion_comprobante.findFirst({
+        where: duplicateWhere,
+      });
+      if (duplicate) {
+        throw new BadRequestException(
+          `Ya existe una validación (#${duplicate.id_validacion}) con referencia ${extractionResult.numero_referencia}`,
+        );
+      }
     }
 
     // 9. Resolver cuenta bancaria destino

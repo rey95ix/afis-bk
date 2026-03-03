@@ -2,6 +2,7 @@
  * Resultado de la extracción de datos del comprobante bancario por IA
  */
 export interface ComprobanteExtractionResult {
+  es_comprobante: boolean; // true si la imagen es un comprobante de transferencia bancaria
   monto: number | null;
   fecha_transaccion: string | null; // Formato YYYY-MM-DD
   numero_referencia: string | null;

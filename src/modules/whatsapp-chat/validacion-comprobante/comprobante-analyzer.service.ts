@@ -12,6 +12,7 @@ export class ComprobanteAnalyzerService {
   private readonly EXTRACTION_PROMPT = `Analiza esta imagen de comprobante de transferencia bancaria de El Salvador.
 
 INSTRUCCIONES:
+0. PRIMERO determina si la imagen es un COMPROBANTE DE TRANSFERENCIA BANCARIA válido. Si la imagen NO es un comprobante (ej: factura, foto, captura irrelevante, meme, etc.), establece es_comprobante en false y todos los demás campos en null.
 1. Extrae el MONTO transferido (número decimal, sin símbolos de moneda)
 2. Extrae la FECHA de la transacción (formato YYYY-MM-DD)
 3. Extrae el NÚMERO DE REFERENCIA o comprobante
@@ -30,7 +31,7 @@ Evalúa tu confianza general:
 - "baja": imagen borrosa o de mala calidad
 
 Responde ÚNICAMENTE con JSON válido, sin markdown ni backticks:
-{"monto": 150.00, "fecha_transaccion": "2025-01-14", "numero_referencia": "ABC123456", "banco": "Bancoagrícola", "banco_origen": "BAC", "es_transferencia_365": true, "cuenta_origen": "****5678", "cuenta_destino": "00112345678", "nombre_titular": "Juan Pérez", "nombre_cliente": "Maria Lopez", "confianza": "alta"}`;
+{"es_comprobante": true, "monto": 150.00, "fecha_transaccion": "2025-01-14", "numero_referencia": "ABC123456", "banco": "Bancoagrícola", "banco_origen": "BAC", "es_transferencia_365": true, "cuenta_origen": "****5678", "cuenta_destino": "00112345678", "nombre_titular": "Juan Pérez", "nombre_cliente": "Maria Lopez", "confianza": "alta"}`;
 
   constructor(private readonly openaiService: OpenaiService) {}
 
@@ -140,6 +141,7 @@ Responde ÚNICAMENTE con JSON válido, sin markdown ni backticks:
    */
   private validateAndNormalize(data: any): ComprobanteExtractionResult {
     return {
+      es_comprobante: data.es_comprobante === true,
       monto: typeof data.monto === 'number' ? data.monto : null,
       fecha_transaccion: this.validateDate(data.fecha_transaccion),
       numero_referencia: data.numero_referencia || null,
@@ -182,6 +184,7 @@ Responde ÚNICAMENTE con JSON válido, sin markdown ni backticks:
    */
   private getEmptyResult(confianza: 'alta' | 'media' | 'baja'): ComprobanteExtractionResult {
     return {
+      es_comprobante: false,
       monto: null,
       fecha_transaccion: null,
       numero_referencia: null,
