@@ -7,8 +7,11 @@ import {
   Query,
   Body,
   Request,
+  Res,
   ParseIntPipe,
+  HttpStatus,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -99,6 +102,36 @@ export class ValidacionComprobanteController {
   @ApiResponse({ status: 200, description: 'Estadísticas obtenidas exitosamente' })
   getStats() {
     return this.service.getStats();
+  }
+
+  @RequirePermissions('atencion_cliente.whatsapp_validaciones:ver')
+  @Get('excel')
+  @ApiOperation({
+    summary: 'Descargar reporte Excel',
+    description: 'Genera y descarga un reporte Excel de validaciones de comprobantes con los filtros aplicados.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Archivo Excel de validaciones',
+    content: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {},
+    },
+  })
+  async downloadExcel(
+    @Query() query: QueryValidacionDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const buffer = await this.service.generateExcel(query);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `validaciones_comprobantes_${timestamp}.xlsx`;
+
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': buffer.length,
+    });
+
+    res.status(HttpStatus.OK).send(buffer);
   }
 
   @RequirePermissions('atencion_cliente.whatsapp_validaciones:ver')

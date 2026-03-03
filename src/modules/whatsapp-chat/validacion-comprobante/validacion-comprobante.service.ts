@@ -6,6 +6,7 @@ import {
   Inject,
   forwardRef,
 } from '@nestjs/common';
+import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MinioService } from '../../minio/minio.service';
 import { ComprobanteAnalyzerService } from './comprobante-analyzer.service';
@@ -896,5 +897,159 @@ export class ValidacionComprobanteService {
     });
 
     return result;
+  }
+
+  /**
+   * Generar reporte Excel de validaciones con filtros
+   */
+  async generateExcel(query: QueryValidacionDto): Promise<Buffer> {
+    const { estado, fecha_desde, fecha_hasta, banco } = query;
+
+    const where: any = {};
+
+    if (estado) {
+      where.estado = estado;
+    }
+
+    if (fecha_desde || fecha_hasta) {
+      where.fecha_creacion = {};
+      if (fecha_desde) {
+        where.fecha_creacion.gte = new Date(fecha_desde);
+      }
+      if (fecha_hasta) {
+        const endDate = new Date(fecha_hasta);
+        endDate.setDate(endDate.getDate() + 1);
+        where.fecha_creacion.lt = endDate;
+      }
+    }
+
+    if (banco) {
+      where.banco = { contains: banco, mode: 'insensitive' };
+    }
+
+    const data = await this.prisma.whatsapp_validacion_comprobante.findMany({
+      where,
+      include: {
+        chat: {
+          select: { nombre_cliente: true },
+        },
+        usuario_envia: {
+          select: { nombres: true, apellidos: true },
+        },
+        usuario_aplica: {
+          select: { nombres: true, apellidos: true },
+        },
+      },
+      orderBy: { fecha_creacion: 'desc' },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'AFIS - Sistema ERP';
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet('Validaciones');
+
+    // Title
+    sheet.mergeCells('A1:M1');
+    const titleCell = sheet.getCell('A1');
+    titleCell.value = 'REPORTE DE VALIDACIÓN DE COMPROBANTES';
+    titleCell.font = { bold: true, size: 14 };
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    sheet.getRow(1).height = 30;
+
+    // Subtitle
+    sheet.mergeCells('A2:M2');
+    const subtitleCell = sheet.getCell('A2');
+    subtitleCell.value = `Generado: ${new Date().toLocaleString('es-SV')}`;
+    subtitleCell.font = { size: 10, italic: true, color: { argb: 'FF666666' } };
+    subtitleCell.alignment = { horizontal: 'center' };
+
+    // Column definitions
+    const columns = [
+      { header: 'Nombre del Cliente', key: 'nombre_cliente', width: 25 },
+      { header: 'Nombre del Titular', key: 'nombre_titular', width: 25 },
+      { header: 'No Referencia', key: 'numero_referencia', width: 20 },
+      { header: 'Banco', key: 'banco', width: 20 },
+      { header: 'Monto', key: 'monto', width: 15 },
+      { header: 'Hora', key: 'hora', width: 10 },
+      { header: 'Fecha', key: 'fecha', width: 15 },
+      { header: 'Año', key: 'anio', width: 8 },
+      { header: 'Reportado por', key: 'reportado_por', width: 25 },
+      { header: 'Comentario', key: 'comentario', width: 30 },
+      { header: 'Estado', key: 'estado', width: 15 },
+      { header: 'Gestor que Aplicó', key: 'gestor_aplico', width: 25 },
+      { header: 'Fecha de Aplicación', key: 'fecha_aplicacion', width: 20 },
+    ];
+
+    sheet.columns = columns.map((col) => ({ key: col.key, width: col.width }));
+
+    // Header row (row 4, after title and subtitle + blank row)
+    const headerRow = sheet.getRow(4);
+    columns.forEach((col, i) => {
+      headerRow.getCell(i + 1).value = col.header;
+    });
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF2E7D32' },
+      };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
+      };
+    });
+    headerRow.height = 25;
+
+    // Data rows
+    let rowIndex = 5;
+    for (const record of data) {
+      const fechaTx = record.fecha_transaccion ? new Date(record.fecha_transaccion) : null;
+      const fechaApp = record.fecha_aplicacion ? new Date(record.fecha_aplicacion) : null;
+
+      const row = sheet.getRow(rowIndex);
+      row.getCell(1).value = record.nombre_cliente || '';
+      row.getCell(2).value = record.nombre_titular || '';
+      row.getCell(3).value = record.numero_referencia || '';
+      row.getCell(4).value = record.banco || '';
+      row.getCell(5).value = record.monto ? Number(record.monto) : 0;
+      row.getCell(5).numFmt = '$#,##0.00';
+      row.getCell(6).value = fechaTx
+        ? fechaTx.toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', hour12: false })
+        : '';
+      row.getCell(7).value = fechaTx
+        ? fechaTx.toLocaleDateString('es-SV', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        : '';
+      row.getCell(8).value = fechaTx ? fechaTx.getFullYear() : '';
+      row.getCell(9).value = record.usuario_envia
+        ? `${record.usuario_envia.nombres} ${record.usuario_envia.apellidos}`.trim()
+        : '';
+      row.getCell(10).value = record.comentario_rechazo || '';
+      row.getCell(11).value = record.estado || '';
+      row.getCell(12).value = record.usuario_aplica
+        ? `${record.usuario_aplica.nombres} ${record.usuario_aplica.apellidos}`.trim()
+        : '';
+      row.getCell(13).value = fechaApp
+        ? fechaApp.toLocaleString('es-SV', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        : '';
+
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        };
+      });
+
+      rowIndex++;
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
   }
 }
