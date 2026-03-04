@@ -367,6 +367,13 @@ export class ChatService {
       throw new NotFoundException(`Chat con ID ${id} no encontrado`);
     }
 
+    // Bloquear reapertura manual de chats CERRADOS
+    if (chat.estado === 'CERRADO' && updateChatDto.estado && updateChatDto.estado !== 'CERRADO') {
+      throw new BadRequestException(
+        'No se puede reabrir un chat cerrado directamente. Use una plantilla para reiniciar la conversacion.',
+      );
+    }
+
     // Si se está vinculando a un cliente, verificar que existe
     if (updateChatDto.id_cliente) {
       const cliente = await this.prisma.cliente.findUnique({
@@ -1035,8 +1042,8 @@ export class ChatService {
       };
     }
 
-    // Buscar chat activo (no CERRADO) con este teléfono
-    const chat = await this.prisma.whatsapp_chat.findFirst({
+    // Paso 1: Buscar chat activo (no CERRADO)
+    const activeChat = await this.prisma.whatsapp_chat.findFirst({
       where: {
         telefono_cliente: telefono,
         estado: { not: 'CERRADO' },
@@ -1047,6 +1054,22 @@ export class ChatService {
         nombre_cliente: true,
       },
     });
+
+    // Paso 2: Si no hay activo, buscar el CERRADO más reciente
+    const chat =
+      activeChat ??
+      (await this.prisma.whatsapp_chat.findFirst({
+        where: {
+          telefono_cliente: telefono,
+          estado: 'CERRADO',
+        },
+        select: {
+          id_chat: true,
+          estado: true,
+          nombre_cliente: true,
+        },
+        orderBy: { fecha_cierre: 'desc' },
+      }));
 
     if (!chat) {
       return { exists: false };

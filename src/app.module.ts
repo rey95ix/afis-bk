@@ -15,8 +15,8 @@ import { WhatsAppChatModule } from './modules/whatsapp-chat/whatsapp-chat.module
 import { MigrationModule } from './modules/migration/migration.module';
 import { BancosModule } from './modules/bancos/bancos.module';
 import { CxcModule } from './modules/cxc/cxc.module';
-import { CxpModule } from './modules/cxp/cxp.module';
-// import { UtilidadesModule } from './modules/utilidades/utilidades.module';
+import { CxpModule } from './modules/cxp/cxp.module'; 
+
 
 @Module({
   imports: [

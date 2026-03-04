@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { convertToUTC } from 'src/common/helpers';
 
 interface DateRange {
   desde?: string;
@@ -24,6 +25,8 @@ export class AnalyticsService {
       chatsCerrados,
       promedioTiempoRespuesta,
       totalMensajes,
+      plantillasExitosas,
+      plantillasFallidas,
     ] = await Promise.all([
       // Total de chats
       this.prisma.whatsapp_chat.count({
@@ -57,6 +60,24 @@ export class AnalyticsService {
       this.prisma.whatsapp_message.count({
         where: { chat: dateFilter },
       }),
+      // Plantillas exitosas
+      this.prisma.whatsapp_message.count({
+        where: {
+          tipo: 'PLANTILLA',
+          direccion: 'SALIENTE',
+          estado: { in: ['ENVIADO', 'ENTREGADO', 'LEIDO'] },
+          chat: dateFilter,
+        },
+      }),
+      // Plantillas fallidas
+      this.prisma.whatsapp_message.count({
+        where: {
+          tipo: 'PLANTILLA',
+          direccion: 'SALIENTE',
+          estado: 'FALLIDO',
+          chat: dateFilter,
+        },
+      }),
     ]);
 
     // Chats por hora (últimas 24 horas)
@@ -82,6 +103,8 @@ export class AnalyticsService {
       promedio_tiempo_primera_respuesta_seg:
         Math.round(promedioTiempoRespuesta._avg.tiempo_primera_respuesta || 0),
       total_mensajes: totalMensajes,
+      plantillas_exitosas: plantillasExitosas,
+      plantillas_fallidas: plantillasFallidas,
       chats_por_hora: chatsPorHora,
     };
   }
@@ -355,10 +378,10 @@ export class AnalyticsService {
     const filter: any = { fecha_creacion: {} };
 
     if (range.desde) {
-      filter.fecha_creacion.gte = new Date(range.desde);
+      filter.fecha_creacion.gte = convertToUTC(range.desde);
     }
     if (range.hasta) {
-      filter.fecha_creacion.lte = new Date(range.hasta);
+      filter.fecha_creacion.lte = convertToUTC(range.hasta,"fin");
     }
 
     return filter;

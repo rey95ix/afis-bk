@@ -279,8 +279,16 @@ export class MessageService {
       throw new NotFoundException(`Chat con ID ${chatId} no encontrado`);
     }
 
+    // Si el chat está cerrado, reabrirlo temporalmente para enviar la plantilla
     if (chat.estado === 'CERRADO') {
-      throw new BadRequestException('No se puede enviar mensajes a un chat cerrado');
+      await this.prisma.whatsapp_chat.update({
+        where: { id_chat: chatId },
+        data: {
+          estado: 'ABIERTO',
+          fecha_cierre: null,
+        },
+      });
+      chat.estado = 'ABIERTO';
     }
 
     // Obtener la plantilla
