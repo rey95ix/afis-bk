@@ -36,6 +36,7 @@ export class ContratosMigrationService {
 
   /**
    * Ejecuta la migración completa de contratos
+   * @deprecated Usar MigrationService.migrateAllClientesUnified() que migra contratos dentro del pipeline por cliente
    */
   async migrate(
     options: MigrationOptions,

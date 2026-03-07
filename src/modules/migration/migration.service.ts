@@ -16,8 +16,10 @@ import {
   MigrationLog,
   SingleClienteMigrationResult,
   MigrationError,
+  BulkClienteMigrationResult,
 } from './interfaces/mapping.interface';
 import { MigrationModule, MigrateClienteOptionsDto } from './dto/migration-config.dto';
+import { RowDataPacket } from 'mysql2/promise';
 
 @Injectable()
 export class MigrationService {
@@ -216,17 +218,36 @@ export class MigrationService {
         case MigrationModule.CATALOGOS:
           result = await this.catalogosMigration.migrate(options, this.mappings);
           break;
-        case MigrationModule.CLIENTES:
-          result = await this.clientesMigration.migrate(options, this.mappings);
+        case MigrationModule.CLIENTES: {
+          const bulkResult = await this.migrateAllClientesUnified(options);
+          result = {
+            module: 'clientes',
+            success: bulkResult.errorCount === 0,
+            totalRecords: bulkResult.totalClients,
+            migratedRecords: bulkResult.successCount,
+            skippedRecords: 0,
+            errors: bulkResult.clientErrors.flatMap(ce => ce.errors),
+            duration: bulkResult.duration,
+            startedAt: this.status.startedAt || new Date(),
+            completedAt: new Date(),
+          };
           break;
+        }
         case MigrationModule.CONTRATOS:
-          result = await this.contratosMigration.migrate(options, this.mappings);
-          break;
         case MigrationModule.DOCUMENTOS:
-          result = await this.documentosMigration.migrate(options, this.mappings);
-          break;
         case MigrationModule.FACTURACION:
-          result = await this.facturacionMigration.migrate(options, this.mappings);
+          this.addLog('WARN', module, 'Este módulo se ejecuta automáticamente con la migración de clientes');
+          result = {
+            module,
+            success: true,
+            totalRecords: 0,
+            migratedRecords: 0,
+            skippedRecords: 0,
+            errors: [],
+            duration: 0,
+            startedAt: new Date(),
+            completedAt: new Date(),
+          };
           break;
         default:
           throw new Error(`Módulo desconocido: ${module}`);
@@ -250,23 +271,6 @@ export class MigrationService {
         );
       }
 
-      // Generar facturas pendientes después de migrar contratos
-      if (module === MigrationModule.CONTRATOS && !options.dryRun) {
-        const contratosActivos = await this.prisma.atcContrato.findMany({
-          where: { estado: 'INSTALADO_ACTIVO' },
-          select: { id_contrato: true },
-        });
-
-        if (contratosActivos.length > 0) {
-          const facturasResult = await this.generateFacturasForMigratedContratos(
-            contratosActivos.map(c => c.id_contrato),
-            1,
-          );
-          this.addLog('INFO', 'contratos',
-            `Facturas pendientes generadas para ${facturasResult.generated} contratos`);
-        }
-      }
-
       return result;
     } catch (error) {
       this.addLog(
@@ -279,6 +283,7 @@ export class MigrationService {
     } finally {
       this.status.isRunning = false;
       this.status.currentModule = null;
+      this.status.clientProgress = undefined;
       this.status.lastUpdatedAt = new Date();
     }
   }
@@ -294,28 +299,18 @@ export class MigrationService {
       throw new Error('Ya hay una migración en curso');
     }
 
-    // Orden de módulos según dependencias
-    const moduleOrder: MigrationModule[] = [
-      MigrationModule.CATALOGOS,
-      MigrationModule.CLIENTES,
-      MigrationModule.CONTRATOS,
-      MigrationModule.DOCUMENTOS,
-      MigrationModule.FACTURACION,
-    ];
+    // Fases simplificadas: catálogos + pipeline unificado de clientes
+    const phases: MigrationModule[] = [MigrationModule.CATALOGOS, MigrationModule.CLIENTES];
+    const phasesToRun = phases.filter((m) => !excludeModules.includes(m));
 
-    // Filtrar módulos excluidos
-    const modulesToRun = moduleOrder.filter(
-      (m) => !excludeModules.includes(m),
-    );
-
-    this.addLog('INFO', 'migration', `Iniciando migración completa de ${modulesToRun.length} módulos`);
+    this.addLog('INFO', 'migration', `Iniciando migración completa de ${phasesToRun.length} fases (catálogos + pipeline unificado de clientes)`);
 
     // Resetear estado
     this.status = {
       isRunning: true,
       currentModule: null,
       completedModules: [],
-      pendingModules: [...modulesToRun],
+      pendingModules: [...phasesToRun],
       totalProgress: 0,
       startedAt: new Date(),
       lastUpdatedAt: new Date(),
@@ -328,34 +323,36 @@ export class MigrationService {
     const results: MigrationModuleResult[] = [];
 
     try {
-      for (let i = 0; i < modulesToRun.length; i++) {
-        const module = modulesToRun[i];
+      for (let i = 0; i < phasesToRun.length; i++) {
+        const module = phasesToRun[i];
         this.status.currentModule = module;
-        this.status.pendingModules = modulesToRun.slice(i + 1);
-        this.status.totalProgress = Math.round((i / modulesToRun.length) * 100);
+        this.status.pendingModules = phasesToRun.slice(i + 1);
+        this.status.totalProgress = Math.round((i / phasesToRun.length) * 100);
         this.status.lastUpdatedAt = new Date();
 
-        this.addLog('INFO', 'migration', `Ejecutando módulo ${i + 1}/${modulesToRun.length}: ${module}`);
+        this.addLog('INFO', 'migration', `Ejecutando fase ${i + 1}/${phasesToRun.length}: ${module}`);
 
-        // Ejecutar módulo (sin actualizar el estado general ya que lo manejamos aquí)
         let result: MigrationModuleResult;
 
         switch (module) {
           case MigrationModule.CATALOGOS:
             result = await this.catalogosMigration.migrate(options, this.mappings);
             break;
-          case MigrationModule.CLIENTES:
-            result = await this.clientesMigration.migrate(options, this.mappings);
+          case MigrationModule.CLIENTES: {
+            const bulkResult = await this.migrateAllClientesUnified(options);
+            result = {
+              module: 'clientes',
+              success: bulkResult.errorCount === 0,
+              totalRecords: bulkResult.totalClients,
+              migratedRecords: bulkResult.successCount,
+              skippedRecords: 0,
+              errors: bulkResult.clientErrors.flatMap(ce => ce.errors),
+              duration: bulkResult.duration,
+              startedAt: this.status.startedAt || new Date(),
+              completedAt: new Date(),
+            };
             break;
-          case MigrationModule.CONTRATOS:
-            result = await this.contratosMigration.migrate(options, this.mappings);
-            break;
-          case MigrationModule.DOCUMENTOS:
-            result = await this.documentosMigration.migrate(options, this.mappings);
-            break;
-          case MigrationModule.FACTURACION:
-            result = await this.facturacionMigration.migrate(options, this.mappings);
-            break;
+          }
           default:
             throw new Error(`Módulo desconocido: ${module}`);
         }
@@ -368,35 +365,17 @@ export class MigrationService {
           this.addLog(
             'INFO',
             module,
-            `Módulo completado: ${result.migratedRecords}/${result.totalRecords} registros en ${result.duration}ms`,
+            `Fase completada: ${result.migratedRecords}/${result.totalRecords} registros en ${result.duration}ms`,
           );
         } else {
           this.addLog(
             'WARN',
             module,
-            `Módulo completado con ${result.errors.length} errores`,
+            `Fase completada con ${result.errors.length} errores`,
           );
 
-          // Si no continuar en error, detener
           if (!options.continueOnError && result.errors.length > 0) {
-            throw new Error(`Errores en módulo ${module}`);
-          }
-        }
-
-        // Generar facturas pendientes después de migrar contratos
-        if (module === MigrationModule.CONTRATOS && !options.dryRun) {
-          const contratosActivos = await this.prisma.atcContrato.findMany({
-            where: { estado: 'INSTALADO_ACTIVO' },
-            select: { id_contrato: true },
-          });
-
-          if (contratosActivos.length > 0) {
-            const facturasResult = await this.generateFacturasForMigratedContratos(
-              contratosActivos.map(c => c.id_contrato),
-              1,
-            );
-            this.addLog('INFO', 'contratos',
-              `Facturas pendientes generadas para ${facturasResult.generated} contratos`);
+            throw new Error(`Errores en fase ${module}`);
           }
         }
       }
@@ -415,6 +394,7 @@ export class MigrationService {
     } finally {
       this.status.isRunning = false;
       this.status.currentModule = null;
+      this.status.clientProgress = undefined;
       this.status.lastUpdatedAt = new Date();
     }
   }
@@ -458,6 +438,120 @@ export class MigrationService {
   }
 
   /**
+   * Migración masiva unificada: itera todos los clientes y ejecuta el pipeline completo
+   * (cliente → contratos → documentos → facturas) por cada uno usando migrateClienteById().
+   */
+  private async migrateAllClientesUnified(
+    options: MigrationOptions,
+  ): Promise<BulkClienteMigrationResult> {
+    const startedAt = Date.now();
+
+    // Asegurar catálogos cargados
+    if (this.mappings.departamentos.size === 0) {
+      this.addLog('INFO', 'clientes-unified', 'Cargando catálogos previo a migración masiva...');
+      await this.catalogosMigration.migrate(
+        { batchSize: 500, skipExisting: true, dryRun: false, continueOnError: true, maxRetries: 3 },
+        this.mappings,
+      );
+    }
+
+    // Obtener todos los IDs de clientes desde MySQL
+    const rows = await this.mysql.query<(RowDataPacket & { id_customers: number })[]>(
+      'SELECT id_customers FROM tbl_customers WHERE customers_status IN (0,1,2,4,9,12) ORDER BY id_customers',
+    );
+    const clientIds = rows.map(r => r.id_customers);
+
+    this.addLog('INFO', 'clientes-unified', `Iniciando migración unificada de ${clientIds.length} clientes`);
+
+    let successCount = 0;
+    let errorCount = 0;
+    const clientErrors: Array<{ mysqlId: number; errors: MigrationError[] }> = [];
+
+    // Inicializar progreso
+    this.status.clientProgress = {
+      currentClientIndex: 0,
+      totalClients: clientIds.length,
+      currentMysqlId: null,
+      successCount: 0,
+      errorCount: 0,
+    };
+
+    for (let i = 0; i < clientIds.length; i++) {
+      const mysqlId = clientIds[i];
+
+      // Actualizar progreso
+      this.status.clientProgress = {
+        currentClientIndex: i + 1,
+        totalClients: clientIds.length,
+        currentMysqlId: mysqlId,
+        successCount,
+        errorCount,
+      };
+      this.status.lastUpdatedAt = new Date();
+
+      try {
+        const result = await this.migrateClienteById(mysqlId, {
+          includeContratos: true,
+          includeDocumentos: options.includeDocumentos ?? false,
+          includeFacturas: true,
+          dryRun: options.dryRun,
+        });
+
+        if (result.errors.length > 0) {
+          errorCount++;
+          clientErrors.push({ mysqlId, errors: result.errors });
+
+          if (!options.continueOnError) {
+            this.addLog('ERROR', 'clientes-unified', `Deteniendo migración por error en cliente ${mysqlId}`);
+            break;
+          }
+        } else {
+          successCount++;
+        }
+      } catch (error) {
+        errorCount++;
+        clientErrors.push({
+          mysqlId,
+          errors: [{
+            table: 'tbl_customers',
+            recordId: mysqlId,
+            message: error instanceof Error ? error.message : 'Error desconocido',
+          }],
+        });
+
+        if (!options.continueOnError) {
+          this.addLog('ERROR', 'clientes-unified', `Deteniendo migración por error en cliente ${mysqlId}`);
+          break;
+        }
+      }
+    }
+
+    // Limpiar progreso
+    this.status.clientProgress = {
+      currentClientIndex: clientIds.length,
+      totalClients: clientIds.length,
+      currentMysqlId: null,
+      successCount,
+      errorCount,
+    };
+
+    const duration = Date.now() - startedAt;
+    this.addLog(
+      errorCount > 0 ? 'WARN' : 'INFO',
+      'clientes-unified',
+      `Migración unificada completada: ${successCount} exitosos, ${errorCount} con errores, en ${duration}ms`,
+    );
+
+    return {
+      totalClients: clientIds.length,
+      successCount,
+      errorCount,
+      clientErrors,
+      duration,
+    };
+  }
+
+  /**
    * Migra un cliente específico por su ID de MySQL
    */
   async migrateClienteById(
@@ -466,6 +560,15 @@ export class MigrationService {
   ): Promise<SingleClienteMigrationResult> {
     const startedAt = Date.now();
     const allErrors: MigrationError[] = [];
+
+    // Pre-check: asegurar catálogos cargados
+    if (this.mappings.departamentos.size === 0) {
+      this.addLog('INFO', 'cliente-individual', 'Cargando catálogos previo a migración de cliente...');
+      await this.catalogosMigration.migrate(
+        { batchSize: 500, skipExisting: true, dryRun: false, continueOnError: true, maxRetries: 3 },
+        this.mappings,
+      );
+    }
 
     this.addLog('INFO', 'cliente-individual', `Iniciando migración de cliente MySQL ID: ${idCustomer}`);
 

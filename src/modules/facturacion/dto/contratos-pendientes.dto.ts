@@ -3,9 +3,13 @@ import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
- * Estados de contrato que pueden facturarse
+ * Estados de cliente para filtrar contratos
  */
-export type EstadoContratoFacturable = 'INSTALADO_ACTIVO' | 'EN_MORA' | 'VELOCIDAD_REDUCIDA';
+export type EstadoClienteFiltrable =
+  | 'SIN_INSTALAR' | 'ACTIVO' | 'SUSPENDIDO' | 'BAJA_DEFINITIVA'
+  | 'EN_ESPERA' | 'SIN_LIQUIDAR' | 'INCONCLUSO' | 'SIN_GESTION_CALIDAD'
+  | 'BAJA_CAMBIO_NOMBRE' | 'VELOCIDAD_REDUCIDA' | 'MOROSO_INCOBRABLE'
+  | 'SIN_COBERTURA' | 'SUSPENDIDO_TEMPORAL' | 'CONVENIO_ESPECIAL' | 'BAJA_ADMINISTRATIVA';
 
 /**
  * DTO para filtrar contratos pendientes de cobro
@@ -32,12 +36,12 @@ export class ContratosPendientesDto {
   search?: string;
 
   @ApiPropertyOptional({
-    description: 'Filtrar por estado del contrato',
-    enum: ['INSTALADO_ACTIVO', 'EN_MORA', 'VELOCIDAD_REDUCIDA'],
+    description: 'Filtrar por estado del cliente',
+    enum: ['SIN_INSTALAR', 'ACTIVO', 'SUSPENDIDO', 'BAJA_DEFINITIVA', 'EN_ESPERA', 'SIN_LIQUIDAR', 'INCONCLUSO', 'SIN_GESTION_CALIDAD', 'BAJA_CAMBIO_NOMBRE', 'VELOCIDAD_REDUCIDA', 'MOROSO_INCOBRABLE', 'SIN_COBERTURA', 'SUSPENDIDO_TEMPORAL', 'CONVENIO_ESPECIAL', 'BAJA_ADMINISTRATIVA'],
   })
   @IsOptional()
-  @IsEnum(['INSTALADO_ACTIVO', 'EN_MORA', 'VELOCIDAD_REDUCIDA'])
-  estado?: EstadoContratoFacturable;
+  @IsString()
+  estado?: EstadoClienteFiltrable;
 }
 
 /**
@@ -58,6 +62,7 @@ export interface ClienteInfo {
   dui: string | null;
   nit: string | null;
   correo: string | null;
+  estadoCliente: string;
 }
 
 /**

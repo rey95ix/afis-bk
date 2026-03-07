@@ -49,14 +49,16 @@ export class ClientesService {
     return cliente;
   }
 
-  async findAll(paginationDto: PaginationDto): Promise<PaginatedResult<cliente>> {
+  async findAll(paginationDto: PaginationDto, estado?: string): Promise<PaginatedResult<cliente>> {
     const { page = 1, limit = 10, search = '' } = paginationDto;
     const skip = (page - 1) * limit;
 
     // Construir el filtro de búsqueda
-    const where: any = {
-      estado: 'ACTIVO',
-    };
+    const where: any = {};
+
+    if (estado) {
+      where.estado = estado;
+    }
 
     if (search) {
       where.OR = [
@@ -255,7 +257,7 @@ export class ClientesService {
 
     const cliente = await this.prisma.cliente.update({
       where: { id_cliente: id },
-      data: { estado: 'INACTIVO' },
+      data: { estado: 'BAJA_ADMINISTRATIVA' },
     });
 
     // Registrar en el log
@@ -272,7 +274,7 @@ export class ClientesService {
     const cliente = await this.prisma.cliente.findFirst({
       where: {
         dui,
-        estado: 'ACTIVO',
+        estado: { notIn: ['BAJA_DEFINITIVA', 'BAJA_CAMBIO_NOMBRE', 'BAJA_ADMINISTRATIVA'] },
         ...(excludeId && { id_cliente: { not: excludeId } }),
       },
       select: { id_cliente: true },
@@ -318,7 +320,7 @@ export class ClientesService {
     const clientesUnicos = new Map<number, { id_cliente: number; titular: string; dui: string }>();
 
     documentos.forEach((doc) => {
-      if (doc.cliente.estado === 'ACTIVO' && !clientesUnicos.has(doc.cliente.id_cliente)) {
+      if (!['BAJA_DEFINITIVA', 'BAJA_CAMBIO_NOMBRE', 'BAJA_ADMINISTRATIVA'].includes(doc.cliente.estado) && !clientesUnicos.has(doc.cliente.id_cliente)) {
         clientesUnicos.set(doc.cliente.id_cliente, {
           id_cliente: doc.cliente.id_cliente,
           titular: doc.cliente.titular,
@@ -379,7 +381,7 @@ export class ClientesService {
     >();
 
     documentos.forEach((doc) => {
-      if (doc.cliente.estado === 'ACTIVO' && doc.direccion_extraida) {
+      if (!['BAJA_DEFINITIVA', 'BAJA_CAMBIO_NOMBRE', 'BAJA_ADMINISTRATIVA'].includes(doc.cliente.estado) && doc.direccion_extraida) {
         // Calcular similitud de direcciones
         const similitud = this.calcularSimilitudDireccion(direccion, doc.direccion_extraida);
 

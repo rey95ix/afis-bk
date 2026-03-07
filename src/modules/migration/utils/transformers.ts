@@ -79,9 +79,9 @@ export function cleanStringOrNull(value: string | null | undefined): string | nu
  */
 export function mapEstadoCliente(mysqlStatus: number | null | undefined): string {
   if (mysqlStatus === null || mysqlStatus === undefined) {
-    return 'INACTIVO';
+    return 'SIN_INSTALAR';
   }
-  return ESTADO_CLIENTE_MAP[mysqlStatus] || 'INACTIVO';
+  return ESTADO_CLIENTE_MAP[mysqlStatus] || 'SIN_INSTALAR';
 }
 
 /**

@@ -32,6 +32,7 @@ import {
   MigrationModuleResultDto,
   MigrationPreviewDto,
   MigrationLogsResponseDto,
+  BulkClienteMigrationResultDto,
 } from './dto/migration-result.dto';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 
@@ -155,6 +156,23 @@ export class MigrationController {
     @Param('module') module: MigrationModule,
     @Body() options: MigrationOptionsDto,
   ): Promise<MigrationModuleResultDto> {
+    // Módulos que ahora se ejecutan dentro del pipeline unificado de clientes
+    const deprecatedModules = [MigrationModule.CONTRATOS, MigrationModule.DOCUMENTOS, MigrationModule.FACTURACION];
+    if (deprecatedModules.includes(module)) {
+      return {
+        module,
+        success: true,
+        totalRecords: 0,
+        migratedRecords: 0,
+        skippedRecords: 0,
+        errors: [],
+        duration: 0,
+        startedAt: new Date(),
+        completedAt: new Date(),
+        warning: 'Este módulo se ejecuta automáticamente con la migración de clientes. Use el módulo "clientes" para ejecutar el pipeline completo.',
+      } as any;
+    }
+
     const result = await this.migrationService.executeModule(module, {
       batchSize: options.batchSize || 100,
       skipExisting: options.skipExisting ?? true,

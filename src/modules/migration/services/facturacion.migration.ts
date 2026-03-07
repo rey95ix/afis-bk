@@ -33,6 +33,7 @@ export class FacturacionMigrationService {
 
   /**
    * Ejecuta la migración completa de facturación
+   * @deprecated Usar MigrationService.migrateAllClientesUnified() que migra facturas dentro del pipeline por cliente
    */
   async migrate(
     options: MigrationOptions,

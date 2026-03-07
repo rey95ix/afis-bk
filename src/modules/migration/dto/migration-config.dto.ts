@@ -65,6 +65,14 @@ export class MigrationOptionsDto {
   @Min(1)
   @Max(5)
   maxRetries?: number = 3;
+
+  @ApiPropertyOptional({
+    description: 'Incluir migración de documentos/archivos a MinIO (lento, usa IA para clasificar)',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  includeDocumentos?: boolean = false;
 }
 
 export class ExecuteModuleDto extends MigrationOptionsDto {

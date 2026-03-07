@@ -38,6 +38,7 @@ export class ClientesMigrationService {
 
   /**
    * Ejecuta la migración completa de clientes
+   * @deprecated Usar MigrationService.migrateAllClientesUnified() que itera clientes individualmente con pipeline completo
    */
   async migrate(
     options: MigrationOptions,

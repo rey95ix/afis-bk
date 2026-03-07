@@ -172,7 +172,7 @@ model cliente {
   nombre_conyuge             String?
   telefono_conyuge           String?
   telefono_oficina_conyuge   String?
-  estado                     estado   @default(ACTIVO)
+  estado                     estado_cliente   @default(ACTIVO)
   fecha_creacion             DateTime @default(now())
   fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 
@@ -529,6 +529,24 @@ enum estado {
   ACTIVO
   SUPENDIDO
   INACTIVO
+}
+
+enum estado_cliente {
+  SIN_INSTALAR
+  ACTIVO
+  SUSPENDIDO
+  BAJA_DEFINITIVA
+  EN_ESPERA
+  SIN_LIQUIDAR
+  INCONCLUSO
+  SIN_GESTION_CALIDAD
+  BAJA_CAMBIO_NOMBRE
+  VELOCIDAD_REDUCIDA
+  MOROSO_INCOBRABLE
+  SIN_COBERTURA
+  SUSPENDIDO_TEMPORAL
+  CONVENIO_ESPECIAL
+  BAJA_ADMINISTRATIVA
 }
 
 model roles {

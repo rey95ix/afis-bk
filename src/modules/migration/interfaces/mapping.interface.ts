@@ -57,6 +57,13 @@ export interface MigrationStatus {
   startedAt: Date | null;
   lastUpdatedAt: Date | null;
   results: MigrationModuleResult[];
+  clientProgress?: {
+    currentClientIndex: number;
+    totalClients: number;
+    currentMysqlId: number | null;
+    successCount: number;
+    errorCount: number;
+  };
 }
 
 // Configuración de conexión MySQL
@@ -75,6 +82,7 @@ export interface MigrationOptions {
   dryRun: boolean; // solo simular
   continueOnError: boolean;
   maxRetries: number;
+  includeDocumentos?: boolean;
 }
 
 // Resultado de preview
@@ -119,9 +127,21 @@ export interface ConnectionValidation {
 
 // Mapeo de estados MySQL a enums Prisma
 export const ESTADO_CLIENTE_MAP: Record<number, string> = {
+  0: 'SIN_INSTALAR',
   1: 'ACTIVO',
-  0: 'INACTIVO',
-  2: 'INACTIVO',
+  2: 'SUSPENDIDO',
+  3: 'BAJA_DEFINITIVA',
+  4: 'EN_ESPERA',
+  5: 'SIN_LIQUIDAR',
+  6: 'INCONCLUSO',
+  7: 'SIN_GESTION_CALIDAD',
+  8: 'BAJA_CAMBIO_NOMBRE',
+  9: 'VELOCIDAD_REDUCIDA',
+  10: 'MOROSO_INCOBRABLE',
+  11: 'SIN_COBERTURA',
+  12: 'SUSPENDIDO_TEMPORAL',
+  13: 'CONVENIO_ESPECIAL',
+  14: 'BAJA_ADMINISTRATIVA',
 };
 
 export const ESTADO_CONTRATO_MAP: Record<number, string> = {
@@ -142,6 +162,15 @@ export const TIPO_PERSONA_MAP: Record<number, string> = {
   1: 'PERSONA',
   2: 'EMPRESA',
 };
+
+// Resultado de migración masiva unificada por clientes
+export interface BulkClienteMigrationResult {
+  totalClients: number;
+  successCount: number;
+  errorCount: number;
+  clientErrors: Array<{ mysqlId: number; errors: MigrationError[] }>;
+  duration: number;
+}
 
 // Resultado de migración de un cliente individual
 export interface SingleClienteMigrationResult {

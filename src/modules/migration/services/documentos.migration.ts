@@ -52,6 +52,7 @@ export class DocumentosMigrationService {
 
   /**
    * Ejecuta la migración completa de documentos
+   * @deprecated Usar MigrationService.migrateAllClientesUnified() que migra documentos dentro del pipeline por cliente
    */
   async migrate(
     options: MigrationOptions,

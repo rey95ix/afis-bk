@@ -691,14 +691,13 @@ export class CobrosService {
     const { page = 1, limit = 10, search, estado } = dto;
     const skip = (page - 1) * limit;
 
-    // Estados que pueden facturarse
-    const estadosFacturables = estado
-      ? [estado]
-      : ['INSTALADO_ACTIVO', 'EN_MORA', 'VELOCIDAD_REDUCIDA'];
+    // Estados de contrato que pueden facturarse
+    const estadosFacturables = ['INSTALADO_ACTIVO', 'EN_MORA', 'VELOCIDAD_REDUCIDA'];
 
     // Construir where clause
     const whereClause: any = {
       estado: { in: estadosFacturables },
+      ...(estado && { cliente: { estado } }),
     };
 
     // Búsqueda por nombre de cliente o número de contrato
@@ -721,6 +720,7 @@ export class CobrosService {
               dui: true,
               nit: true,
               correo_electronico: true,
+              estado: true,
             },
           },
           plan: {
@@ -762,6 +762,7 @@ export class CobrosService {
             dui: contrato.cliente.dui,
             nit: contrato.cliente.nit,
             correo: contrato.cliente.correo_electronico,
+            estadoCliente: contrato.cliente.estado,
           },
           plan: {
             id: contrato.plan?.id_plan || 0,

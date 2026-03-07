@@ -46,6 +46,23 @@ export class MigrationModuleResultDto {
   completedAt: Date;
 }
 
+export class ClientProgressDto {
+  @ApiProperty({ description: 'Índice del cliente actual (0-based)' })
+  currentClientIndex: number;
+
+  @ApiProperty({ description: 'Total de clientes a migrar' })
+  totalClients: number;
+
+  @ApiPropertyOptional({ description: 'ID MySQL del cliente actual' })
+  currentMysqlId: number | null;
+
+  @ApiProperty({ description: 'Clientes migrados exitosamente' })
+  successCount: number;
+
+  @ApiProperty({ description: 'Clientes con errores' })
+  errorCount: number;
+}
+
 export class MigrationStatusDto {
   @ApiProperty({ description: 'Si hay una migración en curso' })
   isRunning: boolean;
@@ -83,6 +100,37 @@ export class MigrationStatusDto {
     type: [MigrationModuleResultDto],
   })
   results: MigrationModuleResultDto[];
+
+  @ApiPropertyOptional({
+    description: 'Progreso de migración por cliente (solo durante migración unificada)',
+    type: ClientProgressDto,
+  })
+  clientProgress?: ClientProgressDto;
+}
+
+export class BulkClienteErrorDto {
+  @ApiProperty({ description: 'ID MySQL del cliente con error' })
+  mysqlId: number;
+
+  @ApiProperty({ description: 'Errores del cliente', type: [MigrationErrorDto] })
+  errors: MigrationErrorDto[];
+}
+
+export class BulkClienteMigrationResultDto {
+  @ApiProperty({ description: 'Total de clientes procesados' })
+  totalClients: number;
+
+  @ApiProperty({ description: 'Clientes migrados exitosamente' })
+  successCount: number;
+
+  @ApiProperty({ description: 'Clientes con errores' })
+  errorCount: number;
+
+  @ApiProperty({ description: 'Errores por cliente', type: [BulkClienteErrorDto] })
+  clientErrors: BulkClienteErrorDto[];
+
+  @ApiProperty({ description: 'Duración en milisegundos' })
+  duration: number;
 }
 
 export class ConnectionValidationDto {

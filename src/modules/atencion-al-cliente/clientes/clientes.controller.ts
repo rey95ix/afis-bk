@@ -23,7 +23,7 @@ import {
 import { Auth, GetUser } from 'src/modules/auth/decorators';
 import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
-import { PaginationDto } from 'src/common/dto';
+import { ClientesPaginationDto } from './dto/clientes-pagination.dto';
 
 @ApiTags('Clientes')
 @ApiBearerAuth(HEADER_API_BEARER_AUTH)
@@ -70,7 +70,7 @@ export class ClientesController {
 
   @RequirePermissions('atencion_cliente.clientes:ver')
   @Get()
-  @ApiOperation({ summary: 'Obtener todos los clientes activos con paginación y búsqueda' })
+  @ApiOperation({ summary: 'Obtener clientes con paginación, búsqueda y filtro por estado' })
   @ApiResponse({
     status: 200,
     description: 'Retorna los clientes paginados con sus relaciones.',
@@ -93,8 +93,8 @@ export class ClientesController {
       },
     },
   })
-  findAll(@Query() paginationDto: PaginationDto) {
-    return this.clientesService.findAll(paginationDto);
+  findAll(@Query() paginationDto: ClientesPaginationDto) {
+    return this.clientesService.findAll(paginationDto, paginationDto.estado);
   }
 
   @RequirePermissions('atencion_cliente.clientes:ver')
@@ -159,7 +159,7 @@ export class ClientesController {
 
   @RequirePermissions('atencion_cliente.clientes:eliminar')
   @Delete(':id')
-  @ApiOperation({ summary: 'Eliminar un cliente (cambia estado a INACTIVO)' })
+  @ApiOperation({ summary: 'Eliminar un cliente (cambia estado a BAJA_ADMINISTRATIVA)' })
   @ApiParam({ name: 'id', description: 'ID del cliente', type: Number })
   @ApiResponse({ status: 200, description: 'El cliente ha sido inactivado exitosamente.' })
   @ApiResponse({ status: 404, description: 'Cliente no encontrado.' })
