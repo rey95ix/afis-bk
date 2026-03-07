@@ -1,9 +1,23 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { metodo_pago_abono } from '@prisma/client';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
+import { ContratoPagosService } from 'src/modules/facturacion/services/contrato-pagos.service';
+import { PayWayService } from './payway.service';
+import type { PagoTarjetaPortalDto } from './dto/pago-tarjeta-portal.dto';
 
 @Injectable()
 export class ClientePortalService {
-  constructor(private prisma: PrismaService) {}
+  private readonly portalSystemUserId: number;
+
+  constructor(
+    private prisma: PrismaService,
+    private configService: ConfigService,
+    private contratoPagosService: ContratoPagosService,
+    private payWayService: PayWayService,
+  ) {
+    this.portalSystemUserId = Number(this.configService.get<string>('PORTAL_SYSTEM_USER_ID', '1'));
+  }
 
   async obtenerContratos(idCliente: number) {
     const contratos = await this.prisma.atcContrato.findMany({
@@ -221,5 +235,119 @@ export class ClientePortalService {
         estado: f.estado,
       };
     });
+  }
+
+  async procesarPagoTarjeta(
+    idCliente: number,
+    idContrato: number,
+    dto: PagoTarjetaPortalDto,
+    ipAddress?: string,
+  ) {
+    // 1. Validate contract belongs to client
+    const contrato = await this.prisma.atcContrato.findFirst({
+      where: { id_contrato: idContrato, id_cliente: idCliente },
+      select: { id_contrato: true, codigo: true },
+    });
+
+    if (!contrato) {
+      throw new NotFoundException(`Contrato #${idContrato} no encontrado`);
+    }
+
+    // 2. Get CxCs for selected invoices and validate
+    const cxcs = await this.prisma.cuenta_por_cobrar.findMany({
+      where: {
+        id_factura_directa: { in: dto.idFacturas },
+        id_contrato: idContrato,
+        estado: { notIn: ['PAGADA_TOTAL', 'ANULADA'] },
+      },
+      include: { facturaDirecta: true },
+    });
+
+    if (cxcs.length === 0) {
+      throw new BadRequestException('No se encontraron facturas pendientes de pago');
+    }
+
+    if (cxcs.length !== dto.idFacturas.length) {
+      throw new BadRequestException(
+        'Algunas facturas seleccionadas no tienen saldo pendiente o no pertenecen al contrato',
+      );
+    }
+
+    // 3. Calculate total amount
+    const monto = cxcs.reduce((sum, cxc) => sum + Number(cxc.saldo_pendiente), 0);
+    const montoRedondeado = Math.round(monto * 100) / 100;
+
+    if (montoRedondeado <= 0) {
+      throw new BadRequestException('El monto a pagar debe ser mayor a cero');
+    }
+
+    const conceptoPago = `Pago contrato ${contrato.codigo} - ${cxcs.length} factura(s)`;
+
+    // 4. Call PayWay gateway
+    const gwResponse = await this.payWayService.realizarPago({
+      nombreTarjetahabiente: dto.nombreTarjetahabiente,
+      numeroTarjeta: dto.numeroTarjeta,
+      fechaExpiracion: dto.fechaExpiracion,
+      cvv2: dto.cvv2,
+      monto: montoRedondeado,
+      conceptoPago,
+      ipCliente: ipAddress,
+      usuarioCliente: `CLI-${idCliente}`,
+    });
+
+    // 5. Record transaction in audit table (always, success or failure)
+    await this.prisma.pago_tarjeta_portal.create({
+      data: {
+        id_cliente: idCliente,
+        id_contrato: idContrato,
+        monto: montoRedondeado,
+        codigo_retorno: gwResponse.codigoRetorno,
+        numero_autorizacion: gwResponse.numeroAutorizacion,
+        numero_referencia: gwResponse.numeroReferencia,
+        terminacion_tarjeta: gwResponse.terminacionTarjeta,
+        fecha_transaccion_gw: gwResponse.fechaTransaccion,
+        concepto_pago: conceptoPago,
+        exitoso: gwResponse.exitoso,
+        mensaje_error: gwResponse.exitoso ? null : gwResponse.mensajeRetorno,
+        facturas_seleccionadas: dto.idFacturas,
+        ip_cliente: ipAddress,
+      },
+    });
+
+    // 6. If payment failed, throw error
+    if (!gwResponse.exitoso) {
+      throw new BadRequestException(
+        gwResponse.mensajeRetorno || 'El pago con tarjeta fue rechazado. Verifique los datos e intente de nuevo.',
+      );
+    }
+
+    // 7. If success, distribute payment using existing logic
+    const distribucion = await this.contratoPagosService.registrarPagoContrato(
+      idContrato,
+      {
+        monto: montoRedondeado,
+        metodoPago: metodo_pago_abono.TARJETA,
+        referencia: gwResponse.numeroAutorizacion,
+        observaciones: `Pago con tarjeta portal - Aut: ${gwResponse.numeroAutorizacion}`,
+      },
+      this.portalSystemUserId,
+    );
+
+    return {
+      exitoso: true,
+      mensaje: 'Pago procesado exitosamente',
+      numeroAutorizacion: gwResponse.numeroAutorizacion,
+      terminacionTarjeta: gwResponse.terminacionTarjeta,
+      distribucion: {
+        items: distribucion.items.map((item) => ({
+          idFactura: item.idFactura,
+          cuota: item.cuota,
+          montoAplicado: item.montoAplicado,
+          estadoResultante: item.estadoResultante,
+        })),
+        montoTotal: distribucion.montoTotal,
+        montoDistribuido: distribucion.montoDistribuido,
+      },
+    };
   }
 }

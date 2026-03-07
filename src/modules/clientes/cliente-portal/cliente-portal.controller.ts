@@ -1,9 +1,12 @@
-import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Param, ParseIntPipe, Body, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { ClienteAuth } from '../cliente-auth/decorators/cliente-auth.decorator';
 import { GetCliente } from '../cliente-auth/decorators/get-cliente.decorator';
 import type { ClienteAutenticado } from '../cliente-auth/interfaces';
 import { ClientePortalService } from './cliente-portal.service';
+import { PagoTarjetaPortalDto } from './dto/pago-tarjeta-portal.dto';
+import type { Request } from 'express';
 
 @ApiTags('Portal de Clientes - Contratos')
 @ClienteAuth()
@@ -42,6 +45,30 @@ export class ClientePortalController {
     const data = await this.portalService.obtenerFacturasContrato(
       cliente.id_cliente,
       id,
+    );
+    return { data };
+  }
+
+  @Post('contratos/:id/pago-tarjeta')
+  @ApiOperation({ summary: 'Pagar facturas seleccionadas con tarjeta de credito/debito' })
+  @ApiParam({ name: 'id', type: Number })
+  @Throttle({ default: { limit: 3, ttl: 300000 } })
+  @UseGuards(ThrottlerGuard)
+  async pagoTarjeta(
+    @GetCliente() cliente: ClienteAutenticado,
+    @Param('id', ParseIntPipe) idContrato: number,
+    @Body() dto: PagoTarjetaPortalDto,
+    @Req() req: Request,
+  ) {
+    const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+      || req.socket?.remoteAddress
+      || undefined;
+
+    const data = await this.portalService.procesarPagoTarjeta(
+      cliente.id_cliente,
+      idContrato,
+      dto,
+      ipAddress,
     );
     return { data };
   }
