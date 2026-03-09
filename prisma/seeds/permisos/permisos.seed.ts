@@ -18,11 +18,12 @@ const PERMISOS_POR_ROL: Record<number, string[]> = {
   // Admin: Todos los permisos
   [ROL_IDS.ADMIN]: ['*'],
 
-  // Facturacion: Dashboard, clientes (ver), reportes de ventas
+  // Facturacion: Dashboard, clientes (ver), reportes de ventas, caja
   [ROL_IDS.FACTURACION]: [
     'dashboard.*',
     'atencion_cliente.clientes:ver',
     'atencion_cliente.clientes:gestionar_facturacion',
+    'caja.*',
   ],
 
   // Inventario: Todo el modulo inventario + catalogos

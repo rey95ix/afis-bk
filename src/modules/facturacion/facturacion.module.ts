@@ -38,6 +38,10 @@ import { ClientesDirectosService } from './clientes-directos/clientes-directos.s
 import { FacturaDirectaController } from './factura-directa/factura-directa.controller';
 import { FacturaDirectaService } from './factura-directa/factura-directa.service';
 
+// Caja
+import { CajaController } from './caja/caja.controller';
+import { CajaService } from './caja/caja.service';
+
 // Libros de IVA
 import { LibrosIvaModule } from './libros-iva/libros-iva.module';
 
@@ -64,6 +68,8 @@ import { ComprobanteAnalyzerService } from '../whatsapp-chat/validacion-comproba
     // Nuevos controllers para facturación directa
     ClientesDirectosController,
     FacturaDirectaController,
+    // Caja
+    CajaController,
   ],
   providers: [
     // Ciclos (existente)
@@ -94,6 +100,9 @@ import { ComprobanteAnalyzerService } from '../whatsapp-chat/validacion-comproba
 
     // Factura Directa (nuevo)
     FacturaDirectaService,
+
+    // Caja
+    CajaService,
 
     // Comprobante Analyzer (reutilizado de whatsapp-chat)
     ComprobanteAnalyzerService,

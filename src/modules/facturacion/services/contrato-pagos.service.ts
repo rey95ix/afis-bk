@@ -235,7 +235,7 @@ export class ContratoPagosService {
           const estadoPagoFactura = saldoPosterior.lte(0) ? 'PAGADO' : 'PARCIAL';
 
           // 1. Crear abono
-          await tx.abono_cxc.create({
+          const abonoCreado = await tx.abono_cxc.create({
             data: {
               id_cxc: cxc.id_cxc,
               monto: montoAplicar,
@@ -247,6 +247,17 @@ export class ContratoPagosService {
               fecha_pago: new Date(),
               id_usuario: idUsuario,
               observaciones: dto.observaciones,
+            },
+          });
+
+          // 1.1 Registrar movimiento de caja
+          await tx.caja_movimiento.create({
+            data: {
+              id_usuario: idUsuario,
+              id_cliente: contrato.id_cliente,
+              monto: montoAplicar,
+              metodo_pago: dto.metodoPago,
+              id_abono_cxc: abonoCreado.id_abono,
             },
           });
 

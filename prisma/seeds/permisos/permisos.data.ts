@@ -830,6 +830,18 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
   ),
 
   // =============================================================
+  // MODULO: CAJA
+  // =============================================================
+
+  crearPermisoCustom('caja', 'cierres', 'ver_todos', 'Ver Todos los Cierres', 'Ver cierres de caja de todos los usuarios', {
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom('caja', 'cierre_diario', 'gestionar', 'Gestionar Cierre Diario', 'Generar y ver cierres diarios de caja', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+
+  // =============================================================
   // MODULO: SMS Y NOTIFICACIONES
   // =============================================================
 

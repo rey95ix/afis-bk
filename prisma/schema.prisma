@@ -146,6 +146,10 @@ model usuarios {
   ordenes_compra_crea            ordenes_compra[]                @relation("usuario_crea_orden_compra")
   ordenes_compra_aprueba         ordenes_compra[]                @relation("usuario_aprueba_orden_compra")
   ordenes_compra_encargado       ordenes_compra[]                @relation("usuario_encargado_orden_compra")
+  // Caja
+  cajaMovimientos                caja_movimiento[]               @relation("caja_movimiento_usuario")
+  cierresUsuario                 cierre_usuario[]                @relation("cierre_usuario_usuario")
+  cierresDiarioCreados           cierre_diario[]                 @relation("cierre_diario_creado_por")
 }
 
 model cliente {
@@ -218,6 +222,8 @@ model cliente {
   cuentasPorCobrar  cuenta_por_cobrar[] @relation("cxc_cliente")
   // Pagos con tarjeta desde portal
   pagosTarjetaPortal pago_tarjeta_portal[]
+  // Caja
+  cajaMovimientos    caja_movimiento[]
 
   // Índices para búsqueda rápida en auth
   @@index([correo_electronico])
@@ -4325,6 +4331,11 @@ enum metodo_pago_abono {
   OTRO
 }
 
+enum estado_cierre {
+  ABIERTO
+  CERRADO
+}
+
 enum estado_movimiento_bancario {
   ACTIVO
   ANULADO
@@ -4546,6 +4557,9 @@ model abono_cxc {
   // === AUDITORÍA ===
   fecha_creacion             DateTime                 @default(now())
   fecha_actualizacion        DateTime                 @default(now()) @updatedAt
+
+  // === CAJA ===
+  cajaMovimiento             caja_movimiento?
 
   // === ÍNDICES ===
   @@index([id_cxc])
@@ -4784,4 +4798,95 @@ model pago_tarjeta_portal {
   @@index([id_cliente])
   @@index([id_contrato])
   @@index([numero_autorizacion])
+}
+
+// =============================================================
+// MÓDULO DE CAJA
+// =============================================================
+
+model caja_movimiento {
+  id_movimiento_caja         Int                @id @default(autoincrement())
+
+  // === USUARIO QUE REGISTRÓ EL COBRO ===
+  id_usuario                 Int
+  usuario                    usuarios           @relation("caja_movimiento_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_caja_movimiento_usuario")
+
+  // === CLIENTE QUE PAGÓ ===
+  id_cliente                 Int
+  cliente                    cliente            @relation(fields: [id_cliente], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_caja_movimiento_cliente")
+
+  // === DATOS DEL MOVIMIENTO ===
+  monto                      Decimal            @db.Decimal(12, 2)
+  metodo_pago                metodo_pago_abono
+  fecha_hora                 DateTime           @default(now())
+
+  // === REFERENCIA AL ABONO ===
+  id_abono_cxc               Int                @unique
+  abonoCxc                   abono_cxc          @relation(fields: [id_abono_cxc], references: [id_abono], onDelete: NoAction, onUpdate: NoAction, map: "fk_caja_movimiento_abono")
+
+  // === CIERRES (NULL = PENDIENTE) ===
+  id_cierre_usuario          Int?
+  cierreUsuario              cierre_usuario?    @relation(fields: [id_cierre_usuario], references: [id_cierre_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_caja_movimiento_cierre_usuario")
+
+  id_cierre_diario           Int?
+  cierreDiario               cierre_diario?     @relation(fields: [id_cierre_diario], references: [id_cierre_diario], onDelete: NoAction, onUpdate: NoAction, map: "fk_caja_movimiento_cierre_diario")
+
+  // === ÍNDICES ===
+  @@index([id_usuario])
+  @@index([id_cliente])
+  @@index([id_cierre_usuario])
+  @@index([id_cierre_diario])
+  @@index([fecha_hora])
+}
+
+model cierre_usuario {
+  id_cierre_usuario          Int                @id @default(autoincrement())
+
+  // === USUARIO ===
+  id_usuario                 Int
+  usuario                    usuarios           @relation("cierre_usuario_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cierre_usuario_usuario")
+
+  // === DATOS DEL CIERRE ===
+  fecha_hora                 DateTime           @default(now())
+  total_efectivo             Decimal            @default(0) @db.Decimal(12, 2)
+  total_cheque               Decimal            @default(0) @db.Decimal(12, 2)
+  total_transferencia        Decimal            @default(0) @db.Decimal(12, 2)
+  total_deposito             Decimal            @default(0) @db.Decimal(12, 2)
+  total_tarjeta              Decimal            @default(0) @db.Decimal(12, 2)
+  total_otro                 Decimal            @default(0) @db.Decimal(12, 2)
+  total_general              Decimal            @default(0) @db.Decimal(12, 2)
+  estado                     estado_cierre      @default(CERRADO)
+
+  // === MOVIMIENTOS ===
+  movimientos                caja_movimiento[]
+
+  // === ÍNDICES ===
+  @@index([id_usuario])
+  @@index([fecha_hora])
+}
+
+model cierre_diario {
+  id_cierre_diario           Int                @id @default(autoincrement())
+
+  // === CREADOR ===
+  id_creado_por              Int
+  creadoPor                  usuarios           @relation("cierre_diario_creado_por", fields: [id_creado_por], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cierre_diario_creado_por")
+
+  // === DATOS DEL CIERRE ===
+  fecha_hora                 DateTime           @default(now())
+  total_efectivo             Decimal            @default(0) @db.Decimal(12, 2)
+  total_cheque               Decimal            @default(0) @db.Decimal(12, 2)
+  total_transferencia        Decimal            @default(0) @db.Decimal(12, 2)
+  total_deposito             Decimal            @default(0) @db.Decimal(12, 2)
+  total_tarjeta              Decimal            @default(0) @db.Decimal(12, 2)
+  total_otro                 Decimal            @default(0) @db.Decimal(12, 2)
+  total_general              Decimal            @default(0) @db.Decimal(12, 2)
+  estado                     estado_cierre      @default(CERRADO)
+
+  // === MOVIMIENTOS ===
+  movimientos                caja_movimiento[]
+
+  // === ÍNDICES ===
+  @@index([id_creado_por])
+  @@index([fecha_hora])
 }
