@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Movimientos Pendientes de Cierre</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 9pt; color: #333; padding: 20px 25px; }
+    .header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #1565C0; padding-bottom: 10px; }
+    .header h1 { font-size: 16pt; color: #1565C0; margin-bottom: 3px; }
+    .header h2 { font-size: 10pt; color: #666; font-weight: normal; }
+    .empresa-info { display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 9pt; }
+    .empresa-info .label { color: #888; font-size: 8pt; }
+    .info-box { background: #FFF3E0; border: 1px solid #FFE0B2; border-radius: 4px; padding: 10px 15px; margin-bottom: 15px; }
+    .info-box .nombre { font-size: 12pt; font-weight: bold; color: #E65100; }
+    .info-box .sub { font-size: 9pt; color: #555; margin-top: 2px; }
+    .resumen-grid { display: flex; gap: 10px; margin-bottom: 18px; }
+    .resumen-card { flex: 1; border: 1px solid #ddd; border-radius: 4px; padding: 10px 12px; text-align: center; }
+    .resumen-card .label { font-size: 8pt; color: #888; margin-bottom: 4px; }
+    .resumen-card .value { font-size: 13pt; font-weight: bold; }
+    .resumen-card.efectivo .value { color: #2E7D32; }
+    .resumen-card.cheque .value { color: #0288D1; }
+    .resumen-card.transferencia .value { color: #1565C0; }
+    .resumen-card.deposito .value { color: #E65100; }
+    .resumen-card.tarjeta .value { color: #616161; }
+    .resumen-card.otro .value { color: #795548; }
+    .resumen-card.total .value { color: #1565C0; }
+    table { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-bottom: 10px; }
+    th { background: #1565C0; color: white; padding: 6px 8px; text-align: center; font-weight: bold; font-size: 8pt; }
+    td { padding: 5px 8px; border-bottom: 1px solid #e0e0e0; }
+    tr:nth-child(even) { background: #f9f9f9; }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .fw-bold { font-weight: bold; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 7pt; font-weight: bold; color: white; }
+    .badge-efectivo { background: #66BB6A; }
+    .badge-cheque { background: #29B6F6; }
+    .badge-transferencia { background: #42A5F5; }
+    .badge-deposito { background: #FFA726; }
+    .badge-tarjeta { background: #78909C; }
+    .badge-otro { background: #8D6E63; }
+    .totals-row td { font-weight: bold; background: #E3F2FD; border-top: 2px solid #1565C0; padding: 7px 8px; }
+    .footer { margin-top: 20px; padding-top: 8px; border-top: 1px solid #ddd; font-size: 8pt; color: #999; display: flex; justify-content: space-between; }
+    .section-title { font-size: 10pt; font-weight: bold; color: #333; margin-bottom: 8px; padding-bottom: 3px; border-bottom: 1px solid #e0e0e0; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>{{:titulo}}</h1>
+    <h2>{{:empresa.nombre}}</h2>
+  </div>
+
+  <div class="empresa-info">
+    <div>
+      <span class="label">NIT:</span> {{:empresa.nit}}<br>
+      <span class="label">NRC:</span> {{:empresa.nrc}}
+    </div>
+    <div style="text-align: right;">
+      <span class="label">Fecha de Generacion:</span> {{:fechaGeneracion}}
+    </div>
+  </div>
+
+  <div class="info-box">
+    <div class="nombre">{{:cantidadMovimientos}} movimiento(s) pendiente(s)</div>
+    {{if usuario}}
+    <div class="sub">Usuario: {{:usuario}}</div>
+    {{/if}}
+    <div class="sub">Total acumulado: ${{:totalGeneral}}</div>
+  </div>
+
+  <div class="resumen-grid">
+    <div class="resumen-card efectivo">
+      <div class="label">Efectivo</div>
+      <div class="value">${{:totalEfectivo}}</div>
+    </div>
+    <div class="resumen-card cheque">
+      <div class="label">Cheque</div>
+      <div class="value">${{:totalCheque}}</div>
+    </div>
+    <div class="resumen-card transferencia">
+      <div class="label">Transferencia</div>
+      <div class="value">${{:totalTransferencia}}</div>
+    </div>
+    <div class="resumen-card deposito">
+      <div class="label">Deposito</div>
+      <div class="value">${{:totalDeposito}}</div>
+    </div>
+    <div class="resumen-card tarjeta">
+      <div class="label">Tarjeta</div>
+      <div class="value">${{:totalTarjeta}}</div>
+    </div>
+    <div class="resumen-card otro">
+      <div class="label">Otro</div>
+      <div class="value">${{:totalOtro}}</div>
+    </div>
+    <div class="resumen-card total">
+      <div class="label">Total General</div>
+      <div class="value">${{:totalGeneral}}</div>
+    </div>
+  </div>
+
+  <div class="section-title">Detalle de Movimientos</div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Fecha/Hora</th>
+        {{if esDiario}}<th>Usuario</th>{{/if}}
+        <th>Cliente</th>
+        <th>Metodo de Pago</th>
+        <th>Referencia</th>
+        <th>Monto</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{if movimientos.length === 0}}
+      <tr>
+        <td colspan="{{if esDiario}}7{{else}}6{{/if}}" class="text-center" style="padding: 20px; color: #999;">No hay movimientos pendientes</td>
+      </tr>
+      {{/if}}
+      {{for movimientos}}
+      <tr>
+        <td class="text-center">{{:#index + 1}}</td>
+        <td class="text-center">{{:fechaHora}}</td>
+        {{if ~root.esDiario}}<td>{{:usuario}}</td>{{/if}}
+        <td>{{:cliente}}</td>
+        <td class="text-center"><span class="badge {{:badgeClass}}">{{:metodoPago}}</span></td>
+        <td>{{:referencia}}</td>
+        <td class="text-right fw-bold">${{:monto}}</td>
+      </tr>
+      {{/for}}
+      {{if movimientos.length > 0}}
+      <tr class="totals-row">
+        <td colspan="{{if esDiario}}6{{else}}5{{/if}}" class="text-right">TOTAL</td>
+        <td class="text-right">${{:totalGeneral}}</td>
+      </tr>
+      {{/if}}
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <span>Documento generado automaticamente - {{:empresa.nombre}}</span>
+    <span>{{:fechaGeneracion}}</span>
+  </div>
+</body>
+</html>

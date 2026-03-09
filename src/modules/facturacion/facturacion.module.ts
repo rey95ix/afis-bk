@@ -41,6 +41,7 @@ import { FacturaDirectaService } from './factura-directa/factura-directa.service
 // Caja
 import { CajaController } from './caja/caja.controller';
 import { CajaService } from './caja/caja.service';
+import { CajaPdfService } from './caja/caja-pdf.service';
 
 // Libros de IVA
 import { LibrosIvaModule } from './libros-iva/libros-iva.module';
@@ -103,6 +104,7 @@ import { ComprobanteAnalyzerService } from '../whatsapp-chat/validacion-comproba
 
     // Caja
     CajaService,
+    CajaPdfService,
 
     // Comprobante Analyzer (reutilizado de whatsapp-chat)
     ComprobanteAnalyzerService,

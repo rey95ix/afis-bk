@@ -6,20 +6,26 @@ import {
   Query,
   ParseIntPipe,
   Request,
+  Res,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { Auth } from 'src/modules/auth/decorators';
 import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
 import { CajaService } from './caja.service';
+import { CajaPdfService } from './caja-pdf.service';
 import { QueryCierresUsuariosDto } from './dto/caja.dto';
 
 @ApiTags('Facturación - Caja')
 @ApiBearerAuth(HEADER_API_BEARER_AUTH)
 @Controller('facturacion/caja')
 export class CajaController {
-  constructor(private readonly cajaService: CajaService) {}
+  constructor(
+    private readonly cajaService: CajaService,
+    private readonly cajaPdfService: CajaPdfService,
+  ) {}
 
   @Get('movimientos')
   @Auth()
@@ -116,5 +122,93 @@ export class CajaController {
   async getCierreDiario(@Param('id', ParseIntPipe) id: number) {
     const data = await this.cajaService.obtenerCierreDiario(id);
     return { data };
+  }
+
+  // ─── PDF Endpoints ───
+
+  @Get('cierre-usuario/:id/pdf')
+  @Auth()
+  @ApiOperation({ summary: 'Descargar PDF de un cierre de usuario' })
+  async getPdfCierreUsuario(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ): Promise<void> {
+    const buffer = await this.cajaPdfService.generarPdfCierreUsuario(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="Cierre_Usuario_${id}.pdf"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
+  @Get('cierres-usuarios/:id/pdf')
+  @Auth()
+  @RequirePermissions('caja.cierres:ver_todos')
+  @ApiOperation({ summary: 'Descargar PDF de un cierre de usuario (admin)' })
+  async getPdfCierreUsuarioAdmin(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ): Promise<void> {
+    const buffer = await this.cajaPdfService.generarPdfCierreUsuario(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="Cierre_Usuario_${id}.pdf"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
+  @Get('cierre-diario/:id/pdf')
+  @Auth()
+  @RequirePermissions('caja.cierre_diario:gestionar')
+  @ApiOperation({ summary: 'Descargar PDF de un cierre diario' })
+  async getPdfCierreDiario(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ): Promise<void> {
+    const buffer = await this.cajaPdfService.generarPdfCierreDiario(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="Cierre_Diario_${id}.pdf"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
+  @Get('movimientos/pdf')
+  @Auth()
+  @ApiOperation({ summary: 'Descargar PDF de movimientos pendientes propios' })
+  async getPdfMovimientosPendientes(
+    @Request() req: any,
+    @Res() res: Response,
+  ): Promise<void> {
+    const nombreUsuario = `${req.user.nombres} ${req.user.apellidos}`;
+    const buffer = await this.cajaPdfService.generarPdfMovimientosPendientes(
+      req.user.id_usuario,
+      nombreUsuario,
+    );
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'inline; filename="Movimientos_Pendientes.pdf"',
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
+  @Get('movimientos-diario/pdf')
+  @Auth()
+  @RequirePermissions('caja.cierre_diario:gestionar')
+  @ApiOperation({ summary: 'Descargar PDF de movimientos pendientes de cierre diario' })
+  async getPdfMovimientosPendientesDiario(
+    @Res() res: Response,
+  ): Promise<void> {
+    const buffer = await this.cajaPdfService.generarPdfMovimientosPendientesDiario();
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'inline; filename="Movimientos_Pendientes_Diario.pdf"',
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 }
