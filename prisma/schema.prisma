@@ -2643,6 +2643,7 @@ model atcContrato {
   facturasDirectas    facturaDirecta[]
   cuentasPorCobrar    cuenta_por_cobrar[]
   pagosTarjetaPortal  pago_tarjeta_portal[]
+  validacionesComprobante whatsapp_validacion_comprobante[]
 
   @@index([id_cliente])
   @@index([id_plan])
@@ -3366,6 +3367,10 @@ model whatsapp_validacion_comprobante {
   // Cuenta bancaria destino (match automático)
   id_cuenta_bancaria         Int?
   cuenta_bancaria_destino    cuenta_bancaria? @relation("validacion_cuenta_destino", fields: [id_cuenta_bancaria], references: [id_cuenta_bancaria], onDelete: SetNull, onUpdate: NoAction, map: "fk_validacion_comprobante_cuenta_bancaria")
+
+  // Contrato asociado (cuando se aplica con pago)
+  id_contrato                Int?
+  contrato                   atcContrato? @relation(fields: [id_contrato], references: [id_contrato], onDelete: SetNull, onUpdate: NoAction, map: "fk_validacion_comprobante_contrato")
 
   // Estado de validación
   estado                     estado_validacion_comprobante @default(PENDIENTE)

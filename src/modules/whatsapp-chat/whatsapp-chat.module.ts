@@ -61,8 +61,11 @@ import { OpenaiModule } from '../openai/openai.module';
 // Bancos
 import { BancosModule } from '../bancos/bancos.module';
 
+// Facturación (para ContratoPagosService)
+import { FacturacionModule } from '../facturacion/facturacion.module';
+
 @Module({
-  imports: [ConfigModule, PrismaModule, MinioModule, OpenaiModule, ScheduleModule.forRoot(), BancosModule],
+  imports: [ConfigModule, PrismaModule, MinioModule, OpenaiModule, ScheduleModule.forRoot(), BancosModule, FacturacionModule],
   controllers: [
     ChatController,
     MessageController,

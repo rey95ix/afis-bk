@@ -23,7 +23,7 @@ import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { Auth } from 'src/modules/auth/decorators';
 import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 import { ValidacionComprobanteService } from './validacion-comprobante.service';
-import { EnviarValidacionMultiDto, QueryValidacionDto, RechazarValidacionDto, UpdateBancoDto } from './dto';
+import { AplicarValidacionDto, EnviarValidacionMultiDto, QueryValidacionDto, RechazarValidacionDto, UpdateBancoDto } from './dto';
 
 @ApiTags('WhatsApp Chat - Validación Comprobantes')
 @Controller('api/atencion-al-cliente/whatsapp-chat/validaciones')
@@ -186,7 +186,7 @@ export class ValidacionComprobanteController {
   @Patch(':id/aplicar')
   @ApiOperation({
     summary: 'Aplicar validación',
-    description: 'Marca una validación de comprobante aprobada como aplicada (estado final).',
+    description: 'Marca una validación de comprobante aprobada como aplicada (estado final). Opcionalmente registra el pago en un contrato.',
   })
   @ApiParam({ name: 'id', description: 'ID de la validación' })
   @ApiResponse({ status: 200, description: 'Validación aplicada exitosamente' })
@@ -194,8 +194,9 @@ export class ValidacionComprobanteController {
   @ApiResponse({ status: 404, description: 'Validación no encontrada' })
   aplicar(
     @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AplicarValidacionDto,
     @Request() req,
   ) {
-    return this.service.aplicar(id, req.user.id_usuario);
+    return this.service.aplicar(id, req.user.id_usuario, dto);
   }
 }

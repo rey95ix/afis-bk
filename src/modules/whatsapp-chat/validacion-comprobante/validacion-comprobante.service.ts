@@ -10,9 +10,10 @@ import * as ExcelJS from 'exceljs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MinioService } from '../../minio/minio.service';
 import { ComprobanteAnalyzerService } from './comprobante-analyzer.service';
-import { QueryValidacionDto, RechazarValidacionDto } from './dto';
+import { QueryValidacionDto, RechazarValidacionDto, AplicarValidacionDto } from './dto';
 import { WhatsAppChatGateway } from '../whatsapp-chat.gateway';
 import { MovimientosBancariosService } from '../../bancos/movimientos-bancarios/movimientos-bancarios.service';
+import { ContratoPagosService } from '../../facturacion/services/contrato-pagos.service';
 
 @Injectable()
 export class ValidacionComprobanteService {
@@ -25,6 +26,7 @@ export class ValidacionComprobanteService {
     @Inject(forwardRef(() => WhatsAppChatGateway))
     private readonly chatGateway: WhatsAppChatGateway,
     private readonly movimientosBancarios: MovimientosBancariosService,
+    private readonly contratoPagosService: ContratoPagosService,
   ) { }
 
   /**
@@ -797,8 +799,9 @@ export class ValidacionComprobanteService {
    * Aplicar una validación aprobada
    * @param id ID de la validación
    * @param userId ID del usuario que aplica
+   * @param dto Datos opcionales (idContrato para registrar pago)
    */
-  async aplicar(id: number, userId: number) {
+  async aplicar(id: number, userId: number, dto?: AplicarValidacionDto) {
     const validacion = await this.prisma.whatsapp_validacion_comprobante.findUnique({
       where: { id_validacion: id },
     });
@@ -820,38 +823,16 @@ export class ValidacionComprobanteService {
       throw new BadRequestException('No se puede aplicar: la validación no tiene monto');
     }
 
-    // Registrar movimiento bancario de ENTRADA antes de marcar como APLICADO
-    const movimiento = await this.movimientosBancarios.crearMovimiento(
-      {
-        id_cuenta_bancaria: validacion.id_cuenta_bancaria,
-        tipo_movimiento: 'ENTRADA',
-        metodo: 'TRANSFERENCIA',
-        monto: Number(validacion.monto),
-        referencia_bancaria: validacion.numero_referencia || undefined,
-        documento_origen_id: validacion.id_validacion,
-        modulo_origen: 'COBRANZA',
-        descripcion: `Comprobante WhatsApp #${validacion.numero_referencia} - ${validacion.banco_origen || 'N/A'} → cuenta destino`,
-        fecha_movimiento: validacion.fecha_transaccion
-          ? validacion.fecha_transaccion.toISOString().split('T')[0]
-          : undefined,
-        transferencia: {
-          banco_contraparte: validacion.banco_origen || undefined,
-          cuenta_contraparte: validacion.cuenta_origen || undefined,
-          codigo_autorizacion: validacion.numero_referencia || undefined,
-          fecha_transferencia: validacion.fecha_transaccion
-            ? validacion.fecha_transaccion.toISOString().split('T')[0]
-            : new Date().toISOString().split('T')[0],
-        },
-      } as any,
-      userId,
-    );
+    const monto = Number(validacion.monto);
 
+    // 1. Marcar como APLICADO primero para evitar doble-aplicación
     const result = await this.prisma.whatsapp_validacion_comprobante.update({
       where: { id_validacion: id },
       data: {
         estado: 'APLICADO',
         id_usuario_aplica: userId,
         fecha_aplicacion: new Date(),
+        ...(dto?.idContrato ? { id_contrato: dto.idContrato } : {}),
       },
       include: {
         message: {
@@ -888,7 +869,72 @@ export class ValidacionComprobanteService {
       },
     });
 
-    this.logger.log(`Validación ${id} aplicada por usuario ${userId} - Movimiento bancario #${movimiento!.id_movimiento} creado`);
+    // 2. Operaciones financieras — compensar si fallan
+    let distribucionPago: any = null;
+    try {
+      // Registrar pago en contrato si se proporcionó idContrato
+      if (dto?.idContrato) {
+        try {
+          distribucionPago = await this.contratoPagosService.registrarPagoContrato(
+            dto.idContrato,
+            {
+              monto,
+              metodoPago: 'TRANSFERENCIA' as any,
+              referencia: validacion.numero_referencia || undefined,
+              idCuentaBancaria: validacion.id_cuenta_bancaria,
+              observaciones: `Pago desde comprobante WhatsApp #${validacion.id_validacion}`,
+            },
+            userId,
+          );
+          this.logger.log(`Pago registrado para contrato ${dto.idContrato} desde validación ${id} - Monto: ${monto}`);
+        } catch (err) {
+          throw new BadRequestException(
+            `No se pudo registrar el pago en el contrato: ${err.message}`,
+          );
+        }
+      }
+
+      // Registrar movimiento bancario de ENTRADA
+      const movimiento = await this.movimientosBancarios.crearMovimiento(
+        {
+          id_cuenta_bancaria: validacion.id_cuenta_bancaria,
+          tipo_movimiento: 'ENTRADA',
+          metodo: 'TRANSFERENCIA',
+          monto,
+          referencia_bancaria: validacion.numero_referencia || undefined,
+          documento_origen_id: validacion.id_validacion,
+          modulo_origen: 'COBRANZA',
+          descripcion: `Comprobante WhatsApp #${validacion.numero_referencia} - ${validacion.banco_origen || 'N/A'} → cuenta destino`,
+          fecha_movimiento: validacion.fecha_transaccion
+            ? validacion.fecha_transaccion.toISOString().split('T')[0]
+            : undefined,
+          transferencia: {
+            banco_contraparte: validacion.banco_origen || undefined,
+            cuenta_contraparte: validacion.cuenta_origen || undefined,
+            codigo_autorizacion: validacion.numero_referencia || undefined,
+            fecha_transferencia: validacion.fecha_transaccion
+              ? validacion.fecha_transaccion.toISOString().split('T')[0]
+              : new Date().toISOString().split('T')[0],
+          },
+        } as any,
+        userId,
+      );
+
+      this.logger.log(`Validación ${id} aplicada por usuario ${userId} - Movimiento bancario #${movimiento!.id_movimiento} creado${dto?.idContrato ? ` - Pago en contrato ${dto.idContrato}` : ''}`);
+    } catch (err) {
+      // Compensar: revertir estado a APROBADO
+      await this.prisma.whatsapp_validacion_comprobante.update({
+        where: { id_validacion: id },
+        data: {
+          estado: 'APROBADO',
+          id_usuario_aplica: null,
+          fecha_aplicacion: null,
+          id_contrato: null,
+        },
+      });
+      this.logger.error(`Validación ${id}: operación financiera falló, estado revertido a APROBADO - ${err.message}`);
+      throw err;
+    }
 
     // Emitir evento WebSocket
     this.chatGateway.server.emit('validacion:actualizada', {
@@ -896,7 +942,7 @@ export class ValidacionComprobanteService {
       estado: 'APLICADO',
     });
 
-    return result;
+    return { ...result, distribucionPago };
   }
 
   /**
