@@ -10,6 +10,14 @@ import {
 
 export class PagoTarjetaPortalDto {
   @ApiProperty({
+    description: 'Token de intención de pago obtenido previamente',
+    example: 'a1b2c3d4...',
+  })
+  @IsString()
+  @MaxLength(64)
+  tokenPago: string;
+
+  @ApiProperty({
     description: 'IDs de facturas seleccionadas para pagar',
     example: [1, 2],
   })

@@ -222,6 +222,7 @@ model cliente {
   cuentasPorCobrar  cuenta_por_cobrar[] @relation("cxc_cliente")
   // Pagos con tarjeta desde portal
   pagosTarjetaPortal pago_tarjeta_portal[]
+  intentsPagoTarjeta pago_tarjeta_intent[]
   // Caja
   cajaMovimientos    caja_movimiento[]
 
@@ -2643,6 +2644,7 @@ model atcContrato {
   facturasDirectas    facturaDirecta[]
   cuentasPorCobrar    cuenta_por_cobrar[]
   pagosTarjetaPortal  pago_tarjeta_portal[]
+  intentsPagoTarjeta  pago_tarjeta_intent[]
   validacionesComprobante whatsapp_validacion_comprobante[]
 
   @@index([id_cliente])
@@ -4806,6 +4808,27 @@ model pago_tarjeta_portal {
   @@index([id_cliente])
   @@index([id_contrato])
   @@index([numero_autorizacion])
+}
+
+// ============================================
+// INTENCIÓN DE PAGO (ANTI-REPLAY TOKEN)
+// ============================================
+model pago_tarjeta_intent {
+  id_intent              Int         @id @default(autoincrement())
+  token                  String      @unique @db.VarChar(64)
+  id_cliente             Int
+  cliente                cliente     @relation(fields: [id_cliente], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_intent_cliente")
+  id_contrato            Int
+  contrato               atcContrato @relation(fields: [id_contrato], references: [id_contrato], onDelete: NoAction, onUpdate: NoAction, map: "fk_intent_contrato")
+  facturas_seleccionadas Int[]
+  monto_esperado         Decimal     @db.Decimal(12, 2)
+  usado                  Boolean     @default(false)
+  fecha_expiracion       DateTime
+  fecha_creacion         DateTime    @default(now())
+  ip_cliente             String?     @db.VarChar(45)
+
+  @@index([token])
+  @@index([id_cliente])
 }
 
 // =============================================================

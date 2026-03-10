@@ -1,10 +1,12 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'crypto';
 import { metodo_pago_abono } from '@prisma/client';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { ContratoPagosService } from 'src/modules/facturacion/services/contrato-pagos.service';
 import { PayWayService } from './payway.service';
 import type { PagoTarjetaPortalDto } from './dto/pago-tarjeta-portal.dto';
+import type { CrearPagoIntentDto } from './dto/crear-pago-intent.dto';
 
 @Injectable()
 export class ClientePortalService {
@@ -237,12 +239,109 @@ export class ClientePortalService {
     });
   }
 
+  async crearPagoIntent(
+    idCliente: number,
+    idContrato: number,
+    dto: CrearPagoIntentDto,
+    ipAddress?: string,
+  ) {
+    // Validate contract belongs to client
+    const contrato = await this.prisma.atcContrato.findFirst({
+      where: { id_contrato: idContrato, id_cliente: idCliente },
+      select: { id_contrato: true },
+    });
+
+    if (!contrato) {
+      throw new NotFoundException(`Contrato #${idContrato} no encontrado`);
+    }
+
+    // Validate invoices exist and have pending balance
+    const cxcs = await this.prisma.cuenta_por_cobrar.findMany({
+      where: {
+        id_factura_directa: { in: dto.idFacturas },
+        id_contrato: idContrato,
+        estado: { notIn: ['PAGADA_TOTAL', 'ANULADA'] },
+      },
+    });
+
+    if (cxcs.length === 0) {
+      throw new BadRequestException('No se encontraron facturas pendientes de pago');
+    }
+
+    if (cxcs.length !== dto.idFacturas.length) {
+      throw new BadRequestException(
+        'Algunas facturas seleccionadas no tienen saldo pendiente o no pertenecen al contrato',
+      );
+    }
+
+    // Calculate expected amount
+    const monto = cxcs.reduce((sum, cxc) => sum + Number(cxc.saldo_pendiente), 0);
+    const montoEsperado = Math.round(monto * 100) / 100;
+
+    if (montoEsperado <= 0) {
+      throw new BadRequestException('El monto a pagar debe ser mayor a cero');
+    }
+
+    // Generate unique token
+    const token = randomBytes(32).toString('hex');
+    const fechaExpiracion = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    await this.prisma.pago_tarjeta_intent.create({
+      data: {
+        token,
+        id_cliente: idCliente,
+        id_contrato: idContrato,
+        facturas_seleccionadas: dto.idFacturas,
+        monto_esperado: montoEsperado,
+        fecha_expiracion: fechaExpiracion,
+        ip_cliente: ipAddress,
+      },
+    });
+
+    return {
+      token,
+      montoEsperado,
+      expiraEn: 15,
+    };
+  }
+
   async procesarPagoTarjeta(
     idCliente: number,
     idContrato: number,
     dto: PagoTarjetaPortalDto,
     ipAddress?: string,
   ) {
+    // 0. Validate payment intent token
+    const intent = await this.prisma.pago_tarjeta_intent.findUnique({
+      where: { token: dto.tokenPago },
+    });
+
+    if (
+      !intent ||
+      intent.usado ||
+      intent.fecha_expiracion < new Date() ||
+      intent.id_cliente !== idCliente ||
+      intent.id_contrato !== idContrato
+    ) {
+      throw new BadRequestException('Token de pago inválido o expirado');
+    }
+
+    // Validate that invoice IDs match
+    const intentFacturas = [...intent.facturas_seleccionadas].sort((a, b) => a - b);
+    const dtoFacturas = [...dto.idFacturas].sort((a, b) => a - b);
+    if (
+      intentFacturas.length !== dtoFacturas.length ||
+      intentFacturas.some((v, i) => v !== dtoFacturas[i])
+    ) {
+      throw new BadRequestException('Token de pago inválido o expirado');
+    }
+
+    // Mark intent as used before processing payment
+    await this.prisma.pago_tarjeta_intent.update({
+      where: { id_intent: intent.id_intent },
+      data: { usado: true },
+    });
+
     // 1. Validate contract belongs to client
     const contrato = await this.prisma.atcContrato.findFirst({
       where: { id_contrato: idContrato, id_cliente: idCliente },

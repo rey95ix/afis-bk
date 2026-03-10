@@ -6,6 +6,7 @@ import { GetCliente } from '../cliente-auth/decorators/get-cliente.decorator';
 import type { ClienteAutenticado } from '../cliente-auth/interfaces';
 import { ClientePortalService } from './cliente-portal.service';
 import { PagoTarjetaPortalDto } from './dto/pago-tarjeta-portal.dto';
+import { CrearPagoIntentDto } from './dto/crear-pago-intent.dto';
 import type { Request } from 'express';
 
 @ApiTags('Portal de Clientes - Contratos')
@@ -45,6 +46,30 @@ export class ClientePortalController {
     const data = await this.portalService.obtenerFacturasContrato(
       cliente.id_cliente,
       id,
+    );
+    return { data };
+  }
+
+  @Post('contratos/:id/pago-intent')
+  @ApiOperation({ summary: 'Crear intención de pago para validar el flujo' })
+  @ApiParam({ name: 'id', type: Number })
+  @Throttle({ default: { limit: 5, ttl: 300000 } })
+  @UseGuards(ThrottlerGuard)
+  async crearPagoIntent(
+    @GetCliente() cliente: ClienteAutenticado,
+    @Param('id', ParseIntPipe) idContrato: number,
+    @Body() dto: CrearPagoIntentDto,
+    @Req() req: Request,
+  ) {
+    const ipAddress = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+      || req.socket?.remoteAddress
+      || undefined;
+
+    const data = await this.portalService.crearPagoIntent(
+      cliente.id_cliente,
+      idContrato,
+      dto,
+      ipAddress,
     );
     return { data };
   }
