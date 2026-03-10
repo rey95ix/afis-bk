@@ -19,6 +19,7 @@ import { ContratoPagosService } from '../services/contrato-pagos.service';
 import {
   RegistrarPagoContratoDto,
   RegistrarAcuerdoPagoDto,
+  AplicarDescuentoFacturaDto,
 } from '../dto/contrato-pagos.dto';
 
 @ApiTags('Facturación - Contrato Pagos')
@@ -78,6 +79,34 @@ export class ContratoPagosController {
       new Date(dto.fechaAcuerdo),
       req.user.id_usuario,
       dto.observaciones,
+    );
+    return { data: resultado };
+  }
+
+  @Post('facturas/:idFactura/descuento')
+  @ApiOperation({ summary: 'Aplicar descuento a una factura antes de firmar por MH' })
+  async aplicarDescuento(
+    @Param('idFactura', ParseIntPipe) idFactura: number,
+    @Body() dto: AplicarDescuentoFacturaDto,
+    @Request() req: any,
+  ) {
+    const resultado = await this.contratoPagosService.aplicarDescuentoFactura(
+      idFactura,
+      dto,
+      req.user.id_usuario,
+    );
+    return { data: resultado };
+  }
+
+  @Delete('facturas/:idFactura/descuento')
+  @ApiOperation({ summary: 'Eliminar descuento de una factura' })
+  async eliminarDescuento(
+    @Param('idFactura', ParseIntPipe) idFactura: number,
+    @Request() req: any,
+  ) {
+    const resultado = await this.contratoPagosService.eliminarDescuentoFactura(
+      idFactura,
+      req.user.id_usuario,
     );
     return { data: resultado };
   }

@@ -11,7 +11,8 @@ import { FacturaDirectaService } from '../factura-directa/factura-directa.servic
 import { MinioService } from '../../minio/minio.service';
 import { ComprobanteAnalyzerService } from '../../whatsapp-chat/validacion-comprobante/comprobante-analyzer.service';
 import { Prisma } from '@prisma/client';
-import { RegistrarPagoContratoDto } from '../dto/contrato-pagos.dto';
+import { RegistrarPagoContratoDto, AplicarDescuentoFacturaDto } from '../dto/contrato-pagos.dto';
+import { redondearMonto } from '../dte/builders/numero-letras.util';
 
 // ============================================
 // INTERFACES
@@ -25,6 +26,7 @@ export interface FacturaContratoItem {
   periodoFin: string | null;
   fechaVencimiento: string | null;
   total: number;
+  descuento: number;
   montoMora: number;
   montoAbonado: number;
   saldoPendiente: number;
@@ -165,6 +167,7 @@ export class ContratoPagosService {
         periodoFin: f.periodo_fin?.toISOString() || null,
         fechaVencimiento: f.fecha_vencimiento?.toISOString() || null,
         total: Number(f.total),
+        descuento: Number(f.descuento),
         montoMora: Number(f.monto_mora),
         montoAbonado,
         saldoPendiente,
@@ -758,6 +761,377 @@ export class ContratoPagosService {
         esInstalacion: a.cuentaPorCobrar.facturaDirecta.es_instalacion,
       },
     }));
+  }
+
+  // ============================================
+  // DESCUENTOS POR FACTURA
+  // ============================================
+
+  /**
+   * Aplicar descuento a una factura (antes de firmar por MH)
+   */
+  async aplicarDescuentoFactura(
+    idFactura: number,
+    dto: AplicarDescuentoFacturaDto,
+    idUsuario: number,
+  ) {
+    const factura = await this.prisma.facturaDirecta.findUnique({
+      where: { id_factura_directa: idFactura },
+      include: {
+        detalles: { orderBy: { num_item: 'asc' } },
+        cuenta_por_cobrar: true,
+        tipoFactura: { select: { codigo: true } },
+      },
+    });
+
+    if (!factura) {
+      throw new NotFoundException(`Factura #${idFactura} no encontrada`);
+    }
+
+    if (factura.estado !== 'ACTIVO') {
+      throw new BadRequestException('Solo se puede aplicar descuento a facturas activas');
+    }
+
+    if (factura.estado_dte === 'PROCESADO') {
+      throw new BadRequestException('No se puede aplicar descuento a una factura firmada por MH');
+    }
+
+    if (factura.estado_pago === 'PAGADO') {
+      throw new BadRequestException('No se puede aplicar descuento a una factura ya pagada');
+    }
+
+    // Calcular subtotal original (sin descuentos previos)
+    const subTotalOriginal = factura.detalles.reduce(
+      (sum, d) => sum + Number(d.cantidad) * Number(d.precio_unitario),
+      0,
+    );
+
+    // Calcular descuento total
+    let descuentoTotal: number;
+    if (dto.tipoDescuento === 'PORCENTAJE') {
+      descuentoTotal = redondearMonto(subTotalOriginal * dto.valor / 100);
+    } else {
+      descuentoTotal = dto.valor;
+    }
+
+    if (descuentoTotal >= subTotalOriginal) {
+      throw new BadRequestException('El descuento no puede ser igual o mayor al subtotal de la factura');
+    }
+
+    // Distribuir proporcionalmente entre ítems
+    const detallesConDescuento = this.distribuirDescuento(factura.detalles, descuentoTotal);
+
+    // Recalcular totales
+    const tipoDte = (factura as any).tipoFactura?.codigo || '01';
+    const IVA_RATE = 0.13;
+    let totalGravada = 0;
+    let totalExenta = 0;
+    let totalNoSuj = 0;
+    let totalIva = 0;
+
+    for (const det of detallesConDescuento) {
+      const montoNeto = det.subtotalSinDesc - det.descuento;
+
+      switch (det.tipo_detalle) {
+        case 'GRAVADO':
+          totalGravada += montoNeto;
+          if (tipoDte === '01' || tipoDte === '14') {
+            totalIva += montoNeto - montoNeto / (1 + IVA_RATE);
+          } else {
+            totalIva += montoNeto * IVA_RATE;
+          }
+          break;
+        case 'EXENTA':
+          totalExenta += montoNeto;
+          break;
+        case 'NOSUJETO':
+          totalNoSuj += montoNeto;
+          break;
+      }
+    }
+
+    totalGravada = redondearMonto(totalGravada);
+    totalExenta = redondearMonto(totalExenta);
+    totalNoSuj = redondearMonto(totalNoSuj);
+    totalIva = redondearMonto(totalIva);
+    const subtotalVentas = redondearMonto(totalGravada + totalExenta + totalNoSuj);
+    const subtotal = redondearMonto(subtotalVentas - descuentoTotal);
+    const totalNuevo = (tipoDte === '01' || tipoDte === '14')
+      ? subtotal
+      : redondearMonto(subtotal + totalIva);
+
+    const totalAnterior = Number(factura.total);
+
+    // Actualizar en transacción
+    await this.prisma.$transaction(async (tx) => {
+      // Actualizar cada detalle
+      for (const det of detallesConDescuento) {
+        const montoNeto = det.subtotalSinDesc - det.descuento;
+        let ivaItem = 0;
+        let ventaGravada = 0;
+
+        if (det.tipo_detalle === 'GRAVADO') {
+          ventaGravada = montoNeto;
+          if (tipoDte === '01' || tipoDte === '14') {
+            ivaItem = redondearMonto(montoNeto - montoNeto / (1 + IVA_RATE), 4);
+          } else {
+            ivaItem = redondearMonto(montoNeto * IVA_RATE, 4);
+          }
+        }
+
+        await tx.facturaDirectaDetalle.update({
+          where: { id_detalle: det.id_detalle },
+          data: {
+            descuento: redondearMonto(det.descuento),
+            venta_gravada: redondearMonto(ventaGravada),
+            iva: redondearMonto(ivaItem),
+            subtotal: redondearMonto(det.subtotalSinDesc),
+            total: redondearMonto(montoNeto),
+          },
+        });
+      }
+
+      // Actualizar factura
+      await tx.facturaDirecta.update({
+        where: { id_factura_directa: idFactura },
+        data: {
+          descuento: descuentoTotal,
+          descuento_porcentaje: dto.tipoDescuento === 'PORCENTAJE' ? dto.valor : null,
+          descuento_motivo: dto.motivo || null,
+          descuento_usuario: idUsuario,
+          descuento_fecha: new Date(),
+          totalGravada,
+          totalExenta,
+          totalNoSuj,
+          iva: totalIva,
+          subTotalVentas: subtotalVentas,
+          subtotal,
+          total: totalNuevo,
+          // Reset DTE para que se regenere al firmar
+          dte_json: null,
+          dte_firmado: null,
+          estado_dte: 'BORRADOR',
+        },
+      });
+
+      // Actualizar CxC
+      if (factura.cuenta_por_cobrar) {
+        const cxc = factura.cuenta_por_cobrar;
+        const totalAbonado = Number(cxc.total_abonado);
+        const nuevoSaldoPendiente = redondearMonto(totalNuevo - totalAbonado);
+
+        let nuevoEstadoCxc = cxc.estado;
+        let nuevoEstadoPago = factura.estado_pago;
+
+        if (nuevoSaldoPendiente <= 0) {
+          nuevoEstadoCxc = 'PAGADA_TOTAL';
+          nuevoEstadoPago = 'PAGADO';
+        }
+
+        await tx.cuenta_por_cobrar.update({
+          where: { id_cxc: cxc.id_cxc },
+          data: {
+            monto_total: totalNuevo,
+            saldo_pendiente: Math.max(0, nuevoSaldoPendiente),
+          },
+        });
+
+        if (nuevoEstadoPago !== factura.estado_pago) {
+          await tx.facturaDirecta.update({
+            where: { id_factura_directa: idFactura },
+            data: { estado_pago: nuevoEstadoPago },
+          });
+        }
+      }
+    });
+
+    await this.prisma.logAction(
+      'APLICAR_DESCUENTO_FACTURA',
+      idUsuario,
+      `Descuento aplicado a factura #${idFactura}: ${dto.tipoDescuento === 'PORCENTAJE' ? dto.valor + '%' : '$' + dto.valor}. Total: $${totalAnterior} → $${totalNuevo}`,
+    );
+
+    return { totalAnterior, totalNuevo, descuento: descuentoTotal };
+  }
+
+  /**
+   * Eliminar descuento de una factura
+   */
+  async eliminarDescuentoFactura(idFactura: number, idUsuario: number) {
+    const factura = await this.prisma.facturaDirecta.findUnique({
+      where: { id_factura_directa: idFactura },
+      include: {
+        detalles: { orderBy: { num_item: 'asc' } },
+        cuenta_por_cobrar: true,
+        tipoFactura: { select: { codigo: true } },
+      },
+    });
+
+    if (!factura) {
+      throw new NotFoundException(`Factura #${idFactura} no encontrada`);
+    }
+
+    if (factura.estado !== 'ACTIVO') {
+      throw new BadRequestException('Solo se puede modificar facturas activas');
+    }
+
+    if (factura.estado_dte === 'PROCESADO') {
+      throw new BadRequestException('No se puede modificar una factura firmada por MH');
+    }
+
+    if (Number(factura.descuento) === 0) {
+      throw new BadRequestException('La factura no tiene descuento aplicado');
+    }
+
+    const totalAnterior = Number(factura.total);
+    const tipoDte = (factura as any).tipoFactura?.codigo || '01';
+    const IVA_RATE = 0.13;
+
+    // Recalcular totales sin descuento
+    let totalGravada = 0;
+    let totalExenta = 0;
+    let totalNoSuj = 0;
+    let totalIva = 0;
+
+    for (const det of factura.detalles) {
+      const subtotalItem = Number(det.cantidad) * Number(det.precio_unitario);
+
+      switch (det.tipo_detalle) {
+        case 'GRAVADO':
+          totalGravada += subtotalItem;
+          if (tipoDte === '01' || tipoDte === '14') {
+            totalIva += subtotalItem - subtotalItem / (1 + IVA_RATE);
+          } else {
+            totalIva += subtotalItem * IVA_RATE;
+          }
+          break;
+        case 'EXENTA':
+          totalExenta += subtotalItem;
+          break;
+        case 'NOSUJETO':
+          totalNoSuj += subtotalItem;
+          break;
+      }
+    }
+
+    totalGravada = redondearMonto(totalGravada);
+    totalExenta = redondearMonto(totalExenta);
+    totalNoSuj = redondearMonto(totalNoSuj);
+    totalIva = redondearMonto(totalIva);
+    const subtotalVentas = redondearMonto(totalGravada + totalExenta + totalNoSuj);
+    const totalNuevo = (tipoDte === '01' || tipoDte === '14')
+      ? subtotalVentas
+      : redondearMonto(subtotalVentas + totalIva);
+
+    await this.prisma.$transaction(async (tx) => {
+      // Reset descuento en cada detalle
+      for (const det of factura.detalles) {
+        const subtotalItem = Number(det.cantidad) * Number(det.precio_unitario);
+        let ivaItem = 0;
+        let ventaGravada = 0;
+
+        if (det.tipo_detalle === 'GRAVADO') {
+          ventaGravada = subtotalItem;
+          if (tipoDte === '01' || tipoDte === '14') {
+            ivaItem = redondearMonto(subtotalItem - subtotalItem / (1 + IVA_RATE), 4);
+          } else {
+            ivaItem = redondearMonto(subtotalItem * IVA_RATE, 4);
+          }
+        }
+
+        await tx.facturaDirectaDetalle.update({
+          where: { id_detalle: det.id_detalle },
+          data: {
+            descuento: 0,
+            venta_gravada: redondearMonto(ventaGravada),
+            iva: redondearMonto(ivaItem),
+            subtotal: redondearMonto(subtotalItem),
+            total: redondearMonto(subtotalItem),
+          },
+        });
+      }
+
+      await tx.facturaDirecta.update({
+        where: { id_factura_directa: idFactura },
+        data: {
+          descuento: 0,
+          descuento_porcentaje: null,
+          descuento_motivo: null,
+          descuento_usuario: null,
+          descuento_fecha: null,
+          totalGravada,
+          totalExenta,
+          totalNoSuj,
+          iva: totalIva,
+          subTotalVentas: subtotalVentas,
+          subtotal: subtotalVentas,
+          total: totalNuevo,
+          dte_json: null,
+          dte_firmado: null,
+          estado_dte: 'BORRADOR',
+        },
+      });
+
+      // Actualizar CxC
+      if (factura.cuenta_por_cobrar) {
+        const cxc = factura.cuenta_por_cobrar;
+        const totalAbonado = Number(cxc.total_abonado);
+        const nuevoSaldoPendiente = redondearMonto(totalNuevo - totalAbonado);
+
+        await tx.cuenta_por_cobrar.update({
+          where: { id_cxc: cxc.id_cxc },
+          data: {
+            monto_total: totalNuevo,
+            saldo_pendiente: Math.max(0, nuevoSaldoPendiente),
+          },
+        });
+      }
+    });
+
+    await this.prisma.logAction(
+      'ELIMINAR_DESCUENTO_FACTURA',
+      idUsuario,
+      `Descuento eliminado de factura #${idFactura}. Total: $${totalAnterior} → $${totalNuevo}`,
+    );
+
+    return { totalAnterior, totalNuevo, descuento: 0 };
+  }
+
+  /**
+   * Distribuir descuento proporcionalmente entre ítems
+   */
+  private distribuirDescuento(
+    detalles: any[],
+    descuentoTotal: number,
+  ): Array<{ id_detalle: number; tipo_detalle: string; subtotalSinDesc: number; descuento: number }> {
+    const totalBruto = detalles.reduce(
+      (sum, d) => sum + Number(d.cantidad) * Number(d.precio_unitario),
+      0,
+    );
+
+    let acumulado = 0;
+    const resultado = detalles.map((d, index) => {
+      const subtotalSinDesc = Number(d.cantidad) * Number(d.precio_unitario);
+      const peso = subtotalSinDesc / totalBruto;
+      let descuentoItem: number;
+
+      if (index === detalles.length - 1) {
+        // Último ítem absorbe diferencia de redondeo
+        descuentoItem = redondearMonto(descuentoTotal - acumulado);
+      } else {
+        descuentoItem = redondearMonto(descuentoTotal * peso);
+        acumulado += descuentoItem;
+      }
+
+      return {
+        id_detalle: d.id_detalle,
+        tipo_detalle: d.tipo_detalle,
+        subtotalSinDesc,
+        descuento: descuentoItem,
+      };
+    });
+
+    return resultado;
   }
 
   // ============================================

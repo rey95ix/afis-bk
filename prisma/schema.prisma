@@ -4120,6 +4120,12 @@ model facturaDirecta {
   subTotalVentas     Decimal @default(0) @db.Decimal(12, 2)
   descuento          Decimal @default(0) @db.Decimal(12, 2)
 
+  // === METADATOS DE DESCUENTO ===
+  descuento_porcentaje  Decimal?  @db.Decimal(5, 2)
+  descuento_motivo      String?   @db.Text
+  descuento_usuario     Int?
+  descuento_fecha       DateTime?
+
   // === DESGLOSE POR TIPO DE VENTA ===
   totalNoSuj         Decimal @default(0) @db.Decimal(12, 2) // Total no sujeto
   totalExenta        Decimal @default(0) @db.Decimal(12, 2) // Total exento

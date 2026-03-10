@@ -6,7 +6,9 @@ import {
   IsString,
   IsDateString,
   IsInt,
+  IsIn,
   Min,
+  Max,
   MaxLength,
 } from 'class-validator';
 import { metodo_pago_abono } from '@prisma/client';
@@ -43,6 +45,24 @@ export class RegistrarPagoContratoDto {
   @IsString()
   @MaxLength(500)
   comprobanteUrl?: string;
+}
+
+export class AplicarDescuentoFacturaDto {
+  @ApiProperty({ description: 'Tipo de descuento', enum: ['PORCENTAJE', 'MONTO_FIJO'] })
+  @IsIn(['PORCENTAJE', 'MONTO_FIJO'])
+  tipoDescuento: 'PORCENTAJE' | 'MONTO_FIJO';
+
+  @ApiProperty({ description: 'Valor del descuento (porcentaje 0.01-100 o monto fijo)', minimum: 0.01 })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  @Max(100)
+  valor: number;
+
+  @ApiPropertyOptional({ description: 'Motivo del descuento' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  motivo?: string;
 }
 
 export class RegistrarAcuerdoPagoDto {
