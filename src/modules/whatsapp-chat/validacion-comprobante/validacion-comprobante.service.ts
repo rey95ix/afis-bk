@@ -382,6 +382,152 @@ export class ValidacionComprobanteService {
   }
 
   /**
+   * Enviar comprobantes directamente (sin WhatsApp) subiendo imágenes
+   * @param files Archivos de imagen subidos
+   * @param userId ID del usuario que envía
+   */
+  async enviarDirecto(files: Express.Multer.File[], userId: number) {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('Debe subir al menos una imagen');
+    }
+
+    // 1. Validar que todos sean imágenes
+    for (const file of files) {
+      if (!file.mimetype.startsWith('image/')) {
+        throw new BadRequestException(`El archivo "${file.originalname}" no es una imagen`);
+      }
+    }
+
+    // 2. Preparar buffers para el analyzer
+    const images = files.map(f => ({ buffer: f.buffer, mimeType: f.mimetype }));
+
+    // 3. Llamar al analyzer
+    let extractionResult;
+    if (images.length === 1) {
+      extractionResult = await this.comprobanteAnalyzer.extractComprobanteData(
+        images[0].buffer,
+        images[0].mimeType,
+      );
+    } else {
+      extractionResult = await this.comprobanteAnalyzer.extractComprobanteDataMulti(
+        images,
+        null,
+      );
+    }
+
+    // 4. Verificar que sea un comprobante
+    if (!extractionResult.es_comprobante) {
+      throw new BadRequestException('La imagen no es un comprobante de transferencia bancaria');
+    }
+
+    // 5. Verificar duplicado por numero_referencia + banco_origen
+    if (extractionResult.numero_referencia) {
+      const duplicateWhere: any = {
+        numero_referencia: extractionResult.numero_referencia,
+        estado: { notIn: ['RECHAZADO'] },
+      };
+      if (extractionResult.banco_origen) {
+        duplicateWhere.banco_origen = extractionResult.banco_origen;
+      }
+      const duplicate = await this.prisma.whatsapp_validacion_comprobante.findFirst({
+        where: duplicateWhere,
+      });
+      if (duplicate) {
+        throw new BadRequestException(
+          `Ya existe una validación (#${duplicate.id_validacion}) con referencia ${extractionResult.numero_referencia}`,
+        );
+      }
+    }
+
+    // 6. Resolver cuenta bancaria destino
+    const cuentaMatch = await this.resolverCuentaBancaria(extractionResult.cuenta_destino);
+    const enrichedBanco = extractionResult.banco || cuentaMatch?.banco_nombre || null;
+
+    // 7. Subir imágenes a MinIO
+    const urls: string[] = [];
+    const objectNames: string[] = [];
+    try {
+      for (const file of files) {
+        const timestamp = Date.now();
+        const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const objectName = `validaciones-directas/${timestamp}-${safeName}`;
+        const result = await this.minioService.uploadFile(file, objectName);
+        urls.push(result.url);
+        objectNames.push(objectName);
+      }
+    } catch (error) {
+      // Limpiar archivos ya subidos si falla alguno
+      for (const name of objectNames) {
+        try { await this.minioService.deleteFile(name); } catch {}
+      }
+      this.logger.error(`Error al subir imágenes a MinIO: ${error.message}`);
+      throw new BadRequestException('Error al subir las imágenes');
+    }
+
+    // 8. Parsear fecha segura
+    const parsedFecha = extractionResult.fecha_transaccion
+      ? new Date(extractionResult.fecha_transaccion)
+      : null;
+    const fechaTransaccion = parsedFecha && !isNaN(parsedFecha.getTime()) ? parsedFecha : null;
+
+    // 9. Crear registro sin id_message/id_chat
+    const validacion = await this.prisma.whatsapp_validacion_comprobante.create({
+      data: {
+        id_message: null,
+        id_chat: null,
+        imagenes_directas: JSON.stringify(urls),
+        monto: extractionResult.monto,
+        fecha_transaccion: fechaTransaccion,
+        numero_referencia: extractionResult.numero_referencia,
+        banco: enrichedBanco,
+        cuenta_origen: extractionResult.cuenta_origen,
+        cuenta_destino: extractionResult.cuenta_destino,
+        nombre_titular: extractionResult.nombre_titular,
+        nombre_cliente: extractionResult.nombre_cliente,
+        confianza: extractionResult.confianza,
+        es_transferencia_365: extractionResult.es_transferencia_365,
+        banco_origen: extractionResult.banco_origen,
+        id_cuenta_bancaria: cuentaMatch?.id_cuenta_bancaria ?? null,
+        estado: 'PENDIENTE',
+        id_usuario_envia: userId,
+      },
+      include: {
+        message: true,
+        chat: {
+          select: {
+            id_chat: true,
+            telefono_cliente: true,
+            nombre_cliente: true,
+          },
+        },
+        usuario_envia: {
+          select: { id_usuario: true, nombres: true, apellidos: true },
+        },
+        cuenta_bancaria_destino: {
+          select: {
+            id_cuenta_bancaria: true,
+            numero_cuenta: true,
+            alias: true,
+            banco: { select: { id_banco: true, nombre: true } },
+          },
+        },
+      },
+    });
+
+    this.logger.log(`Validación directa creada: ${validacion.id_validacion} con ${files.length} imagen(es)`);
+
+    // Emitir evento WebSocket
+    this.chatGateway.server.emit('validacion:nueva', {
+      id_validacion: validacion.id_validacion,
+      id_chat: null,
+      monto: validacion.monto,
+      banco: validacion.banco,
+    });
+
+    return validacion;
+  }
+
+  /**
    * Resolver cuenta bancaria destino a partir del número extraído por IA
    * Estrategia en 3 niveles: exacto → sufijo → parcial (últimos 4 dígitos)
    */

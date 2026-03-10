@@ -10,7 +10,11 @@ import {
   Res,
   ParseIntPipe,
   HttpStatus,
+  UseInterceptors,
+  UploadedFiles,
+  BadRequestException,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import {
   ApiTags,
@@ -18,6 +22,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiConsumes,
 } from '@nestjs/swagger';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { Auth } from 'src/modules/auth/decorators';
@@ -31,6 +36,32 @@ import { AplicarValidacionDto, EnviarValidacionMultiDto, QueryValidacionDto, Rec
 @Auth()
 export class ValidacionComprobanteController {
   constructor(private readonly service: ValidacionComprobanteService) {}
+
+  @RequirePermissions('atencion_cliente.whatsapp_validaciones:ver')
+  @Post('enviar-directo')
+  @UseInterceptors(FilesInterceptor('files', 10, {
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (!file.mimetype.startsWith('image/')) {
+        cb(new BadRequestException('Solo se permiten imagenes'), false);
+      } else {
+        cb(null, true);
+      }
+    },
+  }))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Subir comprobantes directamente',
+    description: 'Sube imágenes de comprobantes bancarios directamente sin depender de un chat de WhatsApp.',
+  })
+  @ApiResponse({ status: 201, description: 'Comprobante enviado a validación exitosamente' })
+  @ApiResponse({ status: 400, description: 'Archivos inválidos o no es un comprobante' })
+  enviarDirecto(
+    @UploadedFiles() files: Express.Multer.File[],
+    @Request() req,
+  ) {
+    return this.service.enviarDirecto(files, req.user.id_usuario);
+  }
 
   @RequirePermissions('atencion_cliente.whatsapp_chat:ver')
   @Post('enviar-multi')

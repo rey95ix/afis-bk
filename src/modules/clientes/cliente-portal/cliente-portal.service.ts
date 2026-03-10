@@ -338,6 +338,7 @@ export class ClientePortalService {
       mensaje: 'Pago procesado exitosamente',
       numeroAutorizacion: gwResponse.numeroAutorizacion,
       terminacionTarjeta: gwResponse.terminacionTarjeta,
+      fechaTransaccion: gwResponse.fechaTransaccion,
       distribucion: {
         items: distribucion.items.map((item) => ({
           idFactura: item.idFactura,

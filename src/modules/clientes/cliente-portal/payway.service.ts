@@ -37,24 +37,33 @@ export class PayWayService {
     const terminacionTarjeta = params.numeroTarjeta.slice(-4);
 
     const jsonPayload = JSON.stringify({
-      idColector: Number(this.idColector),
       token: this.token,
-      usuarioPlataforma: this.usuarioPlataforma,
-      nombreTarjetahabiente: params.nombreTarjetahabiente,
-      numeroTarjeta: tarjetaEncriptada,
-      fechaExpiracion: params.fechaExpiracion,
-      cvv2: cvv2Encriptado,
-      monto: params.monto.toFixed(2),
-      conceptoPago: params.conceptoPago,
-      ipCliente: '190.150.114.158', //params.ipCliente || '0.0.0.0',
+      idColector: Number(this.idColector),
+      ipCliente: '190.150.114.158',
       usuarioCliente: params.usuarioCliente || 'PORTAL',
+      datosUsuarioInterno: {
+        usuarioPlataforma: this.usuarioPlataforma,
+      },
+      datosServicio: {
+        monto: params.monto.toFixed(2),
+        conceptoPago: params.conceptoPago,
+      },
+      datosMedioPago: {
+        principal: {
+          nombreTarjetahabiente: params.nombreTarjetahabiente,
+          fechaExpiracion: params.fechaExpiracion,
+          numeroTarjeta: tarjetaEncriptada,
+          cvv2: cvv2Encriptado,
+        },
+      },
+      datosAuxiliares: {
+        datoAuxiliar1: '',
+        datoAuxiliar2: '',
+        datoAuxiliar3: '',
+        datoAuxiliar4: '',
+      },
     });
-    console.log('PayWayService realizarPago payload:', jsonPayload);
-    console.log('PayWayService initialized with endpoint:', this.endpoint);
-    console.log('PayWayService initialized with token:', this.token );
-    console.log('PayWayService initialized with usuarioPlataforma:', this.usuarioPlataforma);
-    console.log('PayWayService initialized with idColector:', this.idColector);
-    console.log('PayWayService initialized with encryptionKey:', this.encryptionKey);
+
     try {
       const client = await soap.createClientAsync(this.endpoint);
 
@@ -63,17 +72,17 @@ export class PayWayService {
       const serviceUrl = this.endpoint.replace(/\?Wsdl$/i, '');
       client.setEndpoint(serviceUrl);
 
-      const [result] = await client.realizarPagoAsync({ arg0: jsonPayload });
+      const [result] = await client.realizarPagoAsync({ jsonRequest: jsonPayload });
       this.logger.debug(`PayWay last request XML: ${client.lastRequest?.substring(0, 800)}`);
 
       const jsonStr = typeof result?.return === 'string' ? result.return : JSON.stringify(result?.return);
-      this.logger.debug(`PayWay response: ${jsonStr?.substring(0, 200)}`);
+      this.logger.debug(`PayWay response: ${jsonStr}`);
 
       let parsed: any;
       try {
         parsed = JSON.parse(jsonStr);
       } catch {
-        this.logger.error(`PayWay: Failed to parse JSON: ${jsonStr?.substring(0, 200)}`);
+        this.logger.error(`PayWay: Failed to parse JSON: ${jsonStr }`);
         return {
           exitoso: false,
           codigoRetorno: '99',
