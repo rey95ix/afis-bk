@@ -1,12 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsArray,
-  IsInt,
-  IsString,
-  Matches,
-  MaxLength,
-  ArrayMinSize,
-} from 'class-validator';
+import { IsInt, IsNumber, IsString, Matches, MaxLength, Min } from 'class-validator';
 
 export class PagoTarjetaPortalDto {
   @ApiProperty({
@@ -18,13 +11,19 @@ export class PagoTarjetaPortalDto {
   tokenPago: string;
 
   @ApiProperty({
-    description: 'IDs de facturas seleccionadas para pagar',
-    example: [1, 2],
+    description: 'ID de la factura seleccionada para pagar',
+    example: 1,
   })
-  @IsArray()
-  @IsInt({ each: true })
-  @ArrayMinSize(1)
-  idFacturas: number[];
+  @IsInt()
+  idFactura: number;
+
+  @ApiProperty({
+    description: 'Monto a pagar (puede ser parcial)',
+    example: 25.5,
+  })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  monto: number;
 
   @ApiProperty({ description: 'Numero de tarjeta (13-19 digitos)' })
   @IsString()

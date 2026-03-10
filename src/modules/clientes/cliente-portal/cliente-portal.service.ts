@@ -255,32 +255,28 @@ export class ClientePortalService {
       throw new NotFoundException(`Contrato #${idContrato} no encontrado`);
     }
 
-    // Validate invoices exist and have pending balance
-    const cxcs = await this.prisma.cuenta_por_cobrar.findMany({
+    // Validate invoice exists and has pending balance
+    const cxc = await this.prisma.cuenta_por_cobrar.findFirst({
       where: {
-        id_factura_directa: { in: dto.idFacturas },
+        id_factura_directa: dto.idFactura,
         id_contrato: idContrato,
         estado: { notIn: ['PAGADA_TOTAL', 'ANULADA'] },
       },
     });
 
-    if (cxcs.length === 0) {
-      throw new BadRequestException('No se encontraron facturas pendientes de pago');
+    if (!cxc) {
+      throw new BadRequestException('No se encontró la factura pendiente de pago');
     }
 
-    if (cxcs.length !== dto.idFacturas.length) {
+    const saldoPendiente = Number(cxc.saldo_pendiente);
+
+    if (dto.monto > saldoPendiente) {
       throw new BadRequestException(
-        'Algunas facturas seleccionadas no tienen saldo pendiente o no pertenecen al contrato',
+        `El monto ($${dto.monto.toFixed(2)}) excede el saldo pendiente ($${saldoPendiente.toFixed(2)})`,
       );
     }
 
-    // Calculate expected amount
-    const monto = cxcs.reduce((sum, cxc) => sum + Number(cxc.saldo_pendiente), 0);
-    const montoEsperado = Math.round(monto * 100) / 100;
-
-    if (montoEsperado <= 0) {
-      throw new BadRequestException('El monto a pagar debe ser mayor a cero');
-    }
+    const montoEsperado = Math.round(dto.monto * 100) / 100;
 
     // Generate unique token
     const token = randomBytes(32).toString('hex');
@@ -291,7 +287,7 @@ export class ClientePortalService {
         token,
         id_cliente: idCliente,
         id_contrato: idContrato,
-        facturas_seleccionadas: dto.idFacturas,
+        facturas_seleccionadas: [dto.idFactura],
         monto_esperado: montoEsperado,
         fecha_expiracion: fechaExpiracion,
         ip_cliente: ipAddress,
@@ -326,13 +322,14 @@ export class ClientePortalService {
       throw new BadRequestException('Token de pago inválido o expirado');
     }
 
-    // Validate that invoice IDs match
-    const intentFacturas = [...intent.facturas_seleccionadas].sort((a, b) => a - b);
-    const dtoFacturas = [...dto.idFacturas].sort((a, b) => a - b);
-    if (
-      intentFacturas.length !== dtoFacturas.length ||
-      intentFacturas.some((v, i) => v !== dtoFacturas[i])
-    ) {
+    // Validate that invoice ID matches
+    const intentFacturas = intent.facturas_seleccionadas;
+    if (intentFacturas.length !== 1 || intentFacturas[0] !== dto.idFactura) {
+      throw new BadRequestException('Token de pago inválido o expirado');
+    }
+
+    // Validate monto matches intent
+    if (dto.monto !== Number(intent.monto_esperado)) {
       throw new BadRequestException('Token de pago inválido o expirado');
     }
 
@@ -352,35 +349,31 @@ export class ClientePortalService {
       throw new NotFoundException(`Contrato #${idContrato} no encontrado`);
     }
 
-    // 2. Get CxCs for selected invoices and validate
-    const cxcs = await this.prisma.cuenta_por_cobrar.findMany({
+    // 2. Get CxC for selected invoice and validate
+    const cxc = await this.prisma.cuenta_por_cobrar.findFirst({
       where: {
-        id_factura_directa: { in: dto.idFacturas },
+        id_factura_directa: dto.idFactura,
         id_contrato: idContrato,
         estado: { notIn: ['PAGADA_TOTAL', 'ANULADA'] },
       },
       include: { facturaDirecta: true },
     });
 
-    if (cxcs.length === 0) {
-      throw new BadRequestException('No se encontraron facturas pendientes de pago');
+    if (!cxc) {
+      throw new BadRequestException('No se encontró la factura pendiente de pago');
     }
 
-    if (cxcs.length !== dto.idFacturas.length) {
+    const saldoPendiente = Number(cxc.saldo_pendiente);
+
+    if (dto.monto > saldoPendiente) {
       throw new BadRequestException(
-        'Algunas facturas seleccionadas no tienen saldo pendiente o no pertenecen al contrato',
+        `El monto ($${dto.monto.toFixed(2)}) excede el saldo pendiente ($${saldoPendiente.toFixed(2)})`,
       );
     }
 
-    // 3. Calculate total amount
-    const monto = cxcs.reduce((sum, cxc) => sum + Number(cxc.saldo_pendiente), 0);
-    const montoRedondeado = Math.round(monto * 100) / 100;
+    const montoRedondeado = Math.round(dto.monto * 100) / 100;
 
-    if (montoRedondeado <= 0) {
-      throw new BadRequestException('El monto a pagar debe ser mayor a cero');
-    }
-
-    const conceptoPago = `Pago contrato ${contrato.codigo} - ${cxcs.length} factura(s)`;
+    const conceptoPago = `Pago contrato ${contrato.codigo} - Factura #${dto.idFactura}`;
 
     // 4. Call PayWay gateway
     const gwResponse = await this.payWayService.realizarPago({
@@ -408,7 +401,7 @@ export class ClientePortalService {
         concepto_pago: conceptoPago,
         exitoso: gwResponse.exitoso,
         mensaje_error: gwResponse.exitoso ? null : gwResponse.mensajeRetorno,
-        facturas_seleccionadas: dto.idFacturas,
+        facturas_seleccionadas: [dto.idFactura],
         ip_cliente: ipAddress,
       },
     });
