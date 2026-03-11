@@ -17,6 +17,7 @@ import {
   BuscarFacturaDirectaDto,
   BuscarErroresDteDto,
   AnularFacturaDirectaDto,
+  ConvertirACreditoDto,
 } from './dto';
 import {
   ApiTags,
@@ -253,6 +254,32 @@ export class FacturaDirectaController {
     });
 
     res.end(pdfBuffer);
+  }
+
+  @Post(':id/convertir-a-credito')
+  @RequirePermissions('facturacion.factura_directa:editar')
+  @ApiOperation({ summary: 'Convertir factura de contado a crédito' })
+  @ApiResponse({
+    status: 200,
+    description: 'Factura convertida exitosamente.',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        message: { type: 'string' },
+        id_cxc: { type: 'number' },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Precondiciones no cumplidas.' })
+  @ApiResponse({ status: 404, description: 'Factura no encontrada.' })
+  convertirACredito(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ConvertirACreditoDto,
+    @GetUser('id_usuario') id_usuario: number,
+    @GetUser('id_sucursal') id_sucursal: number | null,
+  ) {
+    return this.facturaDirectaService.convertirACredito(id, dto, id_usuario, id_sucursal);
   }
 
   @Post(':id/reenviar-dte')

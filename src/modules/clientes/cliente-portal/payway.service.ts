@@ -39,7 +39,7 @@ export class PayWayService {
     const jsonPayload = JSON.stringify({
       token: this.token,
       idColector: Number(this.idColector),
-      ipCliente: '190.150.114.158',
+      ipCliente: params.ipCliente,
       usuarioCliente: params.usuarioCliente || 'PORTAL',
       datosUsuarioInterno: {
         usuarioPlataforma: this.usuarioPlataforma,

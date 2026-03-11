@@ -562,3 +562,6 @@ Con estas mejoras, el sistema alcanzaria un cumplimiento superior al 90% de la p
 ---
 
 *Documento generado automaticamente - Diciembre 2024*
+
+## Implementar la fecha de pago de las facturas en el listado de facturas
+

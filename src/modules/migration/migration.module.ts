@@ -6,6 +6,7 @@ import { OpenaiModule } from '../openai/openai.module';
 import { FacturacionModule } from '../facturacion/facturacion.module';
 import { MigrationController } from './migration.controller';
 import { MigrationService } from './migration.service';
+import { MigrationGateway } from './migration.gateway';
 import { MysqlConnectionService } from './services/mysql-connection.service';
 import { CatalogosMigrationService } from './services/catalogos.migration';
 import { ClientesMigrationService } from './services/clientes.migration';
@@ -17,6 +18,7 @@ import { FacturacionMigrationService } from './services/facturacion.migration';
   imports: [ConfigModule, PrismaModule, MinioModule, OpenaiModule, FacturacionModule],
   controllers: [MigrationController],
   providers: [
+    MigrationGateway,
     MigrationService,
     MysqlConnectionService,
     CatalogosMigrationService,

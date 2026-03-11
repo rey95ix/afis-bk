@@ -23,6 +23,7 @@ import {
   ItemFacturaDirectaDto,
   TipoDetalleFactura,
   AnularFacturaDirectaDto,
+  ConvertirACreditoDto,
 } from './dto';
 import {
   FcBuilderService,
@@ -985,6 +986,135 @@ export class FacturaDirectaService {
         },
       },
     });
+  }
+
+  /**
+   * Convertir una factura de contado a crédito.
+   * Actualiza condición de operación, crea CxC y anula movimientos bancarios asociados.
+   */
+  async convertirACredito(
+    id: number,
+    dto: ConvertirACreditoDto,
+    id_usuario: number,
+    id_sucursal: number | null,
+  ): Promise<{ success: boolean; message: string; id_cxc: number }> {
+    // 1. Buscar factura con relaciones necesarias
+    const factura = await this.prisma.facturaDirecta.findUnique({
+      where: { id_factura_directa: id },
+      include: {
+        clienteDirecto: true,
+        sucursal: true,
+        cuenta_por_cobrar: true,
+        tipoFactura: true,
+      },
+    });
+
+    // 2. Validaciones
+    if (!factura) {
+      throw new NotFoundException(`Factura con ID ${id} no encontrada`);
+    }
+
+    // Solo FC (01) y CCF (03) pueden convertirse
+    const tiposPermitidos = ['01', '03'];
+    if (!factura.tipoFactura?.codigo || !tiposPermitidos.includes(factura.tipoFactura.codigo)) {
+      throw new BadRequestException('Solo se pueden convertir facturas de tipo FC o CCF');
+    }
+
+    if (factura.condicion_operacion !== 1) {
+      throw new BadRequestException('Solo se pueden convertir facturas de contado (condición 1)');
+    }
+
+    if (factura.estado_dte !== 'PROCESADO') {
+      throw new BadRequestException('La factura debe estar en estado DTE PROCESADO');
+    }
+
+    if (factura.estado !== 'ACTIVO') {
+      throw new BadRequestException('La factura debe estar en estado ACTIVO');
+    }
+
+    if (!factura.id_cliente_directo) {
+      throw new BadRequestException('La factura debe tener un cliente asignado para crear una Cuenta por Cobrar');
+    }
+
+    if (factura.cuenta_por_cobrar) {
+      throw new BadRequestException('La factura ya tiene una Cuenta por Cobrar asociada');
+    }
+
+    const sucursalId = factura.id_sucursal ?? id_sucursal;
+    if (!sucursalId) {
+      throw new BadRequestException('No se pudo determinar la sucursal para crear la Cuenta por Cobrar');
+    }
+
+    // 3. Transacción: actualizar factura + crear CxC
+    const fechaPagoEstimada = new Date(factura.fecha_creacion);
+    fechaPagoEstimada.setDate(fechaPagoEstimada.getDate() + dto.dias_credito);
+
+    const { id_cxc } = await this.prisma.$transaction(async (tx) => {
+      // Actualizar factura
+      await tx.facturaDirecta.update({
+        where: { id_factura_directa: id },
+        data: {
+          condicion_operacion: 2,
+          estado_pago: 'PENDIENTE',
+          dias_credito: dto.dias_credito,
+          fecha_pago_estimada: fechaPagoEstimada,
+          observaciones: dto.observaciones
+            ? `${factura.observaciones ? factura.observaciones + ' | ' : ''}Convertida de contado a crédito: ${dto.observaciones}`
+            : `${factura.observaciones ? factura.observaciones + ' | ' : ''}Convertida de contado a crédito`,
+        },
+      });
+
+      // Crear CxC
+      const cxc = await this.cxcService.crearCuentaPorCobrar(
+        {
+          id_factura_directa: id,
+          id_cliente_directo: factura.id_cliente_directo!,
+          monto_total: Number(factura.total),
+          dias_credito: dto.dias_credito,
+          fecha_emision: factura.fecha_creacion,
+          id_sucursal: sucursalId,
+          id_usuario,
+        },
+        tx,
+      );
+
+      return { id_cxc: cxc.id_cxc };
+    });
+
+    // 4. Fuera de transacción: anular movimientos bancarios (best-effort, same pattern as crearMovimientosBancarios)
+    try {
+      const movimientos = await this.prisma.movimiento_bancario.findMany({
+        where: {
+          documento_origen_id: id,
+          modulo_origen: 'VENTAS',
+          estado_movimiento: 'ACTIVO',
+        },
+      });
+
+      for (const mov of movimientos) {
+        try {
+          await this.movimientosBancariosService.anularMovimiento(
+            mov.id_movimiento,
+            { motivo_anulacion: 'Conversión de factura de contado a crédito' },
+            id_usuario,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `No se pudo anular movimiento bancario ${mov.id_movimiento}: ${error.message}`,
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Error al buscar/anular movimientos bancarios para factura ${id}: ${error.message}`,
+      );
+    }
+
+    return {
+      success: true,
+      message: 'Factura convertida a crédito exitosamente',
+      id_cxc,
+    };
   }
 
   /**

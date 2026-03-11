@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MysqlConnectionService } from './services/mysql-connection.service';
 import { CatalogosMigrationService } from './services/catalogos.migration';
@@ -19,6 +19,7 @@ import {
   BulkClienteMigrationResult,
 } from './interfaces/mapping.interface';
 import { MigrationModule, MigrateClienteOptionsDto } from './dto/migration-config.dto';
+import { MigrationGateway } from './migration.gateway';
 import { RowDataPacket } from 'mysql2/promise';
 
 @Injectable()
@@ -53,6 +54,8 @@ export class MigrationService {
     private readonly documentosMigration: DocumentosMigrationService,
     private readonly facturacionMigration: FacturacionMigrationService,
     private readonly facturaDirectaService: FacturaDirectaService,
+    @Optional() @Inject(forwardRef(() => MigrationGateway))
+    private readonly migrationGateway?: MigrationGateway,
   ) { }
 
   /**
@@ -93,6 +96,7 @@ export class MigrationService {
       details,
     };
     this.logs.push(log);
+    this.migrationGateway?.emitLog(log);
 
     // Mantener solo los últimos 1000 logs
     if (this.logs.length > 1000) {
@@ -330,6 +334,8 @@ export class MigrationService {
         this.status.totalProgress = Math.round((i / phasesToRun.length) * 100);
         this.status.lastUpdatedAt = new Date();
 
+        this.migrationGateway?.emitProgress(this.getStatus());
+
         this.addLog('INFO', 'migration', `Ejecutando fase ${i + 1}/${phasesToRun.length}: ${module}`);
 
         let result: MigrationModuleResult;
@@ -396,6 +402,7 @@ export class MigrationService {
       this.status.currentModule = null;
       this.status.clientProgress = undefined;
       this.status.lastUpdatedAt = new Date();
+      this.migrationGateway?.emitProgress(this.getStatus());
     }
   }
 
@@ -488,6 +495,7 @@ export class MigrationService {
         errorCount,
       };
       this.status.lastUpdatedAt = new Date();
+      this.migrationGateway?.emitProgress(this.getStatus());
 
       try {
         const result = await this.migrateClienteById(mysqlId, {
@@ -737,103 +745,102 @@ export class MigrationService {
           continue;
         }
 
-        // Calcular meses transcurridos
+        // Calendar-based month diff (accurate, no 30.44 approximation)
         const hoy = new Date();
-        const diffMs = hoy.getTime() - fechaInicio.getTime();
-        const mesesTranscurridos = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 30.44));
-        const cuotaInicial = Math.min(mesesTranscurridos + 1, mesesContrato + 1);
+        const mesesTranscurridos = (hoy.getFullYear() - fechaInicio.getFullYear()) * 12
+          + hoy.getMonth() - fechaInicio.getMonth();
+        const cuotaMesActual = mesesTranscurridos + 1;
 
-        if (cuotaInicial > mesesContrato) {
-          // Contrato vencido pero activo: generar 1 factura del siguiente mes
-          if (mysqlCustomerId) {
-            const lastBill = await this.mysql.queryOne(
-              `SELECT id_bill, periodo_start, periodo_end, bill_status, expiration_date FROM tbl_bill
-               WHERE id_customers = ? ORDER BY periodo_end DESC LIMIT 1`,
-              [mysqlCustomerId],
-            );
+        // Always check last MySQL bill to determine startCuota
+        let startCuota: number;
+        let endCuota: number;
+        let moraAmount = 0;
 
-            if (lastBill?.periodo_end) {
-              const lastPeriodEnd = new Date(lastBill.periodo_end);
-              console.log(lastPeriodEnd)
-              // Obtener mora de la última factura MySQL si existe
-              let moraAmount = 0;
-              if (lastBill.id_bill) {
-                const moraDetail = await this.mysql.queryOne(
-                  `SELECT d.sub_total as mora_base,
-                          COALESCE((SELECT SUM(t.sub_total) FROM tbl_bill_details_taxes t
-                                    WHERE t.id_bill_details = d.id_details_bill), 0) as mora_iva
-                   FROM tbl_bill_details d
-                   WHERE d.id_bill = ? AND d.detail_type = 60003
-                   LIMIT 1`,
-                  [lastBill.id_bill],
-                );
-                if (moraDetail) {
-                  moraAmount = Number(moraDetail.mora_base || 0) + Number(moraDetail.mora_iva || 0);
-                }
+        if (mysqlCustomerId) {
+          const lastBill = await this.mysql.queryOne(
+            `SELECT id_bill, periodo_start, periodo_end, bill_status, expiration_date FROM tbl_bill
+             WHERE id_customers = ? ORDER BY periodo_end DESC LIMIT 1`,
+            [mysqlCustomerId],
+          );
+
+          if (lastBill?.periodo_end) {
+            // Get mora from last MySQL bill if exists
+            if (lastBill.id_bill) {
+              const moraDetail = await this.mysql.queryOne(
+                `SELECT d.sub_total as mora_base,
+                        COALESCE((SELECT SUM(t.sub_total) FROM tbl_bill_details_taxes t
+                                  WHERE t.id_bill_details = d.id_details_bill), 0) as mora_iva
+                 FROM tbl_bill_details d
+                 WHERE d.id_bill = ? AND d.detail_type = 60003
+                 LIMIT 1`,
+                [lastBill.id_bill],
+              );
+              if (moraDetail) {
+                moraAmount = Number(moraDetail.mora_base || 0) + Number(moraDetail.mora_iva || 0);
               }
-
-              // Determinar si la última factura está pendiente de pago
-              this.logger.debug(
-                `Contrato ${idContrato}: lastBill status=${lastBill.bill_status} (type=${typeof lastBill.bill_status}), expiration=${lastBill.expiration_date}`,
-              );
-              const isPending = Number(lastBill.bill_status) === 1;
-              const isExpired = lastBill.expiration_date
-                && new Date(lastBill.expiration_date) < new Date();
-              let startMonth: Date;
-              if (isPending || isExpired) {
-                // Factura pendiente: generar desde el mes de esa factura
-                startMonth = new Date(lastBill.periodo_start);
-                startMonth.setDate(1);
-              } else {
-                // Factura pagada: generar desde el mes siguiente
-                startMonth = new Date(lastPeriodEnd);
-                startMonth.setDate(1);
-                startMonth.setMonth(startMonth.getMonth() + 1);
-              }
-
-              // Calcular mes siguiente al último periodo (siempre generar hasta aquí)
-              const nextMonth = new Date(lastPeriodEnd);
-              nextMonth.setDate(1);
-              nextMonth.setMonth(nextMonth.getMonth() + 1);
-
-              // Calcular cuotas correspondientes
-              const startDiff = (startMonth.getFullYear() - fechaInicio.getFullYear()) * 12
-                + startMonth.getMonth() - fechaInicio.getMonth();
-              console.log(startDiff, startMonth, fechaInicio)
-              const startCuota = startDiff + 1;
-
-              const endDiff = (nextMonth.getFullYear() - fechaInicio.getFullYear()) * 12
-                + nextMonth.getMonth() - fechaInicio.getMonth();
-              console.log(endDiff, nextMonth, fechaInicio)
-              const endCuota = endDiff + 1;
-
-              const cuotaCount = endCuota - startCuota + 1;
-              this.logger.log(
-                `Contrato ${idContrato}: vencido pero activo. Generando ${cuotaCount} factura(s) cuota ${startCuota}${startCuota !== endCuota ? `-${endCuota}` : ''} (última MySQL: ${isPending || isExpired ? 'pendiente' : 'pagada'}${moraAmount > 0 ? `, mora: $${moraAmount.toFixed(2)}` : ''})`,
-              );
-              await this.facturaDirectaService.generarFacturasContrato(
-                idContrato, userId, undefined, undefined,
-                startCuota,
-                endCuota,
-                moraAmount > 0 ? { cuota: startCuota, monto: moraAmount } : undefined,
-              );
-              generated++;
-              continue;
             }
-          }
 
-          this.logger.log(`Contrato ${idContrato}: todas las cuotas ya vencieron (${mesesTranscurridos} meses de ${mesesContrato})`);
+            // Determine if last bill is pending/expired
+            this.logger.debug(
+              `Contrato ${idContrato}: lastBill status=${lastBill.bill_status} (type=${typeof lastBill.bill_status}), expiration=${lastBill.expiration_date}`,
+            );
+            const isPending = Number(lastBill.bill_status) === 1;
+            const isExpired = lastBill.expiration_date
+              && new Date(lastBill.expiration_date) < new Date();
+
+            let startMonth: Date;
+            if (isPending || isExpired) {
+              // Pending bill: regenerate from that bill's month
+              startMonth = new Date(lastBill.periodo_start);
+              startMonth.setDate(1);
+            } else {
+              // Paid bill: start from next month
+              const lastPeriodEnd = new Date(lastBill.periodo_end);
+              startMonth = new Date(lastPeriodEnd);
+              startMonth.setDate(1);
+              startMonth.setMonth(startMonth.getMonth() + 1);
+            }
+
+            // Calculate startCuota from startMonth relative to fechaInicio
+            const startDiff = (startMonth.getFullYear() - fechaInicio.getFullYear()) * 12
+              + startMonth.getMonth() - fechaInicio.getMonth();
+            startCuota = Math.max(startDiff + 1, 1);
+
+            // endCuota: generate all contract months (BORRADOR for future months)
+            endCuota = mesesContrato;
+          } else {
+            // No bills found in MySQL: start from current month
+            startCuota = cuotaMesActual;
+            endCuota = mesesContrato;
+          }
+        } else {
+          // No mysqlCustomerId: fallback to current month through end of contract
+          startCuota = cuotaMesActual;
+          endCuota = mesesContrato;
+        }
+
+        // For expired-but-active contracts (cuotaMesActual > mesesContrato),
+        // extend endCuota to current month so we generate invoices beyond the contract duration
+        if (cuotaMesActual > mesesContrato) {
+          endCuota = Math.max(endCuota, cuotaMesActual);
+        }
+
+        // Validate range
+        if (startCuota > endCuota) {
+          this.logger.log(`Contrato ${idContrato}: no hay cuotas por generar (start=${startCuota}, end=${endCuota})`);
           continue;
         }
 
-        this.logger.log(`Contrato ${idContrato}: generando cuotas desde ${cuotaInicial} hasta ${mesesContrato}`);
+        this.logger.log(
+          `Contrato ${idContrato}: generando cuotas ${startCuota}-${endCuota}` +
+          (moraAmount > 0 ? ` (mora: $${moraAmount.toFixed(2)})` : ''),
+        );
 
         await this.facturaDirectaService.generarFacturasContrato(
-          idContrato,
-          userId,
-          undefined,
-          undefined,
-          cuotaInicial,
+          idContrato, userId, undefined, undefined,
+          startCuota,
+          endCuota,
+          moraAmount > 0 ? { cuota: startCuota, monto: moraAmount } : undefined,
         );
 
         generated++;
