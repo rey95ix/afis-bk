@@ -4344,6 +4344,7 @@ enum metodo_pago_abono {
   TRANSFERENCIA
   DEPOSITO
   TARJETA
+  PUNTOXPRESS
   OTRO
 }
 
@@ -4926,4 +4927,19 @@ model cierre_diario {
   // === ÍNDICES ===
   @@index([id_creado_por])
   @@index([fecha_hora])
+}
+
+// ============= MÓDULO PUNTOXPRESS (INTEGRADORES EXTERNOS) =============
+
+model puntoxpress_integrador {
+  id_integrador       Int       @id @default(autoincrement())
+  nombre              String    @unique
+  usuario             String    @unique
+  password_hash       String
+  activo              Boolean   @default(true)
+  fecha_creacion      DateTime  @default(now())
+  fecha_actualizacion DateTime  @default(now()) @updatedAt
+
+  @@index([usuario])
+  @@map("punto_express_integrador")
 }

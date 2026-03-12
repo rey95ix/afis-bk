@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { TransformInterceptor } from './common/intersectors';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ClienteAuthModule } from './modules/clientes/cliente-auth/cliente-auth.module';
@@ -16,7 +18,8 @@ import { WhatsAppChatModule } from './modules/whatsapp-chat/whatsapp-chat.module
 import { MigrationModule } from './modules/migration/migration.module';
 import { BancosModule } from './modules/bancos/bancos.module';
 import { CxcModule } from './modules/cxc/cxc.module';
-import { CxpModule } from './modules/cxp/cxp.module'; 
+import { CxpModule } from './modules/cxp/cxp.module';
+import { PuntoXpressModule } from './modules/puntoxpress/puntoxpress.module';
 
 
 @Module({
@@ -43,9 +46,12 @@ import { CxpModule } from './modules/cxp/cxp.module';
     BancosModule, // Módulo de bancos y gestión financiera
     CxcModule, // Módulo de cuentas por cobrar
     CxpModule, // Módulo de cuentas por pagar
+    PuntoXpressModule, // Módulo PuntoXpress (integradores externos)
     // UtilidadesModule, //TODO Habilitar módulo de utilidades
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
+  ],
 })
 export class AppModule {}

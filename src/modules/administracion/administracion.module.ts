@@ -31,6 +31,8 @@ import { FacturasBloquesController } from './facturas-bloques/facturas-bloques.c
 import { FacturasBloquesService } from './facturas-bloques/facturas-bloques.service';
 import { GeneralDataController } from './general-data/general-data.controller';
 import { GeneralDataService } from './general-data/general-data.service';
+import { PuntoxpressIntegradorController } from './puntoxpress/puntoxpress-integrador.controller';
+import { PuntoxpressIntegradorService } from './puntoxpress/puntoxpress-integrador.service';
 
 @Module({
   imports: [
@@ -52,7 +54,8 @@ import { GeneralDataService } from './general-data/general-data.service';
     MarcasController,
     ModelosController,
     FacturasBloquesController,
-    GeneralDataController
+    GeneralDataController,
+    PuntoxpressIntegradorController
   ],
   providers: [
     CategoriasService,
@@ -68,7 +71,8 @@ import { GeneralDataService } from './general-data/general-data.service';
     MarcasService,
     ModelosService,
     FacturasBloquesService,
-    GeneralDataService
+    GeneralDataService,
+    PuntoxpressIntegradorService
   ],
 })
 export class AdministracionModule { }

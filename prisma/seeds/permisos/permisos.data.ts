@@ -306,6 +306,34 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
   // Permisos
   crearPermiso('administracion', 'permisos', 'VER', 'Ver Permisos', 'Ver listado y detalles de permisos del sistema'),
 
+  // PuntoXpress Integradores
+  crearPermiso(
+    'administracion',
+    'puntoxpress_integradores',
+    'VER',
+    'Ver PuntoXpress Integradores',
+    'Ver listado y detalles de integradores PuntoXpress',
+  ),
+  crearPermiso('administracion', 'puntoxpress_integradores', 'CREAR', 'Crear PuntoXpress Integradores', 'Crear nuevos integradores PuntoXpress', {
+    requiere_auditoria: true,
+  }),
+  crearPermiso(
+    'administracion',
+    'puntoxpress_integradores',
+    'EDITAR',
+    'Editar PuntoXpress Integradores',
+    'Modificar integradores PuntoXpress existentes',
+    { requiere_auditoria: true },
+  ),
+  crearPermiso(
+    'administracion',
+    'puntoxpress_integradores',
+    'ELIMINAR',
+    'Eliminar PuntoXpress Integradores',
+    'Desactivar integradores PuntoXpress',
+    { es_critico: true, requiere_auditoria: true },
+  ),
+
   // =============================================================
   // MODULO: ATENCION AL CLIENTE
   // =============================================================

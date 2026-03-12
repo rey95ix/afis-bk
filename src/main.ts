@@ -4,7 +4,6 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as bodyParser from 'body-parser';
 import { Logger, ValidationPipe } from '@nestjs/common';
-import { TransformInterceptor } from './common/intersectors';
 import { HEADER_API_BEARER_AUTH } from './common/const';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
@@ -25,8 +24,6 @@ async function bootstrap() {
   app.useStaticAssets(join(__dirname, '..', 'uploads'), {
     prefix: '/uploads/',
   });
-
-  app.useGlobalInterceptors(new TransformInterceptor());
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -49,6 +46,18 @@ async function bootstrap() {
         in: 'header',
       },
       HEADER_API_BEARER_AUTH,
+    )
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description:
+          'Token JWT de integrador PuntoXpress (obtenido en POST /puntoxpress/auth)',
+        in: 'header',
+      },
+      'puntoxpress-auth',
     )
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
