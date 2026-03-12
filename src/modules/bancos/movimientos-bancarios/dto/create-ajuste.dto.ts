@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsOptional, IsNumber, MaxLength } from 'class-validator';
 
-export class CreateAjusteDto {
+export class CreateAjusteBancarioDto {
   @ApiProperty({
     description: 'Monto del ajuste (positivo para sumar, negativo para restar)',
     example: -50.00,

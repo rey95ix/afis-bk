@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { MovimientosBancariosService } from './movimientos-bancarios.service';
 import { CreateMovimientoBancarioDto } from './dto/create-movimiento-bancario.dto';
-import { CreateAjusteDto } from './dto/create-ajuste.dto';
+import { CreateAjusteBancarioDto } from './dto/create-ajuste.dto';
 import { AnularMovimientoDto } from './dto/anular-movimiento.dto';
 import { FilterMovimientoBancarioDto } from './dto/filter-movimiento-bancario.dto';
 import {
@@ -119,7 +119,7 @@ export class MovimientosBancariosController {
   @ApiResponse({ status: 409, description: 'Conflicto de concurrencia.' })
   ajuste(
     @Param('id', ParseIntPipe) id: number,
-    @Body() createAjusteDto: CreateAjusteDto,
+    @Body() createAjusteDto: CreateAjusteBancarioDto,
     @GetUser() user: any,
   ) {
     return this.movimientosBancariosService.crearAjuste(id, createAjusteDto, user.id_usuario);

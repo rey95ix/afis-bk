@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { CreateMovimientoBancarioDto } from './dto/create-movimiento-bancario.dto';
-import { CreateAjusteDto } from './dto/create-ajuste.dto';
+import { CreateAjusteBancarioDto } from './dto/create-ajuste.dto';
 import { AnularMovimientoDto } from './dto/anular-movimiento.dto';
 import { FilterMovimientoBancarioDto } from './dto/filter-movimiento-bancario.dto';
 import { Prisma } from '@prisma/client';
@@ -170,7 +170,7 @@ export class MovimientosBancariosService {
 
   async crearAjuste(
     id_cuenta: number,
-    dto: CreateAjusteDto,
+    dto: CreateAjusteBancarioDto,
     id_usuario: number,
   ) {
     if (dto.monto === 0) {
