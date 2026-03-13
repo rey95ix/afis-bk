@@ -292,19 +292,47 @@ export class ClientesMigrationService {
 
         const direccion = combineAddress(loc.address, loc.avenue, loc.street);
 
-        const result = await this.prisma.clienteDirecciones.create({
-          data: {
+        // Buscar dirección existente con el mismo texto para este cliente
+        const existing = await this.prisma.clienteDirecciones.findFirst({
+          where: {
             id_cliente: idCliente,
             direccion,
-            id_colonia: idColonia,
-            id_municipio: idMunicipio,
-            id_departamento: idDepartamento,
-            usar_para_instalacion: loc.address_type === 1,
-            usar_para_facturacion: loc.address_type === 2,
           },
         });
 
-        mappings.direcciones.set(loc.id_customers_location, result.id_cliente_direccion);
+        if (existing) {
+          // Merge flags: activar el flag que corresponda sin desactivar el existente
+          const updateData: Record<string, boolean> = {};
+          if (loc.address_type === 1 && !existing.usar_para_instalacion) {
+            updateData.usar_para_instalacion = true;
+          }
+          if (loc.address_type === 2 && !existing.usar_para_facturacion) {
+            updateData.usar_para_facturacion = true;
+          }
+          if (Object.keys(updateData).length > 0) {
+            await this.prisma.clienteDirecciones.update({
+              where: { id_cliente_direccion: existing.id_cliente_direccion },
+              data: updateData,
+            });
+          }
+          mappings.direcciones.set(loc.id_customers_location, existing.id_cliente_direccion);
+          this.logger.debug(
+            `Dirección duplicada fusionada para cliente ${idCliente}: "${direccion}"`,
+          );
+        } else {
+          const result = await this.prisma.clienteDirecciones.create({
+            data: {
+              id_cliente: idCliente,
+              direccion,
+              id_colonia: idColonia,
+              id_municipio: idMunicipio,
+              id_departamento: idDepartamento,
+              usar_para_instalacion: loc.address_type === 1,
+              usar_para_facturacion: loc.address_type === 2,
+            },
+          });
+          mappings.direcciones.set(loc.id_customers_location, result.id_cliente_direccion);
+        }
         migrated++;
       } catch (error) {
         if (options.continueOnError) {
@@ -509,19 +537,47 @@ export class ClientesMigrationService {
 
         const direccion = combineAddress(loc.address, loc.avenue, loc.street);
 
-        const result = await this.prisma.clienteDirecciones.create({
-          data: {
+        // Buscar dirección existente con el mismo texto para este cliente
+        const existing = await this.prisma.clienteDirecciones.findFirst({
+          where: {
             id_cliente: postgresClienteId,
             direccion,
-            id_colonia: idColonia,
-            id_municipio: idMunicipio,
-            id_departamento: idDepartamento,
-            usar_para_instalacion: loc.address_type === 1,
-            usar_para_facturacion: loc.address_type === 2,
           },
         });
 
-        mappings.direcciones.set(loc.id_customers_location, result.id_cliente_direccion);
+        if (existing) {
+          // Merge flags: activar el flag que corresponda sin desactivar el existente
+          const updateData: Record<string, boolean> = {};
+          if (loc.address_type === 1 && !existing.usar_para_instalacion) {
+            updateData.usar_para_instalacion = true;
+          }
+          if (loc.address_type === 2 && !existing.usar_para_facturacion) {
+            updateData.usar_para_facturacion = true;
+          }
+          if (Object.keys(updateData).length > 0) {
+            await this.prisma.clienteDirecciones.update({
+              where: { id_cliente_direccion: existing.id_cliente_direccion },
+              data: updateData,
+            });
+          }
+          mappings.direcciones.set(loc.id_customers_location, existing.id_cliente_direccion);
+          this.logger.debug(
+            `Dirección duplicada fusionada para cliente ${postgresClienteId}: "${direccion}"`,
+          );
+        } else {
+          const result = await this.prisma.clienteDirecciones.create({
+            data: {
+              id_cliente: postgresClienteId,
+              direccion,
+              id_colonia: idColonia,
+              id_municipio: idMunicipio,
+              id_departamento: idDepartamento,
+              usar_para_instalacion: loc.address_type === 1,
+              usar_para_facturacion: loc.address_type === 2,
+            },
+          });
+          mappings.direcciones.set(loc.id_customers_location, result.id_cliente_direccion);
+        }
         migrated++;
       } catch (error) {
         errors.push({

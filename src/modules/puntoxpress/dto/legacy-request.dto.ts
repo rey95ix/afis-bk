@@ -55,7 +55,7 @@ export class LegacyRequestDto {
 
   @ApiPropertyOptional({ description: 'ID de la factura directa para pago' })
   @IsOptional()
-  id_factura_directa?: number;
+  id_factura?: number;
 
   @ApiPropertyOptional({ description: 'Monto del pago' })
   @IsOptional()

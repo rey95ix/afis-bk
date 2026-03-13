@@ -71,12 +71,12 @@ export class PuntoXpressLegacyController {
         }
 
         case 'AplicarPago': {
-          if (!dto.id_factura_directa || !dto.monto || !dto.colector) {
-            return { codigo: 2, mensaje: 'Faltan campos requeridos: id_factura_directa, monto, colector' };
+          if (!dto.id_factura || !dto.monto || !dto.colector) {
+            return { codigo: 2, mensaje: 'Faltan campos requeridos: id_factura, monto, colector' };
           }
           const result = await this.service.aplicarPago(
             {
-              id_factura_directa: Number(dto.id_factura_directa),
+              id_factura_directa: Number(dto.id_factura),
               monto: Number(dto.monto),
               colector: dto.colector,
               referencia: dto.referencia,

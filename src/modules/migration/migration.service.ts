@@ -21,6 +21,7 @@ import {
 import { MigrationModule, MigrateClienteOptionsDto } from './dto/migration-config.dto';
 import { MigrationGateway } from './migration.gateway';
 import { RowDataPacket } from 'mysql2/promise';
+import { normalizeDUI } from './utils/transformers';
 
 @Injectable()
 export class MigrationService {
@@ -560,6 +561,213 @@ export class MigrationService {
   }
 
   /**
+   * Limpia todos los datos dependientes de un cliente en PostgreSQL antes de re-migrar.
+   * Respeta el orden de FK constraints (hijos primero).
+   * NO elimina el registro base del cliente (será upserted por migrateCustomer).
+   */
+  private async cleanupClienteData(
+    postgresClienteId: number,
+  ): Promise<{ deleted: Record<string, number> }> {
+    const deleted: Record<string, number> = {};
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Recopilar IDs necesarios
+      const contratos = await tx.atcContrato.findMany({
+        where: { id_cliente: postgresClienteId },
+        select: { id_contrato: true },
+      });
+      const contratoIds = contratos.map(c => c.id_contrato);
+
+      const facturasDirectas = await tx.facturaDirecta.findMany({
+        where: { id_cliente: postgresClienteId },
+        select: { id_factura_directa: true },
+      });
+      const facturaDirectaIds = facturasDirectas.map(f => f.id_factura_directa);
+
+      const dtes = await tx.dte_emitidos.findMany({
+        where: { id_cliente: postgresClienteId },
+        select: { id_dte: true },
+      });
+      const dteIds = dtes.map(d => d.id_dte);
+
+      const cxcs = await tx.cuenta_por_cobrar.findMany({
+        where: { id_cliente: postgresClienteId },
+        select: { id_cxc: true },
+      });
+      const cxcIds = cxcs.map(c => c.id_cxc);
+
+      const abonos = cxcIds.length > 0
+        ? await tx.abono_cxc.findMany({
+            where: { id_cxc: { in: cxcIds } },
+            select: { id_abono: true },
+          })
+        : [];
+      const abonoIds = abonos.map(a => a.id_abono);
+
+      // 2. caja_movimiento (via abonos)
+      if (abonoIds.length > 0) {
+        const r = await tx.caja_movimiento.deleteMany({
+          where: { id_abono_cxc: { in: abonoIds } },
+        });
+        deleted['caja_movimiento'] = r.count;
+      }
+
+      // 3. abono_cxc
+      if (cxcIds.length > 0) {
+        const r = await tx.abono_cxc.deleteMany({
+          where: { id_cxc: { in: cxcIds } },
+        });
+        deleted['abono_cxc'] = r.count;
+      }
+
+      // 4. cuenta_por_cobrar
+      {
+        const r = await tx.cuenta_por_cobrar.deleteMany({
+          where: { id_cliente: postgresClienteId },
+        });
+        deleted['cuenta_por_cobrar'] = r.count;
+      }
+
+      // 5. facturaDirectaDetalle
+      if (facturaDirectaIds.length > 0) {
+        const r = await tx.facturaDirectaDetalle.deleteMany({
+          where: { id_factura_directa: { in: facturaDirectaIds } },
+        });
+        deleted['facturaDirectaDetalle'] = r.count;
+      }
+
+      // 6. facturaDirecta
+      {
+        const r = await tx.facturaDirecta.deleteMany({
+          where: { id_cliente: postgresClienteId },
+        });
+        deleted['facturaDirecta'] = r.count;
+      }
+
+      // 7. dte_anulaciones
+      if (dteIds.length > 0) {
+        const r = await tx.dte_anulaciones.deleteMany({
+          where: { id_dte: { in: dteIds } },
+        });
+        deleted['dte_anulaciones'] = r.count;
+      }
+
+      // 8. dte_emitidos_detalle
+      if (dteIds.length > 0) {
+        const r = await tx.dte_emitidos_detalle.deleteMany({
+          where: { id_dte: { in: dteIds } },
+        });
+        deleted['dte_emitidos_detalle'] = r.count;
+      }
+
+      // 9. dte_emitidos
+      {
+        const r = await tx.dte_emitidos.deleteMany({
+          where: { id_cliente: postgresClienteId },
+        });
+        deleted['dte_emitidos'] = r.count;
+      }
+
+      // 10. pago_tarjeta_portal
+      {
+        const r = await tx.pago_tarjeta_portal.deleteMany({
+          where: { id_cliente: postgresClienteId },
+        });
+        deleted['pago_tarjeta_portal'] = r.count;
+      }
+
+      // 11. pago_tarjeta_intent
+      {
+        const r = await tx.pago_tarjeta_intent.deleteMany({
+          where: { id_cliente: postgresClienteId },
+        });
+        deleted['pago_tarjeta_intent'] = r.count;
+      }
+
+      // 12. whatsapp_validacion_comprobante → SET id_contrato = null
+      if (contratoIds.length > 0) {
+        const r = await tx.whatsapp_validacion_comprobante.updateMany({
+          where: { id_contrato: { in: contratoIds } },
+          data: { id_contrato: null },
+        });
+        deleted['whatsapp_validacion_comprobante_nullified'] = r.count;
+      }
+
+      // 13. clienteDocumentos
+      {
+        const r = await tx.clienteDocumentos.deleteMany({
+          where: { id_cliente: postgresClienteId },
+        });
+        deleted['clienteDocumentos'] = r.count;
+      }
+
+      // 14. atcContratoInstalacion
+      if (contratoIds.length > 0) {
+        const r = await tx.atcContratoInstalacion.deleteMany({
+          where: { id_contrato: { in: contratoIds } },
+        });
+        deleted['atcContratoInstalacion'] = r.count;
+      }
+
+      // 15. orden_trabajo → SET id_contrato = null (id_contrato es nullable)
+      if (contratoIds.length > 0) {
+        const r = await tx.orden_trabajo.updateMany({
+          where: { id_contrato: { in: contratoIds } },
+          data: { id_contrato: null },
+        });
+        deleted['orden_trabajo_contrato_nullified'] = r.count;
+      }
+
+      // 16. atcContrato
+      {
+        const r = await tx.atcContrato.deleteMany({
+          where: { id_cliente: postgresClienteId },
+        });
+        deleted['atcContrato'] = r.count;
+      }
+
+      // 17. clienteDatosFacturacion
+      {
+        const r = await tx.clienteDatosFacturacion.deleteMany({
+          where: { id_cliente: postgresClienteId },
+        });
+        deleted['clienteDatosFacturacion'] = r.count;
+      }
+
+      // 18. clienteDirecciones — solo si no hay orden_trabajo/ticket_soporte referenciando estas direcciones
+      const direcciones = await tx.clienteDirecciones.findMany({
+        where: { id_cliente: postgresClienteId },
+        select: { id_cliente_direccion: true },
+      });
+      const direccionIds = direcciones.map(d => d.id_cliente_direccion);
+
+      if (direccionIds.length > 0) {
+        const otCount = await tx.orden_trabajo.count({
+          where: { id_direccion_servicio: { in: direccionIds } },
+        });
+        const ticketCount = await tx.ticket_soporte.count({
+          where: { id_direccion_servicio: { in: direccionIds } },
+        });
+
+        if (otCount === 0 && ticketCount === 0) {
+          const r = await tx.clienteDirecciones.deleteMany({
+            where: { id_cliente: postgresClienteId },
+          });
+          deleted['clienteDirecciones'] = r.count;
+        } else {
+          this.addLog(
+            'WARN',
+            'cleanup',
+            `No se eliminan direcciones del cliente ${postgresClienteId}: ${otCount} OTs y ${ticketCount} tickets las referencian`,
+          );
+        }
+      }
+    }, { timeout: 30000 });
+
+    return { deleted };
+  }
+
+  /**
    * Migra un cliente específico por su ID de MySQL
    */
   async migrateClienteById(
@@ -588,6 +796,44 @@ export class MigrationService {
       continueOnError: true,
       maxRetries: 3,
     };
+
+    // 0. Limpieza previa: si el cliente ya existe en PostgreSQL, eliminar datos dependientes
+    if (!migrationOptions.dryRun) {
+      try {
+        const mysqlCustomer = await this.mysql.queryOne<RowDataPacket & { dui: string }>(
+          'SELECT dui FROM tbl_customers WHERE id_customers = ?',
+          [idCustomer],
+        );
+        const dui = normalizeDUI(mysqlCustomer?.dui) || `MIGRADO-${idCustomer}`;
+        const existingCliente = await this.prisma.cliente.findUnique({
+          where: { dui },
+          select: { id_cliente: true },
+        });
+
+        if (existingCliente) {
+          this.addLog('INFO', 'cliente-individual',
+            `Cliente existente encontrado (DUI: ${dui}, ID: ${existingCliente.id_cliente}). Ejecutando limpieza previa...`);
+          const { deleted } = await this.cleanupClienteData(existingCliente.id_cliente);
+          const totalDeleted = Object.values(deleted).reduce((sum, n) => sum + n, 0);
+          this.addLog('INFO', 'cliente-individual',
+            `Limpieza completada: ${totalDeleted} registros eliminados`,
+            deleted,
+          );
+        } else {
+          this.addLog('INFO', 'cliente-individual', `Cliente nuevo (DUI: ${dui}), no requiere limpieza`);
+        }
+      } catch (error) {
+        this.addLog('ERROR', 'cliente-individual',
+          `Error en limpieza previa del cliente ${idCustomer}: ${error instanceof Error ? error.message : error}`,
+          error,
+        );
+        allErrors.push({
+          table: 'cleanup',
+          recordId: idCustomer,
+          message: `Error en limpieza previa: ${error instanceof Error ? error.message : 'Error desconocido'}`,
+        });
+      }
+    }
 
     // 1. Migrar cliente base (con direcciones y datos facturación)
     const clienteResult = await this.clientesMigration.migrateById(
