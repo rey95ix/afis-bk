@@ -5,6 +5,7 @@
 
 import {
   ESTADO_CLIENTE_MAP,
+  ESTADO_CLIENTE_TO_CONTRATO_MAP,
   ESTADO_CONTRATO_MAP,
   ESTADO_FACTURA_MAP,
   TIPO_PERSONA_MAP,
@@ -85,7 +86,19 @@ export function mapEstadoCliente(mysqlStatus: number | null | undefined): string
 }
 
 /**
+ * Mapea estado del CLIENTE MySQL al estado del CONTRATO en Prisma.
+ * El estado autoritativo del servicio es tbl_customers.customers_status.
+ */
+export function mapEstadoClienteToContrato(customerStatus: number | null | undefined): string {
+  if (customerStatus === null || customerStatus === undefined) {
+    return 'PENDIENTE_FIRMA';
+  }
+  return ESTADO_CLIENTE_TO_CONTRATO_MAP[customerStatus] || 'PENDIENTE_FIRMA';
+}
+
+/**
  * Mapea estado de contrato MySQL a enum Prisma
+ * @deprecated Usar mapEstadoClienteToContrato() que deriva el estado del cliente, no del contrato
  */
 export function mapEstadoContrato(mysqlStatus: number | null | undefined): string {
   if (mysqlStatus === null || mysqlStatus === undefined) {

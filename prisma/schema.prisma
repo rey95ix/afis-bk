@@ -1036,8 +1036,8 @@ model ticket_soporte {
   canal                   canal_contacto
   descripcion_problema    String
   severidad               severidad             @default(MEDIA)
-  id_direccion_servicio   Int // dirección del cliente donde ocurre el problema
-  direccion_servicio      clienteDirecciones    @relation(fields: [id_direccion_servicio], references: [id_cliente_direccion])
+  id_direccion_servicio   Int? // dirección del cliente donde ocurre el problema
+  direccion_servicio      clienteDirecciones?   @relation(fields: [id_direccion_servicio], references: [id_cliente_direccion])
   diagnostico_inicial     String? // texto libre del agente
   id_diagnostico_catalogo Int?
   diagnostico_catalogo    diagnostico_catalogo? @relation(fields: [id_diagnostico_catalogo], references: [id_diagnostico])
@@ -1048,6 +1048,8 @@ model ticket_soporte {
   fecha_cierre            DateTime?
   cerrado_por_usuario     Int?
   observaciones_cierre    String?
+  id_chat                 Int?
+  chat                    whatsapp_chat?        @relation(fields: [id_chat], references: [id_chat])
   ordenes                 orden_trabajo[] // 1 ticket puede generar múltiples OT (reprogramaciones, etc.)
   sms_historial           sms_historial[]
 }
@@ -3107,6 +3109,7 @@ model whatsapp_chat {
   metricas                   whatsapp_chat_metrics?
   etiquetas                  whatsapp_chat_etiqueta_chat[]
   validaciones_comprobante   whatsapp_validacion_comprobante[]
+  tickets                    ticket_soporte[]
 
   @@index([id_cliente])
   @@index([id_usuario_asignado])

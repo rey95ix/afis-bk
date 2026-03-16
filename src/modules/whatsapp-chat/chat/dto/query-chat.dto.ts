@@ -98,4 +98,9 @@ export class QueryChatDto {
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   incluir_archivados?: boolean = false;
+
+  @ApiPropertyOptional({ description: 'Filtrar chats sin ninguna etiqueta asignada' })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  sin_etiqueta?: boolean;
 }

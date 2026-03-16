@@ -469,11 +469,16 @@ export class MigrationService {
     );
     const clientIds = rows.map(r => r.id_customers);
 
-    this.addLog('INFO', 'clientes-unified', `Iniciando migración unificada de ${clientIds.length} clientes`);
+    const concurrency = options.concurrency ?? 5;
+    const totalBatches = Math.ceil(clientIds.length / concurrency);
+
+    this.addLog('INFO', 'clientes-unified',
+      `Iniciando migración: ${clientIds.length} clientes en ${totalBatches} lotes (concurrency=${concurrency})`);
 
     let successCount = 0;
     let errorCount = 0;
     const clientErrors: Array<{ mysqlId: number; errors: MigrationError[] }> = [];
+    let processed = 0;
 
     // Inicializar progreso
     this.status.clientProgress = {
@@ -484,54 +489,82 @@ export class MigrationService {
       errorCount: 0,
     };
 
-    for (let i = 0; i < clientIds.length; i++) {
-      const mysqlId = clientIds[i];
+    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+      const batchStart = Date.now();
+      const batch = clientIds.slice(batchIndex * concurrency, (batchIndex + 1) * concurrency);
 
-      // Actualizar progreso
+      this.addLog('INFO', 'clientes-unified',
+        `Procesando lote ${batchIndex + 1}/${totalBatches} (${batch.length} clientes)...`);
+
+      // Procesar lote en paralelo
+      const results = await Promise.allSettled(
+        batch.map(mysqlId =>
+          this.migrateClienteById(mysqlId, {
+            includeContratos: true,
+            includeDocumentos: options.includeDocumentos ?? false,
+            includeFacturas: true,
+            dryRun: options.dryRun,
+          }),
+        ),
+      );
+
+      // Procesar resultados del lote
+      for (let j = 0; j < results.length; j++) {
+        const mysqlId = batch[j];
+        const settledResult = results[j];
+
+        if (settledResult.status === 'fulfilled') {
+          if (settledResult.value.errors.length > 0) {
+            errorCount++;
+            clientErrors.push({ mysqlId, errors: settledResult.value.errors });
+          } else {
+            successCount++;
+          }
+        } else {
+          errorCount++;
+          clientErrors.push({
+            mysqlId,
+            errors: [{
+              table: 'tbl_customers',
+              recordId: mysqlId,
+              message: settledResult.reason instanceof Error
+                ? settledResult.reason.message
+                : 'Error desconocido',
+            }],
+          });
+        }
+      }
+
+      processed += batch.length;
+
+      // Log de progreso del lote
+      const batchDuration = Date.now() - batchStart;
+      const elapsed = Date.now() - startedAt;
+      const avgPerBatch = elapsed / (batchIndex + 1);
+      const remainingBatches = totalBatches - (batchIndex + 1);
+      const estimatedRemaining = Math.round(avgPerBatch * remainingBatches / 1000);
+
+      this.addLog('INFO', 'clientes-unified',
+        `Lote ${batchIndex + 1}/${totalBatches} completado en ${batchDuration}ms ` +
+        `(${successCount} ok, ${errorCount} errores). ` +
+        `Tiempo restante estimado: ${estimatedRemaining}s`);
+
+      // Actualizar progreso WebSocket
       this.status.clientProgress = {
-        currentClientIndex: i + 1,
+        currentClientIndex: processed,
         totalClients: clientIds.length,
-        currentMysqlId: mysqlId,
+        currentMysqlId: null,
         successCount,
         errorCount,
       };
       this.status.lastUpdatedAt = new Date();
       this.migrationGateway?.emitProgress(this.getStatus());
 
-      try {
-        const result = await this.migrateClienteById(mysqlId, {
-          includeContratos: true,
-          includeDocumentos: options.includeDocumentos ?? false,
-          includeFacturas: true,
-          dryRun: options.dryRun,
-        });
-
-        if (result.errors.length > 0) {
-          errorCount++;
-          clientErrors.push({ mysqlId, errors: result.errors });
-
-          if (!options.continueOnError) {
-            this.addLog('ERROR', 'clientes-unified', `Deteniendo migración por error en cliente ${mysqlId}`);
-            break;
-          }
-        } else {
-          successCount++;
-        }
-      } catch (error) {
-        errorCount++;
-        clientErrors.push({
-          mysqlId,
-          errors: [{
-            table: 'tbl_customers',
-            recordId: mysqlId,
-            message: error instanceof Error ? error.message : 'Error desconocido',
-          }],
-        });
-
-        if (!options.continueOnError) {
-          this.addLog('ERROR', 'clientes-unified', `Deteniendo migración por error en cliente ${mysqlId}`);
-          break;
-        }
+      // Detener si continueOnError es false y hay errores
+      if (!options.continueOnError && errorCount > 0) {
+        this.addLog('ERROR', 'clientes-unified',
+          `Deteniendo migración por errores en lote ${batchIndex + 1}`);
+        break;
       }
     }
 

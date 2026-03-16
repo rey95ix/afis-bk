@@ -73,6 +73,18 @@ export class MigrationOptionsDto {
   @IsOptional()
   @IsBoolean()
   includeDocumentos?: boolean = false;
+
+  @ApiPropertyOptional({
+    description: 'Número de clientes a procesar en paralelo por lote',
+    default: 5,
+    minimum: 1,
+    maximum: 10,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  concurrency?: number = 5;
 }
 
 export class ExecuteModuleDto extends MigrationOptionsDto {

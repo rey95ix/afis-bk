@@ -143,6 +143,7 @@ export class ChatService {
       id_cliente,
       tags,
       id_etiquetas,
+      sin_etiqueta,
       fecha_desde,
       fecha_hasta,
       sort_by = 'ultimo_mensaje_at',
@@ -199,7 +200,11 @@ export class ChatService {
     }
 
     // Filtro por etiquetas (many-to-many)
-    if (id_etiquetas && id_etiquetas.length > 0) {
+    if (sin_etiqueta) {
+      andConditions.push({
+        etiquetas: { none: {} },
+      });
+    } else if (id_etiquetas && id_etiquetas.length > 0) {
       andConditions.push({
         etiquetas: {
           some: {

@@ -6,7 +6,7 @@ Documentación del endpoint legacy para integradores externos de cobro.
 
 | Campo | Valor |
 |-------|-------|
-| **URL** | `POST /puntoxpress/legacy` |
+| **URL** | `POST https://nt-bk.edal.group/puntoxpress/legacy` |
 | **Content-Type** | `application/json` |
 | **Autenticación** | JWT Bearer Token (obtenido vía método `Autenticacion`) |
 

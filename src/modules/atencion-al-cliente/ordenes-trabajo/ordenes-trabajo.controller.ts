@@ -21,6 +21,7 @@ import { CreateOrdenDto } from './dto/create-orden.dto';
 import { UpdateOrdenDto } from './dto/update-orden.dto';
 import { QueryOrdenDto } from './dto/query-orden.dto';
 import { AsignarOrdenDto } from './dto/asignar-orden.dto';
+import { ReasignarOrdenDto } from './dto/reasignar-orden.dto';
 import { AgendarOrdenDto } from './dto/agendar-orden.dto';
 import { ReprogramarOrdenDto } from './dto/reprogramar-orden.dto';
 import { CambiarEstadoOrdenDto } from './dto/cambiar-estado-orden.dto';
@@ -168,6 +169,47 @@ export class OrdenesTrabajoController {
     @Request() req,
   ) {
     return this.ordenesTrabajoService.asignar(id, asignarDto, req.user.id_usuario);
+  }
+
+  @RequirePermissions('atencion_cliente.ordenes:asignar')
+  @Post(':id/reasignar')
+  @ApiOperation({
+    summary: 'Reasignar técnico responsable de una orden de trabajo',
+    description:
+      'Cambia el técnico asignado sin alterar el estado actual de la orden. Solo puede ser realizado por un administrador o el técnico actualmente asignado. Registra el cambio en el historial.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la orden de trabajo',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Técnico reasignado exitosamente',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Orden en estado final, sin técnico asignado, o mismo técnico',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'No tiene permisos para reasignar esta orden',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Orden de trabajo o técnico no encontrado',
+  })
+  reasignar(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() reasignarDto: ReasignarOrdenDto,
+    @Request() req,
+  ) {
+    return this.ordenesTrabajoService.reasignar(
+      id,
+      reasignarDto,
+      req.user.id_usuario,
+      req.user.id_rol,
+    );
   }
 
   @RequirePermissions('atencion_cliente.ordenes:agendar')

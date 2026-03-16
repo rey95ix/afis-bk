@@ -83,6 +83,7 @@ export interface MigrationOptions {
   continueOnError: boolean;
   maxRetries: number;
   includeDocumentos?: boolean;
+  concurrency?: number;
 }
 
 // Resultado de preview
@@ -142,6 +143,26 @@ export const ESTADO_CLIENTE_MAP: Record<number, string> = {
   12: 'SUSPENDIDO_TEMPORAL',
   13: 'CONVENIO_ESPECIAL',
   14: 'BAJA_ADMINISTRATIVA',
+};
+
+// Mapeo de estado del CLIENTE a estado del CONTRATO
+// El estado autoritativo del servicio es tbl_customers.customers_status, no status_contract
+export const ESTADO_CLIENTE_TO_CONTRATO_MAP: Record<number, string> = {
+  0: 'PENDIENTE_INSTALACION',   // SIN_INSTALAR
+  1: 'INSTALADO_ACTIVO',        // ACTIVO
+  2: 'SUSPENDIDO',              // SUSPENDIDO
+  3: 'BAJA_DEFINITIVA',         // BAJA_DEFINITIVA
+  4: 'PENDIENTE_INSTALACION',   // EN_ESPERA
+  5: 'CANCELADO',               // SIN_LIQUIDAR
+  6: 'CANCELADO',               // INCONCLUSO
+  7: 'PENDIENTE_INSTALACION',   // SIN_GESTION_CALIDAD
+  8: 'BAJA_CAMBIO_TITULAR',     // BAJA_CAMBIO_NOMBRE
+  9: 'VELOCIDAD_REDUCIDA',      // VELOCIDAD_REDUCIDA
+  10: 'EN_MORA',                // MOROSO_INCOBRABLE
+  11: 'CANCELADO',              // SIN_COBERTURA
+  12: 'SUSPENDIDO_TEMPORAL',    // SUSPENDIDO_TEMPORAL
+  13: 'INSTALADO_ACTIVO',       // CONVENIO_ESPECIAL
+  14: 'BAJA_DEFINITIVA',        // BAJA_ADMINISTRATIVA
 };
 
 export const ESTADO_CONTRATO_MAP: Record<number, string> = {

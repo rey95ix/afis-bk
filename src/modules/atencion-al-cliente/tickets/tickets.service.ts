@@ -77,6 +77,9 @@ export class TicketsService {
     if (createTicketDto.pruebas_remotas) {
       data.pruebas_remotas = createTicketDto.pruebas_remotas;
     }
+    if (createTicketDto.id_chat !== undefined) {
+      data.id_chat = createTicketDto.id_chat;
+    }
 
     const ticket = await this.prisma.ticket_soporte.create({
       data,
@@ -91,6 +94,13 @@ export class TicketsService {
         },
         direccion_servicio: true,
         diagnostico_catalogo: true,
+        chat: {
+          select: {
+            id_chat: true,
+            telefono_cliente: true,
+            nombre_cliente: true,
+          },
+        },
       },
     });
 

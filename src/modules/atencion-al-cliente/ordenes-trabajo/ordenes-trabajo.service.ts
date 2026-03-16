@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SmsService } from '../../sms/sms.service';
@@ -14,6 +15,7 @@ import { QueryOrdenDto } from './dto/query-orden.dto';
 import { AsignarOrdenDto } from './dto/asignar-orden.dto';
 import { AgendarOrdenDto } from './dto/agendar-orden.dto';
 import { ReprogramarOrdenDto } from './dto/reprogramar-orden.dto';
+import { ReasignarOrdenDto } from './dto/reasignar-orden.dto';
 import { CambiarEstadoOrdenDto } from './dto/cambiar-estado-orden.dto';
 import { IniciarOrdenDto } from './dto/iniciar-orden.dto';
 import { CerrarOrdenDto } from './dto/cerrar-orden.dto';
@@ -485,6 +487,144 @@ export class OrdenesTrabajoService {
       } catch (error) {
         // Log error pero no fallar la operación principal
         console.error('Error al enviar notificación push de orden asignada:', error);
+      }
+    }
+
+    return result;
+  }
+
+  async reasignar(
+    id: number,
+    reasignarDto: ReasignarOrdenDto,
+    userId: number,
+    userRol: number,
+  ) {
+    const orden = await this.prisma.orden_trabajo.findUnique({
+      where: { id_orden: id },
+      include: {
+        tecnico_asignado: {
+          select: {
+            id_usuario: true,
+            nombres: true,
+            apellidos: true,
+          },
+        },
+      },
+    });
+
+    if (!orden) {
+      throw new NotFoundException(`Orden de trabajo con ID ${id} no encontrada`);
+    }
+
+    if (orden.estado === 'COMPLETADA' || orden.estado === 'CANCELADA') {
+      throw new BadRequestException(
+        'No se puede reasignar una orden en estado COMPLETADA o CANCELADA',
+      );
+    }
+
+    if (!orden.id_tecnico_asignado) {
+      throw new BadRequestException(
+        'La orden no tiene técnico asignado. Use la función de asignar en su lugar.',
+      );
+    }
+
+    // Autorización: admin (rol 1) o técnico actualmente asignado
+    if (userRol !== 1 && orden.id_tecnico_asignado !== userId) {
+      throw new ForbiddenException(
+        'Solo un administrador o el técnico asignado puede reasignar la orden',
+      );
+    }
+
+    if (orden.id_tecnico_asignado === reasignarDto.id_tecnico) {
+      throw new BadRequestException(
+        'El nuevo técnico debe ser diferente al técnico actualmente asignado',
+      );
+    }
+
+    const nuevoTecnico = await this.prisma.usuarios.findUnique({
+      where: { id_usuario: reasignarDto.id_tecnico },
+      select: {
+        id_usuario: true,
+        nombres: true,
+        apellidos: true,
+        fcm_token: true,
+      },
+    });
+
+    if (!nuevoTecnico) {
+      throw new NotFoundException(
+        `Técnico con ID ${reasignarDto.id_tecnico} no encontrado`,
+      );
+    }
+
+    const tecnicoAnterior = orden.tecnico_asignado!;
+    const nombreAnterior = `${tecnicoAnterior.nombres} ${tecnicoAnterior.apellidos}`;
+    const nombreNuevo = `${nuevoTecnico.nombres} ${nuevoTecnico.apellidos}`;
+
+    let comentario = `Responsable reasignado de ${nombreAnterior} a ${nombreNuevo}`;
+    if (reasignarDto.motivo) {
+      comentario += `. Motivo: ${reasignarDto.motivo}`;
+    }
+
+    const result = await this.prisma.$transaction(async (prisma) => {
+      // Actualizar técnico sin cambiar estado
+      const ordenActualizada = await prisma.orden_trabajo.update({
+        where: { id_orden: id },
+        data: {
+          id_tecnico_asignado: reasignarDto.id_tecnico,
+          fecha_asignacion: new Date(),
+        },
+        include: {
+          tecnico_asignado: {
+            select: {
+              id_usuario: true,
+              nombres: true,
+              apellidos: true,
+            },
+          },
+        },
+      });
+
+      // Actualizar agenda activa si existe
+      await prisma.agenda_visitas.updateMany({
+        where: {
+          id_orden: id,
+          activo: true,
+        },
+        data: {
+          id_tecnico: reasignarDto.id_tecnico,
+        },
+      });
+
+      // Registrar en historial con el estado actual (sin cambiar)
+      await prisma.ot_historial_estado.create({
+        data: {
+          id_orden: id,
+          estado: orden.estado,
+          comentario,
+          cambiado_por: userId,
+        },
+      });
+
+      return ordenActualizada;
+    });
+
+    await this.prisma.logAction(
+      'REASIGNAR_ORDENES_TRABAJO',
+      userId,
+      `Orden ${orden.codigo} reasignada de ${nombreAnterior} a ${nombreNuevo}`,
+    );
+
+    // Enviar notificación push al nuevo técnico
+    if (nuevoTecnico.fcm_token) {
+      try {
+        await this.fcmService.notificarOrdenAsignada(
+          nuevoTecnico.fcm_token,
+          orden.codigo,
+          orden.id_orden,
+        );
+      } catch (error) {
+        console.error('Error al enviar notificación push de reasignación:', error);
       }
     }
 

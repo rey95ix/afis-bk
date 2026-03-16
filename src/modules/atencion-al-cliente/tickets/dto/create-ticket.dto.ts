@@ -103,4 +103,13 @@ export class CreateTicketDto {
   @IsBoolean()
   @IsOptional()
   requiere_visita?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'ID del chat de WhatsApp de origen',
+    example: 1,
+  })
+  @IsInt()
+  @IsOptional()
+  @Transform(({ value }) => parseInt(value, 10))
+  id_chat?: number;
 }

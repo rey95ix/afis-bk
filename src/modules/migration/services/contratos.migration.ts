@@ -16,7 +16,7 @@ import {
 import {
   cleanString,
   cleanStringOrNull,
-  mapEstadoContrato,
+  mapEstadoClienteToContrato,
   generateContractCode,
   toDecimal,
   parseDate,
@@ -285,6 +285,13 @@ export class ContratosMigrationService {
             continue;
           }
 
+          // Obtener estado del cliente (autoritativo para el estado del contrato)
+          const customer = await this.mysql.queryOne<RowDataPacket>(
+            'SELECT customers_status FROM tbl_customers WHERE id_customers = ?',
+            [contract.id_customers],
+          );
+          const customerStatus = customer?.customers_status ?? null;
+
           // Obtener servicio asociado para obtener plan y ciclo
           const service = await this.mysql.queryOne<MysqlCustomerService & RowDataPacket>(
             'SELECT * FROM tbl_customers_service WHERE id_customers = ? LIMIT 1',
@@ -354,7 +361,7 @@ export class ContratosMigrationService {
                 fecha_inicio_contrato: service?.date_contract_start ? parseDate(service.date_contract_start) ?? undefined : undefined,
                 fecha_fin_contrato: service?.date_contract_end ? parseDate(service.date_contract_end) ?? undefined : undefined,
                 meses_contrato: service?.contract_month || 12,
-                estado: mapEstadoContrato(contract.status_contract) as any,
+                estado: mapEstadoClienteToContrato(customerStatus) as any,
               },
             });
 
@@ -373,7 +380,7 @@ export class ContratosMigrationService {
                 fecha_inicio_contrato: service?.date_contract_start ? parseDate(service.date_contract_start) ?? undefined : undefined,
                 fecha_fin_contrato: service?.date_contract_end ? parseDate(service.date_contract_end) ?? undefined : undefined,
                 meses_contrato: service?.contract_month || 12,
-                estado: mapEstadoContrato(contract.status_contract) as any,
+                estado: mapEstadoClienteToContrato(customerStatus) as any,
               },
             });
 
@@ -420,6 +427,13 @@ export class ContratosMigrationService {
 
     // Asegurar ciclos de facturación
     await this.ensureCiclosFacturacion(options, mappings);
+
+    // Obtener estado del cliente (autoritativo para el estado del contrato)
+    const customer = await this.mysql.queryOne<RowDataPacket>(
+      'SELECT customers_status FROM tbl_customers WHERE id_customers = ?',
+      [mysqlCustomerId],
+    );
+    const customerStatus = customer?.customers_status ?? null;
 
     // Obtener contratos del cliente
     const contracts = await this.mysql.query<(MysqlContract & RowDataPacket)[]>(
@@ -515,7 +529,7 @@ export class ContratosMigrationService {
             fecha_inicio_contrato: service?.date_contract_start ? parseDate(service.date_contract_start) ?? undefined : undefined,
             fecha_fin_contrato: service?.date_contract_end ? parseDate(service.date_contract_end) ?? undefined : undefined,
             meses_contrato: service?.contract_month || 12,
-            estado: mapEstadoContrato(contract.status_contract) as any,
+            estado: mapEstadoClienteToContrato(customerStatus) as any,
           },
         });
 
