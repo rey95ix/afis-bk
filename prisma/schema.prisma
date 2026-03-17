@@ -225,6 +225,10 @@ model cliente {
   intentsPagoTarjeta pago_tarjeta_intent[]
   // Caja
   cajaMovimientos    caja_movimiento[]
+  // OLT
+  olt_asignaciones       olt_cliente[]
+  olt_ips                olt_cliente_ip[]
+  olt_telefonos          olt_cliente_telefono[]
 
   // Índices para búsqueda rápida en auth
   @@index([correo_electronico])
@@ -389,6 +393,8 @@ model sucursales {
   cuentas_por_cobrar         cuenta_por_cobrar[]
   // Relaciones con cuentas por pagar
   cuentas_por_pagar          cuenta_por_pagar[]
+  // OLT
+  olt_equipos                olt_equipo[]
 }
 
 model bodegas {
@@ -4945,4 +4951,139 @@ model puntoxpress_integrador {
 
   @@index([usuario])
   @@map("punto_express_integrador")
+}
+
+// ============= MÓDULO OLT (INFRAESTRUCTURA FTTH) =============
+
+model olt_equipo {
+  id_olt_equipo  Int              @id @default(autoincrement())
+  nombre         String           @db.VarChar(50)
+  ip_address     String           @db.VarChar(50)
+  id_sucursal    Int?
+  sucursal       sucursales?      @relation(fields: [id_sucursal], references: [id_sucursal])
+  tarjetas       olt_tarjeta[]
+  legacy_id      Int?             @unique
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model olt_marca {
+  id_olt_marca   Int              @id @default(autoincrement())
+  nombre         String           @db.VarChar(25)
+  modelos        olt_modelo[]
+  legacy_id      Int?             @unique
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model olt_modelo {
+  id_olt_modelo     Int           @id @default(autoincrement())
+  id_olt_marca      Int
+  marca             olt_marca     @relation(fields: [id_olt_marca], references: [id_olt_marca])
+  nombre            String        @db.VarChar(20)
+  srvprofile_olt    String?       @db.VarChar(45)
+  asignaciones      olt_cliente[]
+  legacy_id         Int?          @unique
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+model olt_tarjeta {
+  id_olt_tarjeta Int              @id @default(autoincrement())
+  id_olt_equipo  Int
+  equipo         olt_equipo       @relation(fields: [id_olt_equipo], references: [id_olt_equipo])
+  nombre         String           @db.VarChar(50)
+  slot           Int
+  modelo         String?          @db.VarChar(50)
+  asignaciones   olt_cliente[]
+  legacy_id      Int?             @unique
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model olt_perfil_trafico {
+  id_olt_perfil_trafico Int       @id @default(autoincrement())
+  nombre                String    @db.VarChar(30)
+  cir                   Int
+  cbs                   Int
+  pir                   Int
+  pbs                   Int
+  legacy_id             Int?      @unique
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model olt_red {
+  id_olt_red     Int              @id @default(autoincrement())
+  network        String           @db.VarChar(15)
+  netmask        String           @db.VarChar(15)
+  cidr           Int
+  gateway        String           @db.VarChar(15)
+  pri_dns        String?          @db.VarChar(15)
+  slv_dns        String?          @db.VarChar(15)
+  proposito      String?          @db.VarChar(255)
+  ips            olt_cliente_ip[]
+  legacy_id      Int?             @unique
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model olt_cliente {
+  id_olt_cliente          Int       @id @default(autoincrement())
+  id_cliente              Int?
+  cliente                 cliente?  @relation(fields: [id_cliente], references: [id_cliente])
+  id_olt_tarjeta          Int
+  tarjeta                 olt_tarjeta @relation(fields: [id_olt_tarjeta], references: [id_olt_tarjeta])
+  port                    Int
+  ont                     Int
+  ont_status              Int       @default(0)
+  serviceport             Int
+  serviceport_status      Int       @default(0)
+  id_olt_modelo           Int?
+  modelo                  olt_modelo? @relation(fields: [id_olt_modelo], references: [id_olt_modelo])
+  sn                      String?   @db.VarChar(30)
+  password                String?   @db.VarChar(15)
+  fecha_activacion        DateTime?
+  vlan                    Int?
+  user_vlan               Int?
+  serviceport_tr069       Int?
+  serviceport_iptv        Int?
+  serviceport_voip        Int?
+  legacy_id               Int?      @unique
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([id_cliente])
+  @@index([serviceport])
+}
+
+model olt_cliente_ip {
+  id_olt_cliente_ip Int            @id @default(autoincrement())
+  id_cliente        Int?
+  cliente           cliente?       @relation(fields: [id_cliente], references: [id_cliente])
+  id_olt_red        Int
+  red               olt_red        @relation(fields: [id_olt_red], references: [id_olt_red])
+  ip                String         @db.VarChar(15)
+  long_code         BigInt?
+  selected_pri_dns  String?        @db.VarChar(15)
+  selected_slv_dns  String?        @db.VarChar(15)
+  is_reserved       Boolean        @default(false)
+  legacy_id         Int?           @unique
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([id_cliente])
+}
+
+model olt_cliente_telefono {
+  id_olt_cliente_telefono Int      @id @default(autoincrement())
+  id_cliente              Int
+  cliente                 cliente  @relation(fields: [id_cliente], references: [id_cliente])
+  extension               String?  @db.VarChar(45)
+  telefono                String?  @db.VarChar(45)
+  usuario                 String?  @db.VarChar(45)
+  password                String?  @db.VarChar(45)
+  legacy_id               Int?     @unique
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 }

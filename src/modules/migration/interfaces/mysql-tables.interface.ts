@@ -234,3 +234,92 @@ export interface MysqlCustomersContractMedia {
   receipt: number | null;                // Recibo de servicio
   signature: number | null;              // Firma
 }
+
+// ============= OLT =============
+
+export interface MysqlOltEquipo {
+  id_parameters_olt: number;
+  name: string;
+  ip_address: string;
+  id_parameters_agency: number;
+}
+
+export interface MysqlOltMarca {
+  id_parameters_olt_brand: number;
+  name: string;
+}
+
+export interface MysqlOltModelo {
+  id_parameters_olt_brand_model: number;
+  id_parameters_olt_brand: number;
+  name: string;
+  srvprofile_olt: string | null;
+}
+
+export interface MysqlOltTarjeta {
+  id_parameters_olt_card: number;
+  id_parameters_olt: number;
+  name: string;
+  slot_olt: number;
+  modelo: string | null;
+}
+
+export interface MysqlOltTrafico {
+  id_parametros_olt_traffic: number;
+  name: string;
+  cir: number;
+  cbs: number;
+  pir: number;
+  pbs: number;
+}
+
+export interface MysqlOltRed {
+  id_customers_olt_network: number;
+  network: string;
+  netmask: string;
+  cidr: number;
+  gateway: string;
+  pri_dns: string;
+  slv_dns: string;
+  purpose_code: string;
+}
+
+export interface MysqlCustomerOlt {
+  id_customers_olt: number;
+  id_parameters_olt_card: number;
+  port: number;
+  ont: number;
+  ont_status: number;
+  serviceport: number;
+  serviceport_status: number;
+  id_customers: number;
+  id_parameters_olt_brand_model: number;
+  sn: string;
+  password: string;
+  date_activation: string;
+  vlan: number;
+  user_vlan: number;
+  serviceport_tr069: number;
+  serviceport_iptv: number;
+  serviceport_voip: number;
+}
+
+export interface MysqlCustomerOltIp {
+  id_customers_olt_network_ip_range: number;
+  id_customers: number;
+  id_customers_olt_network: number;
+  ip: string;
+  long_code: number;
+  selected_pri_dns: string;
+  selected_slv_dns: string;
+  is_reserved_ip: number;
+}
+
+export interface MysqlCustomerOltPhone {
+  id_customers_olt_phones: number;
+  extension: string;
+  phone: string;
+  user: string;
+  password: string;
+  id_customers: number;
+}

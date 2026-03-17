@@ -23,6 +23,12 @@ export interface TableMappings {
   contratos: Map<number, number>;
   facturas: Map<number, number>;
   documentos: Map<number, number>; // tbl_contract_media.id → clienteDocumentos.id
+  oltEquipos: Map<number, number>;
+  oltMarcas: Map<number, number>;
+  oltModelos: Map<number, number>;
+  oltTarjetas: Map<number, number>;
+  oltTrafico: Map<number, number>;
+  oltRedes: Map<number, number>;
 }
 
 // Resultado de migración por módulo
@@ -220,6 +226,11 @@ export interface SingleClienteMigrationResult {
   facturas?: {
     total: number;
     migrated: number;
+  };
+  olt?: {
+    asignaciones: number;
+    ips: number;
+    telefonos: number;
   };
   errors: MigrationError[];
   duration: number;

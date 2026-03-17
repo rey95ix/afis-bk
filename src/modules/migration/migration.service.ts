@@ -6,6 +6,7 @@ import { ClientesMigrationService } from './services/clientes.migration';
 import { ContratosMigrationService } from './services/contratos.migration';
 import { DocumentosMigrationService } from './services/documentos.migration';
 import { FacturacionMigrationService } from './services/facturacion.migration';
+import { OltMigrationService } from './services/olt.migration';
 import { FacturaDirectaService } from '../facturacion/factura-directa/factura-directa.service';
 import {
   TableMappings,
@@ -41,6 +42,7 @@ export class MigrationService {
 
   // Mapeos de IDs entre MySQL y PostgreSQL
   private mappings: TableMappings = this.createEmptyMappings();
+  private oltCatalogsLoaded = false;
 
   // Logs de migración
   private logs: MigrationLog[] = [];
@@ -54,6 +56,7 @@ export class MigrationService {
     private readonly contratosMigration: ContratosMigrationService,
     private readonly documentosMigration: DocumentosMigrationService,
     private readonly facturacionMigration: FacturacionMigrationService,
+    private readonly oltMigration: OltMigrationService,
     private readonly facturaDirectaService: FacturaDirectaService,
     @Optional() @Inject(forwardRef(() => MigrationGateway))
     private readonly migrationGateway?: MigrationGateway,
@@ -76,6 +79,12 @@ export class MigrationService {
       contratos: new Map(),
       facturas: new Map(),
       documentos: new Map(),
+      oltEquipos: new Map(),
+      oltMarcas: new Map(),
+      oltModelos: new Map(),
+      oltTarjetas: new Map(),
+      oltTrafico: new Map(),
+      oltRedes: new Map(),
     };
   }
 
@@ -222,6 +231,16 @@ export class MigrationService {
       switch (module) {
         case MigrationModule.CATALOGOS:
           result = await this.catalogosMigration.migrate(options, this.mappings);
+          // Also migrate OLT catalogs
+          {
+            const oltCatResult = await this.oltMigration.migrateCatalogosOlt(options, this.mappings);
+            this.oltCatalogsLoaded = true;
+            result.totalRecords += oltCatResult.totalRecords;
+            result.migratedRecords += oltCatResult.migratedRecords;
+            result.skippedRecords += oltCatResult.skippedRecords;
+            result.errors.push(...oltCatResult.errors);
+            result.success = result.success && oltCatResult.success;
+          }
           break;
         case MigrationModule.CLIENTES: {
           const bulkResult = await this.migrateAllClientesUnified(options);
@@ -344,6 +363,16 @@ export class MigrationService {
         switch (module) {
           case MigrationModule.CATALOGOS:
             result = await this.catalogosMigration.migrate(options, this.mappings);
+            // Also migrate OLT catalogs right after base catalogs
+            {
+              const oltCatResult = await this.oltMigration.migrateCatalogosOlt(options, this.mappings);
+              this.oltCatalogsLoaded = true;
+              result.totalRecords += oltCatResult.totalRecords;
+              result.migratedRecords += oltCatResult.migratedRecords;
+              result.skippedRecords += oltCatResult.skippedRecords;
+              result.errors.push(...oltCatResult.errors);
+              result.success = result.success && oltCatResult.success;
+            }
             break;
           case MigrationModule.CLIENTES: {
             const bulkResult = await this.migrateAllClientesUnified(options);
@@ -422,6 +451,7 @@ export class MigrationService {
       results: [],
     };
     this.mappings = this.createEmptyMappings();
+    this.oltCatalogsLoaded = false;
     this.addLog('INFO', 'migration', 'Estado de migración reseteado');
   }
 
@@ -442,6 +472,12 @@ export class MigrationService {
       contratos: this.mappings.contratos.size,
       facturas: this.mappings.facturas.size,
       documentos: this.mappings.documentos.size,
+      oltEquipos: this.mappings.oltEquipos.size,
+      oltMarcas: this.mappings.oltMarcas.size,
+      oltModelos: this.mappings.oltModelos.size,
+      oltTarjetas: this.mappings.oltTarjetas.size,
+      oltTrafico: this.mappings.oltTrafico.size,
+      oltRedes: this.mappings.oltRedes.size,
     };
   }
 
@@ -461,6 +497,14 @@ export class MigrationService {
         { batchSize: 500, skipExisting: true, dryRun: false, continueOnError: true, maxRetries: 3 },
         this.mappings,
       );
+    }
+    if (!this.oltCatalogsLoaded) {
+      this.addLog('INFO', 'clientes-unified', 'Cargando catálogos OLT previo a migración masiva...');
+      await this.oltMigration.migrateCatalogosOlt(
+        { batchSize: 500, skipExisting: true, dryRun: false, continueOnError: true, maxRetries: 3 },
+        this.mappings,
+      );
+      this.oltCatalogsLoaded = true;
     }
 
     // Obtener todos los IDs de clientes desde MySQL
@@ -604,6 +648,26 @@ export class MigrationService {
     const deleted: Record<string, number> = {};
 
     await this.prisma.$transaction(async (tx) => {
+      // 0. OLT data (no FK dependencies on other client tables)
+      {
+        const r = await tx.olt_cliente_telefono.deleteMany({
+          where: { id_cliente: postgresClienteId },
+        });
+        deleted['olt_cliente_telefono'] = r.count;
+      }
+      {
+        const r = await tx.olt_cliente_ip.deleteMany({
+          where: { id_cliente: postgresClienteId },
+        });
+        deleted['olt_cliente_ip'] = r.count;
+      }
+      {
+        const r = await tx.olt_cliente.deleteMany({
+          where: { id_cliente: postgresClienteId },
+        });
+        deleted['olt_cliente'] = r.count;
+      }
+
       // 1. Recopilar IDs necesarios
       const contratos = await tx.atcContrato.findMany({
         where: { id_cliente: postgresClienteId },
@@ -818,6 +882,14 @@ export class MigrationService {
         this.mappings,
       );
     }
+    if (!this.oltCatalogsLoaded) {
+      this.addLog('INFO', 'cliente-individual', 'Cargando catálogos OLT previo a migración de cliente...');
+      await this.oltMigration.migrateCatalogosOlt(
+        { batchSize: 500, skipExisting: true, dryRun: false, continueOnError: true, maxRetries: 3 },
+        this.mappings,
+      );
+      this.oltCatalogsLoaded = true;
+    }
 
     this.addLog('INFO', 'cliente-individual', `Iniciando migración de cliente MySQL ID: ${idCustomer}`);
 
@@ -921,7 +993,31 @@ export class MigrationService {
       }
     }
 
-    // 4. Migrar facturas del cliente (opcional)
+    // 4. Migrar datos OLT del cliente
+    if (!migrationOptions.dryRun) {
+      try {
+        const oltResult = await this.oltMigration.migrateClienteOlt(
+          idCustomer,
+          clienteResult.cliente.postgresId,
+          this.mappings,
+        );
+        result.olt = {
+          asignaciones: oltResult.asignaciones,
+          ips: oltResult.ips,
+          telefonos: oltResult.telefonos,
+        };
+        allErrors.push(...oltResult.errors);
+      } catch (error) {
+        this.logger.warn(`Error migrando OLT: ${error}`);
+        allErrors.push({
+          table: 'olt',
+          recordId: idCustomer,
+          message: `Error migrando OLT: ${error instanceof Error ? error.message : 'Error desconocido'}`,
+        });
+      }
+    }
+
+    // 5. Migrar facturas del cliente (opcional)
     if (options.includeFacturas !== false) {
       const facturasResult = await this.migrateFacturasForCliente(
         idCustomer,

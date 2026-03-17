@@ -13,6 +13,7 @@ import { ClientesMigrationService } from './services/clientes.migration';
 import { ContratosMigrationService } from './services/contratos.migration';
 import { DocumentosMigrationService } from './services/documentos.migration';
 import { FacturacionMigrationService } from './services/facturacion.migration';
+import { OltMigrationService } from './services/olt.migration';
 
 @Module({
   imports: [ConfigModule, PrismaModule, MinioModule, OpenaiModule, FacturacionModule],
@@ -26,6 +27,7 @@ import { FacturacionMigrationService } from './services/facturacion.migration';
     ContratosMigrationService,
     DocumentosMigrationService,
     FacturacionMigrationService,
+    OltMigrationService,
   ],
   exports: [MigrationService],
 })
