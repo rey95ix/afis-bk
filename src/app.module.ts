@@ -20,6 +20,7 @@ import { BancosModule } from './modules/bancos/bancos.module';
 import { CxcModule } from './modules/cxc/cxc.module';
 import { CxpModule } from './modules/cxp/cxp.module';
 import { PuntoXpressModule } from './modules/puntoxpress/puntoxpress.module';
+import { OltModule } from './modules/olt/olt.module';
 
 
 @Module({
@@ -47,6 +48,7 @@ import { PuntoXpressModule } from './modules/puntoxpress/puntoxpress.module';
     CxcModule, // Módulo de cuentas por cobrar
     CxpModule, // Módulo de cuentas por pagar
     PuntoXpressModule, // Módulo PuntoXpress (integradores externos)
+    OltModule, // Módulo de gestión OLT/ONT
     // UtilidadesModule, //TODO Habilitar módulo de utilidades
   ],
   controllers: [],

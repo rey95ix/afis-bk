@@ -1144,6 +1144,35 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     es_critico: true,
     requiere_auditoria: true,
   }),
+
+  // =============================================================
+  // MODULO: GESTIÓN OLT/ONT
+  // =============================================================
+
+  // Consultas OLT
+  crearPermisoCustom('olt', 'gestion', 'consultar', 'Consultar OLT', 'Consultar información OLT de clientes (info, WAN, historial, disponibles)'),
+
+  // Operaciones OLT
+  crearPermisoCustom('olt', 'gestion', 'reiniciar', 'Reiniciar ONT', 'Reiniciar ONT de clientes', {
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom('olt', 'gestion', 'instalar', 'Instalar ONT', 'Instalar ONT para clientes nuevos', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom('olt', 'gestion', 'suspender', 'Suspender ONT', 'Suspender servicio ONT de clientes', {
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom('olt', 'gestion', 'activar', 'Activar ONT', 'Reactivar servicio ONT de clientes', {
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom('olt', 'gestion', 'cambiar_equipo', 'Cambiar Equipo ONT', 'Cambiar equipo ONT de clientes', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom('olt', 'gestion', 'cambiar_plan', 'Cambiar Plan ONT', 'Modificar perfil de tráfico del ONT', {
+    requiere_auditoria: true,
+  }),
 ];
 
 /**

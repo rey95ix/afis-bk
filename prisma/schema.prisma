@@ -150,6 +150,9 @@ model usuarios {
   cajaMovimientos                caja_movimiento[]               @relation("caja_movimiento_usuario")
   cierresUsuario                 cierre_usuario[]                @relation("cierre_usuario_usuario")
   cierresDiarioCreados           cierre_diario[]                 @relation("cierre_diario_creado_por")
+  // OLT
+  olt_comandos                   olt_comando[]
+  olt_cambios_equipo             olt_cambio_equipo[]
 }
 
 model cliente {
@@ -229,6 +232,8 @@ model cliente {
   olt_asignaciones       olt_cliente[]
   olt_ips                olt_cliente_ip[]
   olt_telefonos          olt_cliente_telefono[]
+  olt_comandos           olt_comando[]
+  olt_cambios_equipo     olt_cambio_equipo[]
 
   // Índices para búsqueda rápida en auth
   @@index([correo_electronico])
@@ -4962,6 +4967,8 @@ model olt_equipo {
   id_sucursal    Int?
   sucursal       sucursales?      @relation(fields: [id_sucursal], references: [id_sucursal])
   tarjetas       olt_tarjeta[]
+  credencial     olt_credencial?
+  comandos       olt_comando[]
   legacy_id      Int?             @unique
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
@@ -5086,4 +5093,56 @@ model olt_cliente_telefono {
   legacy_id               Int?     @unique
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
+}
+
+// ============= OLT - GESTIÓN OPERATIVA =============
+
+model olt_credencial {
+  id_olt_credencial  Int        @id @default(autoincrement())
+  id_olt_equipo      Int        @unique
+  equipo             olt_equipo @relation(fields: [id_olt_equipo], references: [id_olt_equipo])
+  ssh_usuario        String     @db.VarChar(100)
+  ssh_password       String     @db.VarChar(255)
+  ssh_puerto         Int        @default(22)
+  prompt_pattern     String     @default("OLT1-Newtel>") @db.VarChar(100)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+}
+
+model olt_comando {
+  id_olt_comando   Int       @id @default(autoincrement())
+  id_olt_equipo    Int
+  equipo           olt_equipo @relation(fields: [id_olt_equipo], references: [id_olt_equipo])
+  id_cliente       Int?
+  cliente          cliente?  @relation(fields: [id_cliente], references: [id_cliente])
+  tipo_operacion   String    @db.VarChar(30)
+  comando          String    @db.Text
+  estado           Int       @default(0)
+  respuesta        String?   @db.Text
+  error_mensaje    String?   @db.Text
+  id_usuario       Int
+  usuario          usuarios  @relation(fields: [id_usuario], references: [id_usuario])
+  createdAt        DateTime  @default(now())
+  ejecutadoAt      DateTime?
+
+  @@index([estado])
+  @@index([id_cliente])
+}
+
+model olt_cambio_equipo {
+  id_olt_cambio_equipo Int      @id @default(autoincrement())
+  id_cliente           Int
+  cliente              cliente  @relation(fields: [id_cliente], references: [id_cliente])
+  sn_anterior          String?  @db.VarChar(30)
+  sn_nuevo             String?  @db.VarChar(30)
+  password_anterior    String?  @db.VarChar(15)
+  password_nuevo       String?  @db.VarChar(15)
+  id_modelo_anterior   Int?
+  id_modelo_nuevo      Int?
+  observacion          String?  @db.Text
+  id_usuario           Int
+  usuario              usuarios @relation(fields: [id_usuario], references: [id_usuario])
+  createdAt            DateTime @default(now())
+
+  @@index([id_cliente])
 }
