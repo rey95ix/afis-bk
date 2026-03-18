@@ -186,6 +186,22 @@ export class CreateOrdenCompraDto {
   @IsInt()
   id_usuario_encargado?: number;
 
+  @ApiPropertyOptional({
+    description: 'ID de la solicitud de compra origen',
+    example: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  id_solicitud_compra?: number;
+
+  @ApiPropertyOptional({
+    description: 'ID de la cotización de compra origen',
+    example: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  id_cotizacion_compra?: number;
+
   @ApiProperty({
     description: 'Detalle de los productos a comprar',
     type: [CreateOrdenCompraDetalleDto],

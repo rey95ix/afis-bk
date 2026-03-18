@@ -36,6 +36,10 @@ import { CargaInventarioController } from './carga-inventario/carga-inventario.c
 import { CargaInventarioService } from './carga-inventario/carga-inventario.service';
 import { OrdenesCompraController } from './ordenes-compra/ordenes-compra.controller';
 import { OrdenesCompraService } from './ordenes-compra/ordenes-compra.service';
+import { SolicitudesCompraController } from './solicitudes-compra/solicitudes-compra.controller';
+import { SolicitudesCompraService } from './solicitudes-compra/solicitudes-compra.service';
+import { CotizacionesCompraController } from './cotizaciones-compra/cotizaciones-compra.controller';
+import { CotizacionesCompraService } from './cotizaciones-compra/cotizaciones-compra.service';
 import { MinioModule } from '../minio/minio.module';
 import { BancosModule } from '../bancos/bancos.module';
 import { CxpModule } from '../cxp/cxp.module';
@@ -69,6 +73,8 @@ import { MailModule } from '../mail/mail.module';
     MetricasInventarioController,
     CargaInventarioController,
     OrdenesCompraController,
+    SolicitudesCompraController,
+    CotizacionesCompraController,
   ],
   providers: [
     SucursalesService,
@@ -87,6 +93,8 @@ import { MailModule } from '../mail/mail.module';
     MetricasInventarioService,
     CargaInventarioService,
     OrdenesCompraService,
+    SolicitudesCompraService,
+    CotizacionesCompraService,
   ],
   exports: [MetricasInventarioService],
 })

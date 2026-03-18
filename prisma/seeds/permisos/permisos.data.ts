@@ -675,6 +675,104 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     { requiere_auditoria: true },
   ),
 
+  // =============================================================
+  // Solicitudes de Compra
+  // =============================================================
+  crearPermiso('inventario', 'solicitudes_compra', 'VER', 'Ver Solicitudes de Compra', 'Ver listado y detalles de solicitudes de compra'),
+  crearPermiso('inventario', 'solicitudes_compra', 'CREAR', 'Crear Solicitudes de Compra', 'Crear nuevas solicitudes de compra', {
+    requiere_auditoria: true,
+  }),
+  crearPermiso('inventario', 'solicitudes_compra', 'EDITAR', 'Editar Solicitudes de Compra', 'Modificar solicitudes de compra en borrador', {
+    requiere_auditoria: true,
+  }),
+  crearPermiso('inventario', 'solicitudes_compra', 'ELIMINAR', 'Eliminar Solicitudes de Compra', 'Eliminar solicitudes de compra', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom(
+    'inventario',
+    'solicitudes_compra',
+    'enviar_revision',
+    'Enviar SC a Revision',
+    'Enviar solicitud de compra a revision',
+    { requiere_auditoria: true },
+  ),
+  crearPermisoCustom(
+    'inventario',
+    'solicitudes_compra',
+    'autorizar',
+    'Autorizar Solicitudes de Compra',
+    'Autorizar solicitudes de compra pendientes de revision',
+    { es_critico: true, requiere_auditoria: true },
+  ),
+  crearPermisoCustom(
+    'inventario',
+    'solicitudes_compra',
+    'rechazar',
+    'Rechazar Solicitudes de Compra',
+    'Rechazar solicitudes de compra pendientes de revision',
+    { requiere_auditoria: true },
+  ),
+  crearPermisoCustom(
+    'inventario',
+    'solicitudes_compra',
+    'iniciar_cotizacion',
+    'Iniciar Cotizacion de SC',
+    'Cambiar solicitud autorizada a estado de cotizacion',
+    { requiere_auditoria: true },
+  ),
+  crearPermisoCustom(
+    'inventario',
+    'solicitudes_compra',
+    'cancelar',
+    'Cancelar Solicitudes de Compra',
+    'Cancelar solicitudes de compra',
+    { requiere_auditoria: true },
+  ),
+
+  // =============================================================
+  // Cotizaciones de Compra
+  // =============================================================
+  crearPermiso('inventario', 'cotizaciones_compra', 'VER', 'Ver Cotizaciones de Compra', 'Ver listado y detalles de cotizaciones de compra'),
+  crearPermisoCustom(
+    'inventario',
+    'cotizaciones_compra',
+    'registrar',
+    'Registrar Cotizaciones de Compra',
+    'Registrar cotizaciones de proveedores para solicitudes de compra',
+    { requiere_auditoria: true },
+  ),
+  crearPermiso('inventario', 'cotizaciones_compra', 'EDITAR', 'Editar Cotizaciones de Compra', 'Modificar cotizaciones de compra pendientes o registradas', {
+    requiere_auditoria: true,
+  }),
+  crearPermiso('inventario', 'cotizaciones_compra', 'ELIMINAR', 'Eliminar Cotizaciones de Compra', 'Eliminar cotizaciones de compra', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom(
+    'inventario',
+    'cotizaciones_compra',
+    'seleccionar',
+    'Seleccionar Cotizacion Ganadora',
+    'Seleccionar cotizacion ganadora de un proceso de cotizacion',
+    { es_critico: true, requiere_auditoria: true },
+  ),
+  crearPermisoCustom(
+    'inventario',
+    'cotizaciones_compra',
+    'generar_oc',
+    'Generar OC desde Cotizacion',
+    'Generar ordenes de compra a partir de cotizacion seleccionada',
+    { es_critico: true, requiere_auditoria: true },
+  ),
+  crearPermisoCustom(
+    'inventario',
+    'cotizaciones_compra',
+    'comparar',
+    'Comparar Cotizaciones',
+    'Acceder a la comparativa de cotizaciones por solicitud',
+  ),
+
   // Ordenes de Salida
   crearPermiso('inventario', 'ordenes_salida', 'VER', 'Ver Ordenes de Salida', 'Ver listado y detalles de ordenes de salida'),
   crearPermiso('inventario', 'ordenes_salida', 'CREAR', 'Crear Ordenes de Salida', 'Crear nuevas ordenes de salida de inventario', {

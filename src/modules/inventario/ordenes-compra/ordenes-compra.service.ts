@@ -77,6 +77,20 @@ export class OrdenesCompraService {
         usuario: true,
       },
     },
+    solicitud_compra: {
+      select: {
+        id_solicitud_compra: true,
+        codigo: true,
+        estado: true,
+      },
+    },
+    cotizacion_compra: {
+      select: {
+        id_cotizacion_compra: true,
+        estado: true,
+        numero_cotizacion: true,
+      },
+    },
   };
 
   private readonly includeCompleto = {
@@ -199,6 +213,8 @@ export class OrdenesCompraService {
           : null,
         id_usuario_encargado: dto.id_usuario_encargado,
         id_usuario_crea: user.id_usuario,
+        id_solicitud_compra: dto.id_solicitud_compra,
+        id_cotizacion_compra: dto.id_cotizacion_compra,
         subtotal: calculated.subtotal,
         descuento: calculated.descuento,
         iva: calculated.iva,
