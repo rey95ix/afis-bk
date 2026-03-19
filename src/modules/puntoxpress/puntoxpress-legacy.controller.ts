@@ -26,6 +26,28 @@ export class PuntoXpressLegacyController {
     private readonly prisma: PrismaService,
   ) {}
 
+  private mapFacturaLegacy(f: any) {
+    const ESTADO_MAP: Record<string, string> = {
+      'PENDIENTE': 'Pendiente de pago',
+      'PAGADA_PARCIAL': 'Pagada parcialmente',
+      'VENCIDA': 'Vencida',
+      'PAGADA_TOTAL': 'Pagada',
+    };
+
+    return {
+      id_factura: String(f.id_factura),
+      fecha_vencimiento: f.fecha_vencimiento,
+      numero_factura: f.numero_factura,
+      periodo_facturado: f.periodo_facturado,
+      monto: Number(f.monto).toFixed(2),
+      cliente: f.cliente,
+      vencida: String(f.vencida),
+      estado_factura: ESTADO_MAP[f.estado_factura] || f.estado_factura,
+      resolucion: f.resolucion,
+      serie: f.serie,
+    };
+  }
+
   @Post('legacy')
   @ApiOperation({
     summary: 'Endpoint legacy compatible con API anterior',
@@ -51,25 +73,25 @@ export class PuntoXpressLegacyController {
         case 'BusquedaCorrelativo': {
           if (!dto.correlativo) return { codigo: 2, mensaje: 'Falta correlativo' };
           const facturas = await this.service.buscarPorCorrelativo(dto.correlativo);
-          return { codigo: 0, facturas };
+          return facturas.map((f) => this.mapFacturaLegacy(f));
         }
 
         case 'BusquedaCodigoCliente': {
           if (!dto.codigo_cliente) return { codigo: 2, mensaje: 'Falta codigo_cliente' };
           const facturas = await this.service.buscarPorCodigoCliente(Number(dto.codigo_cliente));
-          return { codigo: 0, facturas };
+          return facturas.map((f) => this.mapFacturaLegacy(f));
         }
 
         case 'BusquedaDUI': {
           if (!dto.dui) return { codigo: 2, mensaje: 'Falta dui' };
           const facturas = await this.service.buscarPorDui(dto.dui);
-          return { codigo: 0, facturas };
+          return facturas.map((f) => this.mapFacturaLegacy(f));
         }
 
         case 'BusquedaNombre': {
           if (!dto.nombre) return { codigo: 2, mensaje: 'Falta nombre' };
           const facturas = await this.service.buscarPorNombre(dto.nombre);
-          return { codigo: 0, facturas };
+          return facturas.map((f) => this.mapFacturaLegacy(f));
         }
 
         case 'AplicarPago': {

@@ -428,7 +428,7 @@ export class PuntoXpressService {
     if (factura.periodo_inicio && factura.periodo_fin) {
       const inicio = new Date(factura.periodo_inicio);
       const fin = new Date(factura.periodo_fin);
-      periodoFacturado = `${inicio.toLocaleDateString('es-SV')} - ${fin.toLocaleDateString('es-SV')}`;
+      periodoFacturado = `${inicio.toISOString().split('T')[0]} a ${fin.toISOString().split('T')[0]}`;
     }
     console.log('Mapeando factura:', factura);
     return {
