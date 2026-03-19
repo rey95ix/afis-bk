@@ -7,6 +7,8 @@ export interface FacturaPuntoXpress {
   saldo_pendiente: number;
   cliente: string;
   codigo_cliente: number;
-  vencida: boolean;
+  vencida: any;
   estado_factura: string;
+  resolucion: string;
+  serie: string;
 }

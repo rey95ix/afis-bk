@@ -47,7 +47,8 @@ export class PuntoXpressService {
       },
     });
 
-    return facturas.map((f) => this.mapFactura(f));
+    const filtradas = this.filterFacturasRelevantes(facturas);
+    return filtradas.map((f) => this.mapFactura(f));
   }
 
   async buscarPorCodigoCliente(idCliente: number): Promise<FacturaPuntoXpress[]> {
@@ -66,7 +67,8 @@ export class PuntoXpressService {
       orderBy: { fecha_creacion: 'asc' },
     });
 
-    return facturas.map((f) => this.mapFactura(f));
+    const filtradas = this.filterFacturasRelevantes(facturas);
+    return filtradas.map((f) => this.mapFactura(f));
   }
 
   async buscarPorDui(dui: string): Promise<FacturaPuntoXpress[]> {
@@ -94,7 +96,8 @@ export class PuntoXpressService {
       orderBy: { fecha_creacion: 'asc' },
     });
 
-    return facturas.map((f) => this.mapFactura(f));
+    const filtradas = this.filterFacturasRelevantes(facturas);
+    return filtradas.map((f) => this.mapFactura(f));
   }
 
   async buscarPorNombre(nombre: string): Promise<FacturaPuntoXpress[]> {
@@ -102,7 +105,9 @@ export class PuntoXpressService {
       where: {
         estado: 'ACTIVO',
         cliente: {
-          titular: { contains: nombre, mode: 'insensitive' },
+          titular: { 
+            equals: nombre, mode: 'insensitive' 
+          },
         },
         cuenta_por_cobrar: {
           estado: { in: [...ESTADOS_CXC_PENDIENTES] },
@@ -116,7 +121,8 @@ export class PuntoXpressService {
       take: 50,
     });
 
-    return facturas.map((f) => this.mapFactura(f));
+    const filtradas = this.filterFacturasRelevantes(facturas);
+    return filtradas.map((f) => this.mapFactura(f));
   }
 
   // ============= PAGOS =============
@@ -283,7 +289,7 @@ export class PuntoXpressService {
 
     // Verificar que fue un pago de PuntoXpress
     if (!abono.observaciones?.includes('[PuntoXpress:') &&
-        !abono.observaciones?.includes('[Punto Express:')) {
+      !abono.observaciones?.includes('[Punto Express:')) {
       throw new BadRequestException('Este pago no fue realizado por PuntoXpress');
     }
 
@@ -379,6 +385,40 @@ export class PuntoXpressService {
 
   // ============= HELPERS =============
 
+  /**
+   * Filtra facturas para mostrar solo las vencidas + la siguiente a vencer.
+   * Evita mostrar facturas de meses futuros que aún no corresponde cobrar.
+   */
+  private filterFacturasRelevantes(facturas: any[]): any[] {
+    const ahora = new Date();
+
+    const vencidas: any[] = [];
+    const noVencidas: any[] = [];
+
+    for (const f of facturas) {
+      const fechaVenc = f.cuenta_por_cobrar?.fecha_vencimiento
+        ? new Date(f.cuenta_por_cobrar.fecha_vencimiento)
+        : null;
+
+      if (fechaVenc && ahora > fechaVenc) {
+        vencidas.push(f);
+      } else {
+        noVencidas.push(f);
+      }
+    }
+
+    // Ordenar no-vencidas por fecha_vencimiento ASC y tomar solo la primera
+    noVencidas.sort((a, b) => {
+      const fa = new Date(a.cuenta_por_cobrar?.fecha_vencimiento).getTime();
+      const fb = new Date(b.cuenta_por_cobrar?.fecha_vencimiento).getTime();
+      return fa - fb;
+    });
+
+    const siguienteAVencer = noVencidas.length > 0 ? [noVencidas[0]] : [];
+
+    return [...vencidas, ...siguienteAVencer];
+  }
+
   private mapFactura(factura: any): FacturaPuntoXpress {
     const cxc = factura.cuenta_por_cobrar;
     const ahora = new Date();
@@ -400,8 +440,10 @@ export class PuntoXpressService {
       saldo_pendiente: Number(cxc?.saldo_pendiente || 0),
       cliente: factura.cliente?.titular || factura.cliente_nombre || '',
       codigo_cliente: factura.cliente?.id_cliente || factura.id_cliente || 0,
-      vencida: fechaVenc ? ahora > fechaVenc : false,
+      vencida: (fechaVenc ? ahora > fechaVenc : false) ? 1 : 0,
       estado_factura: cxc?.estado || factura.estado_pago,
+      resolucion: "FACTURACION ELECTRONICA",
+      serie: "FACTURACION ELECTRONICA"
     };
   }
 }

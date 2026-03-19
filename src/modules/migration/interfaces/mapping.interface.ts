@@ -90,6 +90,7 @@ export interface MigrationOptions {
   maxRetries: number;
   includeDocumentos?: boolean;
   concurrency?: number;
+  cleanBeforeMigration?: boolean;
 }
 
 // Resultado de preview
@@ -190,12 +191,36 @@ export const TIPO_PERSONA_MAP: Record<number, string> = {
   2: 'EMPRESA',
 };
 
+// Resultado de pre-check de colisiones de IDs
+export interface IdCollisionCheckResult {
+  totalMysqlClients: number;
+  collisions: IdCollision[];
+  safeCount: number;
+}
+
+export interface IdCollision {
+  mysqlId: number;
+  mysqlDui: string;
+  existingPostgresId: number;
+  existingPostgresDui: string;
+  type: 'ID_OCCUPIED_DIFFERENT_DUI' | 'DUI_EXISTS_DIFFERENT_ID';
+}
+
 // Resultado de migración masiva unificada por clientes
 export interface BulkClienteMigrationResult {
   totalClients: number;
   successCount: number;
   errorCount: number;
   clientErrors: Array<{ mysqlId: number; errors: MigrationError[] }>;
+  duration: number;
+}
+
+// Resultado de limpieza masiva de clientes
+export interface CleanupAllResult {
+  totalClientsProcessed: number;
+  totalClientsDeleted: number;
+  totalRecordsDeleted: Record<string, number>;
+  errors: MigrationError[];
   duration: number;
 }
 

@@ -4,6 +4,7 @@ import {
   Body,
   UnauthorizedException,
   BadRequestException,
+  HttpCode,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
@@ -31,6 +32,7 @@ export class PuntoXpressLegacyController {
     description: 'Acepta un objeto con campo "metodo" y enruta internamente',
   })
   @ApiResponse({ status: 200, description: 'Respuesta según método invocado' })
+  @HttpCode(200)
   async handleLegacy(@Body() dto: LegacyRequestDto) {
     try {
       // Autenticación no requiere token

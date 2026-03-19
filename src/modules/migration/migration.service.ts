@@ -18,6 +18,8 @@ import {
   SingleClienteMigrationResult,
   MigrationError,
   BulkClienteMigrationResult,
+  IdCollisionCheckResult,
+  CleanupAllResult,
 } from './interfaces/mapping.interface';
 import { MigrationModule, MigrateClienteOptionsDto } from './dto/migration-config.dto';
 import { MigrationGateway } from './migration.gateway';
@@ -507,6 +509,19 @@ export class MigrationService {
       this.oltCatalogsLoaded = true;
     }
 
+    // Limpieza masiva si se solicitó
+    if (options.cleanBeforeMigration && !options.dryRun) {
+      this.addLog('INFO', 'clientes-unified', '⚠️ Ejecutando limpieza masiva de clientes antes de migración...');
+      const cleanupResult = await this.cleanupAllClientes(options.concurrency ?? 5);
+      this.addLog('INFO', 'clientes-unified',
+        `Limpieza completada: ${cleanupResult.totalClientsDeleted} clientes eliminados, ` +
+        `${Object.values(cleanupResult.totalRecordsDeleted).reduce((s, n) => s + n, 0)} registros totales`);
+      if (cleanupResult.errors.length > 0) {
+        this.addLog('WARN', 'clientes-unified',
+          `${cleanupResult.errors.length} errores durante limpieza`);
+      }
+    }
+
     // Obtener todos los IDs de clientes desde MySQL
     const rows = await this.mysql.query<(RowDataPacket & { id_customers: number })[]>(
       'SELECT id_customers FROM tbl_customers WHERE customers_status IN (0,1,2,4,9,12) ORDER BY id_customers',
@@ -621,6 +636,17 @@ export class MigrationService {
       errorCount,
     };
 
+    // Resetear secuencia autoincrement para evitar colisiones con futuros inserts
+    if (!options.dryRun) {
+      try {
+        const newSeqVal = await this.clientesMigration.resetClienteSequence();
+        this.addLog('INFO', 'clientes-unified', `Secuencia id_cliente reseteada a ${newSeqVal}`);
+      } catch (error) {
+        this.addLog('WARN', 'clientes-unified',
+          `Error reseteando secuencia id_cliente: ${error instanceof Error ? error.message : error}`);
+      }
+    }
+
     const duration = Date.now() - startedAt;
     this.addLog(
       errorCount > 0 ? 'WARN' : 'INFO',
@@ -638,12 +664,97 @@ export class MigrationService {
   }
 
   /**
+   * Limpieza masiva: elimina todos los clientes y sus datos dependientes de PostgreSQL.
+   * Procesa en lotes reutilizando cleanupClienteData() para respetar FK constraints.
+   */
+  async cleanupAllClientes(
+    concurrency: number = 5,
+  ): Promise<CleanupAllResult> {
+    const startedAt = Date.now();
+    const errors: MigrationError[] = [];
+    const totalRecordsDeleted: Record<string, number> = {};
+    let totalClientsDeleted = 0;
+
+    // Obtener todos los IDs de clientes en PostgreSQL
+    const clientes = await this.prisma.cliente.findMany({
+      select: { id_cliente: true },
+      orderBy: { id_cliente: 'asc' },
+    });
+    const clienteIds = clientes.map(c => c.id_cliente);
+
+    this.addLog('INFO', 'cleanup-all',
+      `Iniciando limpieza masiva: ${clienteIds.length} clientes a eliminar (concurrency=${concurrency})`);
+
+    const totalBatches = Math.ceil(clienteIds.length / concurrency);
+
+    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+      const batch = clienteIds.slice(batchIndex * concurrency, (batchIndex + 1) * concurrency);
+
+      const results = await Promise.allSettled(
+        batch.map(id => this.cleanupClienteData(id, true)),
+      );
+
+      for (let j = 0; j < results.length; j++) {
+        const clienteId = batch[j];
+        const result = results[j];
+
+        if (result.status === 'fulfilled') {
+          totalClientsDeleted++;
+          // Acumular conteos por tabla
+          for (const [table, count] of Object.entries(result.value.deleted)) {
+            totalRecordsDeleted[table] = (totalRecordsDeleted[table] || 0) + count;
+          }
+        } else {
+          errors.push({
+            table: 'cliente',
+            recordId: clienteId,
+            message: result.reason instanceof Error ? result.reason.message : String(result.reason),
+          });
+        }
+      }
+
+      const processed = Math.min((batchIndex + 1) * concurrency, clienteIds.length);
+      this.addLog('INFO', 'cleanup-all',
+        `Progreso limpieza: ${processed}/${clienteIds.length} (${totalClientsDeleted} eliminados, ${errors.length} errores)`);
+
+      // Emitir progreso por WebSocket
+      this.migrationGateway?.emitProgress(this.getStatus());
+    }
+
+    // Resetear secuencia autoincrement
+    try {
+      const newSeqVal = await this.clientesMigration.resetClienteSequence();
+      this.addLog('INFO', 'cleanup-all', `Secuencia id_cliente reseteada a ${newSeqVal}`);
+    } catch (error) {
+      this.addLog('WARN', 'cleanup-all',
+        `Error reseteando secuencia id_cliente: ${error instanceof Error ? error.message : error}`);
+    }
+
+    const duration = Date.now() - startedAt;
+    this.addLog(
+      errors.length > 0 ? 'WARN' : 'INFO',
+      'cleanup-all',
+      `Limpieza masiva completada: ${totalClientsDeleted}/${clienteIds.length} clientes eliminados en ${duration}ms`,
+    );
+
+    return {
+      totalClientsProcessed: clienteIds.length,
+      totalClientsDeleted,
+      totalRecordsDeleted,
+      errors,
+      duration,
+    };
+  }
+
+  /**
    * Limpia todos los datos dependientes de un cliente en PostgreSQL antes de re-migrar.
    * Respeta el orden de FK constraints (hijos primero).
-   * NO elimina el registro base del cliente (será upserted por migrateCustomer).
+   * Si deleteClientRecord=true, también elimina el registro base del cliente
+   * (necesario cuando el id_cliente debe cambiar para preservar el ID de MySQL).
    */
   private async cleanupClienteData(
     postgresClienteId: number,
+    deleteClientRecord: boolean = false,
   ): Promise<{ deleted: Record<string, number> }> {
     const deleted: Record<string, number> = {};
 
@@ -831,37 +942,116 @@ export class MigrationService {
         deleted['clienteDatosFacturacion'] = r.count;
       }
 
-      // 18. clienteDirecciones — solo si no hay orden_trabajo/ticket_soporte referenciando estas direcciones
-      const direcciones = await tx.clienteDirecciones.findMany({
-        where: { id_cliente: postgresClienteId },
-        select: { id_cliente_direccion: true },
-      });
-      const direccionIds = direcciones.map(d => d.id_cliente_direccion);
-
-      if (direccionIds.length > 0) {
-        const otCount = await tx.orden_trabajo.count({
-          where: { id_direccion_servicio: { in: direccionIds } },
+      // 18. Limpiar órdenes de trabajo del cliente y sus dependencias
+      {
+        const ots = await tx.orden_trabajo.findMany({
+          where: { id_cliente: postgresClienteId },
+          select: { id_orden: true },
         });
-        const ticketCount = await tx.ticket_soporte.count({
-          where: { id_direccion_servicio: { in: direccionIds } },
-        });
+        const otIds = ots.map(o => o.id_orden);
 
-        if (otCount === 0 && ticketCount === 0) {
-          const r = await tx.clienteDirecciones.deleteMany({
+        if (otIds.length > 0) {
+          // Dependencias non-nullable → DELETE
+          const r1 = await tx.ot_historial_estado.deleteMany({
+            where: { id_orden: { in: otIds } },
+          });
+          deleted['ot_historial_estado'] = r1.count;
+
+          const r2 = await tx.ot_actividades.deleteMany({
+            where: { id_orden: { in: otIds } },
+          });
+          deleted['ot_actividades'] = r2.count;
+
+          const r3 = await tx.ot_materiales.deleteMany({
+            where: { id_orden: { in: otIds } },
+          });
+          deleted['ot_materiales'] = r3.count;
+
+          const r4 = await tx.ot_evidencias.deleteMany({
+            where: { id_orden: { in: otIds } },
+          });
+          deleted['ot_evidencias'] = r4.count;
+
+          const r5 = await tx.agenda_visitas.deleteMany({
+            where: { id_orden: { in: otIds } },
+          });
+          deleted['agenda_visitas'] = r5.count;
+
+          const r6 = await tx.reservas_inventario.deleteMany({
+            where: { id_orden_trabajo: { in: otIds } },
+          });
+          deleted['reservas_inventario'] = r6.count;
+
+          // Dependencias nullable → NULLIFY
+          await tx.inventario_series.updateMany({
+            where: { id_orden_trabajo: { in: otIds } },
+            data: { id_orden_trabajo: null },
+          });
+          await tx.movimientos_inventario.updateMany({
+            where: { id_orden_trabajo: { in: otIds } },
+            data: { id_orden_trabajo: null },
+          });
+          await tx.historial_series.updateMany({
+            where: { id_orden_trabajo: { in: otIds } },
+            data: { id_orden_trabajo: null },
+          });
+          await tx.sms_historial.updateMany({
+            where: { id_orden_trabajo: { in: otIds } },
+            data: { id_orden_trabajo: null },
+          });
+
+          // DELETE órdenes de trabajo
+          const r7 = await tx.orden_trabajo.deleteMany({
             where: { id_cliente: postgresClienteId },
           });
-          deleted['clienteDirecciones'] = r.count;
-        } else {
-          this.addLog(
-            'WARN',
-            'cleanup',
-            `No se eliminan direcciones del cliente ${postgresClienteId}: ${otCount} OTs y ${ticketCount} tickets las referencian`,
-          );
+          deleted['orden_trabajo'] = r7.count;
         }
+      }
+
+      // 19. Limpiar tickets de soporte del cliente y sus dependencias
+      {
+        const tickets = await tx.ticket_soporte.findMany({
+          where: { id_cliente: postgresClienteId },
+          select: { id_ticket: true },
+        });
+        const ticketIds = tickets.map(t => t.id_ticket);
+
+        if (ticketIds.length > 0) {
+          await tx.sms_historial.updateMany({
+            where: { id_ticket: { in: ticketIds } },
+            data: { id_ticket: null },
+          });
+
+          const r = await tx.ticket_soporte.deleteMany({
+            where: { id_cliente: postgresClienteId },
+          });
+          deleted['ticket_soporte'] = r.count;
+        }
+      }
+
+      // 20. clienteDirecciones
+      {
+        const r = await tx.clienteDirecciones.deleteMany({
+          where: { id_cliente: postgresClienteId },
+        });
+        deleted['clienteDirecciones'] = r.count;
+      }
+
+      // 21. Eliminar registro base del cliente si se solicita (para cambio de ID)
+      if (deleteClientRecord) {
+        await tx.cliente.delete({ where: { id_cliente: postgresClienteId } });
+        deleted['cliente'] = 1;
       }
     }, { timeout: 30000 });
 
     return { deleted };
+  }
+
+  /**
+   * Pre-check de colisiones de IDs entre MySQL y PostgreSQL
+   */
+  async checkClienteIdCollisions(): Promise<IdCollisionCheckResult> {
+    return this.clientesMigration.checkIdCollisions();
   }
 
   /**
@@ -916,9 +1106,11 @@ export class MigrationService {
         });
 
         if (existingCliente) {
+          const needsIdChange = existingCliente.id_cliente !== idCustomer;
           this.addLog('INFO', 'cliente-individual',
-            `Cliente existente encontrado (DUI: ${dui}, ID: ${existingCliente.id_cliente}). Ejecutando limpieza previa...`);
-          const { deleted } = await this.cleanupClienteData(existingCliente.id_cliente);
+            `Cliente existente encontrado (DUI: ${dui}, ID: ${existingCliente.id_cliente}` +
+            `${needsIdChange ? `, necesita cambio a ID: ${idCustomer}` : ''}). Ejecutando limpieza previa...`);
+          const { deleted } = await this.cleanupClienteData(existingCliente.id_cliente, needsIdChange);
           const totalDeleted = Object.values(deleted).reduce((sum, n) => sum + n, 0);
           this.addLog('INFO', 'cliente-individual',
             `Limpieza completada: ${totalDeleted} registros eliminados`,
@@ -937,6 +1129,14 @@ export class MigrationService {
           recordId: idCustomer,
           message: `Error en limpieza previa: ${error instanceof Error ? error.message : 'Error desconocido'}`,
         });
+        // Sin limpieza exitosa, la migración fallará por FK constraints o DUI unique
+        return {
+          cliente: { mysqlId: idCustomer, postgresId: 0, migrated: false, dui: '' },
+          direcciones: { total: 0, migrated: 0 },
+          datosFacturacion: { migrated: false },
+          errors: allErrors,
+          duration: Date.now() - startedAt,
+        };
       }
     }
 

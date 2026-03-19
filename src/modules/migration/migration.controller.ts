@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseIntPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -25,7 +26,7 @@ import {
   ExecuteAllDto,
   MigrateClienteOptionsDto,
 } from './dto/migration-config.dto';
-import { SingleClienteMigrationResult } from './interfaces/mapping.interface';
+import { SingleClienteMigrationResult, IdCollisionCheckResult, CleanupAllResult } from './interfaces/mapping.interface';
 import {
   MigrationStatusDto,
   ConnectionValidationDto,
@@ -179,6 +180,8 @@ export class MigrationController {
       dryRun: options.dryRun ?? false,
       continueOnError: options.continueOnError ?? true,
       maxRetries: options.maxRetries || 3,
+      concurrency: options.concurrency,
+      cleanBeforeMigration: options.cleanBeforeMigration,
     });
     return result as unknown as MigrationModuleResultDto;
   }
@@ -205,6 +208,8 @@ export class MigrationController {
         dryRun: options.dryRun ?? false,
         continueOnError: options.continueOnError ?? true,
         maxRetries: options.maxRetries || 3,
+        concurrency: options.concurrency,
+        cleanBeforeMigration: options.cleanBeforeMigration,
       },
       options.excludeModules,
     );
@@ -225,6 +230,40 @@ export class MigrationController {
   resetStatus(): { message: string } {
     this.migrationService.resetStatus();
     return { message: 'Estado de migración reseteado' };
+  }
+
+  @Get('clientes/collision-check')
+  @Auth()
+  @ApiOperation({
+    summary: 'Pre-check de colisiones de IDs',
+    description: 'Detecta colisiones entre IDs de MySQL y PostgreSQL antes de migrar con IDs preservados',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resultado del análisis de colisiones',
+  })
+  async checkClienteIdCollisions(): Promise<IdCollisionCheckResult> {
+    return this.migrationService.checkClienteIdCollisions();
+  }
+
+  @Post('cleanup-clientes')
+  @Auth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Limpiar todos los datos de clientes',
+    description: 'Elimina todos los clientes y sus datos dependientes de PostgreSQL. Operación destructiva que requiere confirmación.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resultado de la limpieza masiva',
+  })
+  async cleanupAllClientes(
+    @Body() body: { confirm: boolean; concurrency?: number },
+  ): Promise<CleanupAllResult> {
+    if (!body.confirm) {
+      throw new BadRequestException('Debe enviar confirm=true para ejecutar la limpieza masiva');
+    }
+    return this.migrationService.cleanupAllClientes(body.concurrency);
   }
 
   @Post('cliente/:idCustomer')

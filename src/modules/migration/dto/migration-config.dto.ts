@@ -85,6 +85,14 @@ export class MigrationOptionsDto {
   @Min(1)
   @Max(10)
   concurrency?: number = 5;
+
+  @ApiPropertyOptional({
+    description: 'Eliminar todos los datos de clientes en PostgreSQL antes de migrar. Requiere confirmación explícita.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  cleanBeforeMigration?: boolean = false;
 }
 
 export class ExecuteModuleDto extends MigrationOptionsDto {

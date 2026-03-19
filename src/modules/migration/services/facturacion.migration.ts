@@ -181,7 +181,7 @@ export class FacturacionMigrationService {
     }
 
     // Generar código de generación si no existe
-    const codigoGeneracion = bill.codigo_generacion || generateUUID();
+    const codigoGeneracion = (bill.codigo_generacion || generateUUID()).toUpperCase();
 
     // Generar número de control
     const tipoDTE = mapTipoDTE(bill.bill_concept);
@@ -386,7 +386,7 @@ export class FacturacionMigrationService {
     }
 
     // Generar código de generación si no existe
-    const codigoGeneracion = bill.codigo_generacion || generateUUID();
+    const codigoGeneracion = (bill.codigo_generacion || generateUUID()).toUpperCase();
 
     // Verificar si ya existe
     const existing = await this.prisma.dte_emitidos.findUnique({

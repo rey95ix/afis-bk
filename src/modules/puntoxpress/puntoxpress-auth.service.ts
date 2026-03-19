@@ -41,8 +41,7 @@ export class PuntoXpressAuthService {
 
     this.logger.log(`Integrador "${integrador.nombre}" autenticado exitosamente`);
 
-    return {
-      estado: 'OK',
+    return { 
       token,
       duracion: 3600,
     };
