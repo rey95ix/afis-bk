@@ -1197,4 +1197,46 @@ export class ContratoPagosService {
       default: return moraPorPeriodo;
     }
   }
+
+  // ============================================
+  // ENVÍO MANUAL A MH
+  // ============================================
+
+  async enviarFacturaMh(idFactura: number, idUsuario: number) {
+    this.logger.log(`Envío manual a MH para factura #${idFactura}`);
+
+    const factura = await this.prisma.facturaDirecta.findUnique({
+      where: { id_factura_directa: idFactura },
+      select: {
+        id_factura_directa: true,
+        estado: true,
+        estado_dte: true,
+        codigo_generacion: true,
+      },
+    });
+
+    if (!factura) {
+      throw new NotFoundException(`Factura #${idFactura} no encontrada`);
+    }
+
+    if (factura.estado !== 'ACTIVO') {
+      throw new BadRequestException('Solo se pueden enviar a MH facturas con estado ACTIVO');
+    }
+
+    if (factura.estado_dte === 'PROCESADO') {
+      throw new BadRequestException('La factura ya fue procesada exitosamente en MH');
+    }
+
+    if (factura.estado_dte === 'INVALIDADO') {
+      throw new BadRequestException('La factura fue invalidada y no puede enviarse a MH');
+    }
+
+    // Si ya tiene codigo_generacion, es un reintento (ya pasó por firmarYEnviarFactura antes)
+    if (factura.codigo_generacion) {
+      return this.facturaDirectaService.reenviarDte(idFactura, idUsuario);
+    }
+
+    // Primera firma: asignar bloque, construir DTE, firmar y transmitir
+    return this.facturaDirectaService.firmarYEnviarFactura(idFactura, idUsuario);
+  }
 }

@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
-import { metodo_pago_abono } from '@prisma/client';
+import { metodo_pago_abono, cliente } from '@prisma/client';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { ContratoPagosService } from 'src/modules/facturacion/services/contrato-pagos.service';
 import { PayWayService } from './payway.service';
+import { MailService } from 'src/modules/mail/mail.service';
 import type { PagoTarjetaPortalDto } from './dto/pago-tarjeta-portal.dto';
 import type { CrearPagoIntentDto } from './dto/crear-pago-intent.dto';
 
@@ -17,6 +18,7 @@ export class ClientePortalService {
     private configService: ConfigService,
     private contratoPagosService: ContratoPagosService,
     private payWayService: PayWayService,
+    private mailService: MailService,
   ) {
     this.portalSystemUserId = Number(this.configService.get<string>('PORTAL_SYSTEM_USER_ID', '1'));
   }
@@ -98,6 +100,11 @@ export class ClientePortalService {
         fecha_fin_contrato: true,
         meses_contrato: true,
         costo_instalacion: true,
+        cliente:{
+          select: {
+            titular: true,
+          }
+        },
         plan: {
           select: {
             nombre: true,
@@ -164,6 +171,9 @@ export class ClientePortalService {
         diaCorte: contrato.ciclo.dia_corte,
         diaVencimiento: contrato.ciclo.dia_vencimiento,
       },
+      cliente: {
+        titular: contrato.cliente.titular,
+      },
       instalacion: contrato.instalacion
         ? {
             wifiNombre: contrato.instalacion.wifi_nombre,
@@ -205,7 +215,7 @@ export class ClientePortalService {
 
     const ahora = new Date();
 
-    return facturas.map((f) => {
+    const mapped = facturas.map((f) => {
       const cxc = f.cuenta_por_cobrar;
       const montoAbonado = cxc ? Number(cxc.total_abonado) : 0;
       const saldoPendiente = cxc ? Number(cxc.saldo_pendiente) : Number(f.total);
@@ -237,6 +247,27 @@ export class ClientePortalService {
         estado: f.estado,
       };
     });
+
+    // Filtrar: pagadas + vencidas + próxima pendiente
+    const vencidas = mapped.filter((f) => f.estadoPago === 'VENCIDA');
+    const pendientes = mapped
+      .filter((f) => f.estadoPago === 'PENDIENTE')
+      .sort((a, b) => {
+        if (!a.fechaVencimiento) return 1;
+        if (!b.fechaVencimiento) return -1;
+        return new Date(a.fechaVencimiento).getTime() - new Date(b.fechaVencimiento).getTime();
+      });
+    const proximaPendiente = pendientes.slice(0, 1);
+    const pagadas = mapped.filter(
+      (f) => f.estadoPago === 'PAGADO' || f.estadoPago === 'PARCIAL',
+    );
+
+    // Orden: vencidas → próxima pendiente → pagadas (más reciente primero)
+    return [
+      ...vencidas,
+      ...proximaPendiente,
+      ...pagadas.sort((a, b) => (b.numeroCuota ?? 0) - (a.numeroCuota ?? 0)),
+    ];
   }
 
   async crearPagoIntent(
@@ -424,6 +455,31 @@ export class ClientePortalService {
       },
       this.portalSystemUserId,
     );
+
+    // 8. Enviar comprobante de pago por correo (fire-and-forget)
+    this.prisma.cliente
+      .findUnique({
+        where: { id_cliente: idCliente },
+        select: { correo_electronico: true, titular: true },
+      })
+      .then((cliente) => {
+        if (cliente?.correo_electronico) {
+          this.mailService
+            .sendComprobantePago(
+              cliente.correo_electronico,
+              cliente.titular,
+              contrato.codigo,
+              montoRedondeado,
+              gwResponse.numeroAutorizacion || '',
+              gwResponse.terminacionTarjeta || '',
+              gwResponse.fechaTransaccion || '',
+              dto.idFactura,
+              conceptoPago,
+            )
+            .catch((err) => console.error('Error enviando comprobante de pago:', err));
+        }
+      })
+      .catch((err) => console.error('Error obteniendo cliente para comprobante:', err));
 
     return {
       exitoso: true,

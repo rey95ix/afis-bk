@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Contrato {{:codigo}}</title>
+    <style>
+        @page {
+            margin: 15mm 10mm 10mm 10mm;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #000;
+            padding: 10px 20px;
+        }
+
+        /* Encabezado */
+        #encabezado {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            position: relative;
+        }
+        #logo {
+            float: left;
+            width: 130px;
+            height: 50px;
+        }
+        .ultimoContrato {
+            text-align: right;
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: -30px;
+        }
+
+        /* Contenido del contrato */
+        .contrato { margin-top: 15px; }
+        .parrafo1, .parrafo2 {
+            text-align: justify;
+            font-size: 11px;
+            margin-bottom: 10px;
+        }
+        .parrafo3 {
+            text-align: justify;
+            font-size: 12px;
+            margin-top: 15px;
+        }
+
+        /* Firmas */
+        .firmas-container {
+            margin-top: 30px;
+        }
+        .firma-table {
+            width: 100%;
+            border: none;
+        }
+        .firma-table td {
+            text-align: center;
+            padding: 10px 20px;
+            border: none;
+            font-size: 12px;
+        }
+        .derecha2 { width: 33%; }
+
+        /* Anexos */
+        .Anexo {
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            margin: 15px 0 10px 0;
+        }
+        .cliente {
+            text-align: justify;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+
+        /* Tablas SLA */
+        .tabla-titulo {
+            text-align: left;
+            font-size: 12px;
+            font-weight: bold;
+            margin: 10px 0 5px 0;
+        }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            margin-bottom: 15px;
+        }
+        .table th, .table td {
+            border: 1px solid #000;
+            padding: 6px 8px;
+            text-align: center;
+        }
+        .table th {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+        .table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        /* Cláusulas */
+        .clausula {
+            font-size: 11px;
+            margin-bottom: 8px;
+        }
+
+        /* Pagaré */
+        .pagare {
+            text-align: center;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 20px 0 15px 0;
+        }
+        .fecha {
+            text-align: right;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+        .ultimo {
+            font-size: 11px;
+            text-align: justify;
+            margin-bottom: 10px;
+        }
+
+        /* Tabla de firmas pagaré */
+        .default {
+            width: 100%;
+            border: none;
+            margin-top: 20px;
+        }
+        .default td {
+            padding: 5px;
+            font-size: 12px;
+            border: none;
+        }
+        .derecha { text-align: left; width: 50%; }
+        .izquierda { text-align: left; width: 50%; }
+
+        /* Solicitud de servicio */
+        .tbl_solicitud {
+            width: 100%;
+            font-size: 9px;
+            border-collapse: collapse;
+        }
+        .tbl_solicitud td {
+            border: 1px solid #000;
+            padding: 2px 4px;
+            height: 16px;
+            vertical-align: middle;
+        }
+        .tbl_solicitud td p {
+            margin: 0;
+            font-weight: bold;
+            font-size: 9px;
+        }
+
+        h3 {
+            text-align: center;
+            font-size: 9px;
+            margin: 8px 0;
+        }
+        .ultima_fecha {
+            font-size: 10px;
+            text-align: center;
+            margin: 8px 0;
+        }
+
+        /* Encabezado solicitud más compacto */
+        .encabezado-solicitud {
+            text-align: center;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .encabezado-solicitud #logo {
+            width: 100px;
+            height: 40px;
+        }
+        .encabezado-solicitud .Anexo {
+            font-size: 11px;
+            margin: 2px 0;
+        }
+        .encabezado-solicitud .ultimoContrato {
+            font-size: 12px;
+            margin-top: -20px;
+        }
+
+        /* Saltos de página */
+        .page-break {
+            page-break-after: always;
+        }
+
+        /* Clearfix */
+        .clearfix::after {
+            content: "";
+            clear: both;
+            display: table;
+        }
+    </style>
+</head>
+<body>
+    <!-- ==================== PÁGINA 1: CONTRATO PRINCIPAL ==================== -->
+    <div id="encabezado" class="clearfix">
+        {{if logoBase64}}
+        <img id="logo" src="{{:logoBase64}}" alt="Logo NEWTEL">
+        {{/if}}
+        CONTRATO DE INTERNET
+        <p class="ultimoContrato">{{:codigo}}</p>
+    </div>
+
+    <div class="contrato">
+        <p class="parrafo1">
+            NEW TELECOM SOCIEDAD ANONIMA DE CAPITAL VARIABLE, que puede abreviarse NEWTEL,
+            domiciliada en la ciudad de Mejicanos, departamento de San Salvador,
+            con Número de Identificación Tributaria 0614-090319-103-0, con Número
+            Registro de Contribuyente 278284-1, autorizada por la Superintendencia
+            General de Electricidad y Telecomunicaciones para la prestación de servicios
+            de Telecomunicaciones a través de su red de Comunicaciones; en adelante "NEWTEL"
+            y el señor(a)(ita): <strong>{{:clienteNombre}}</strong>, de <strong>{{:clienteEdad}}</strong> años de edad, <strong>{{:clienteEmpresaTrabajo}}</strong>
+            (profesión u oficio) del domicilio de <strong>{{:municipio}}</strong>, con Documento Único de Identidad Número <strong>{{:clienteDui}}</strong>,
+            con Número de Identificación Tributaria <strong>{{:clienteNit}}</strong> dirección
+            del lugar adonde se instalará el servicio: Colonia, Barrio o Zona <strong>{{:colonia}}</strong> calle o
+            <strong>{{:direccion}}</strong>, casa o local ___________ Jurisdicción "<strong>{{:municipio}}</strong>", en adelante "EL SUSCRIPTOR",
+            convenimos en Celebrar Contrato para la Prestación de Servicios de (Anexo 2 Solicitud de Cliente) <strong>{{:tipoServicioPlan}}</strong>, con las
+            siguientes estipulaciones: <strong>I-MODALIDAD DEL SERVICIO:</strong> NEWTEL presta sus servicios de conectividad a través de su Red.
+            La infraestructura del servicio estará sujeto a la factibilidad técnica y comprenderá una instalación, las derivaciones
+            y los traslados de domicilio del servicio tendrán cargo adicional. NEWTEL no tendrá responsabilidad por derivaciones no
+            autorizadas especialmente en la calidad de la señal que degrade la conectividad. El suscriptor se obliga a no hacer conexiones o
+            derivaciones a terceros, comprendiendo que es delito penal dicha práctica y que NEWTEL se reserva el derecho de proceder legalmente.
+            <strong>II-INSTALACION.</strong> NEWTEL efectuará la instalación y entrega del equipo necesario para la prestación del servicio, tales como acometidas
+            desde la red y la entrega de una unidad de red óptica, más las adicionales que solicite con cargo para el suscriptor,
+            la instalación se efectuará dentro del término de cinco días hábiles, un día después de contratado el servicio.
+            <strong>III-PLAZO.</strong> Los contratantes estipulan el presente contrato de servicio <strong>{{:tipoServicioPlanCompleto}}</strong> (Residencial, Corporativo)
+            por un plazo de <strong>{{:meses_contrato}}</strong> meses, a partir de la instalación del servicio. El SUSCRIPTOR podrá solicitar expresamente prórrogas
+            del presente contrato, con las mismas condiciones convenidas o con sus mejoras, promociones o ampliaciones, en caso de
+            no continuar con el servicio después del plazo convenido deberá entregar los equipos propiedad de NEWTEL, en las mismas
+            condiciones de buen funcionamiento en que fue entregado. <strong>IV- PAGO.</strong> EL SUSCRIPTOR. pagará a NEWTEL por el servicio <strong>{{:planVelocidad}}</strong>,
+            el plazo acordado en cuotas mensuales, vencidas y sucesivas de <strong>${{:planPrecio}}</strong>, en la que ya incluye los impuestos.
+            El pago deberá hacerse a más tardar en la fecha de vencimiento señalada en su factura en los lugares,
+            centros o personal autorizados para tal efecto autorice NEWTEL, la no recepción de la factura o crédito fiscal,
+            no exime la obligación contractual del pago. <strong>V- MORA.</strong> En caso de incumplimiento del pago de las cuotas en la fecha
+            de su vencimiento se aplicará al monto adeudado una penalidad por mora de tres dólares de los Estados Unidos de América,
+            la cual será cargada en su próxima factura o crédito fiscal. Ante el incumplimiento de pago de una factura,
+            NEWTEL suspenderá el servicio, y hará exigible el pago de lo adeudado.
+            <strong>VI- GARANTIA.</strong> El suscriptor estipula con NEWTEL firmar un pagaré
+            por la cantidad expresada en Dólares de los Estados Unidos de América, para garantizar el pago por los servicios prestados
+            en el plazo suscrito y el valor del equipo proporcionado. <strong>VII- CONDICIONES ESPECIALES.</strong> El suscriptor estipula con NEWTEL tener
+            el cuidado necesario en los equipos entregados y en caso de desperfectos sólo serán reemplazados de forma gratuita por defectos
+            de fábrica o deterioro por su uso normal o por reemplazo de tecnología. Será por cuenta del suscriptor los costos del reemplazo
+            del equipo por fallas ocasionadas por descuido, negligencia, pérdidas, hurto o robo del equipo entregado. El suscriptor no podrá
+            ceder, traspasar, ni arrendar los servicios contratados. <strong>VIII- SUSPENSIÓN Y RECONEXIÓN DEL SERVICIO.</strong> El Servicio contratado podrá
+            suspenderse en los casos siguientes: a) Por la mora en el pago de las cuotas pactadas en el contrato, b) Cuando el suscriptor no
+            cumpla con las obligaciones establecidas en el contrato, especialmente las relacionadas con la utilización debida del servicio
+            prestado. c) Si se ocasionará mal funcionamiento o daño en la red de NEWTEL, por conexión en los puntos de terminación de la
+            red en cualquier equipo o aparato, en dicho caso NEWTEL se obliga a hacer los ajustes compensatorios en la factura del periodo
+            comprendido. d) NEWTEL informará al suscriptor sobre motivos de fuerza mayor o caso fortuito, prohibiciones legales,
+            restricciones, condiciones o limitantes establecidas por la legislación o las autoridades administrativas o
+            judiciales, que hagan imposible la prestación del servicio, y por lo tanto impliquen la terminación del contrato
+            sin responsabilidad exigible para NEWTEL. e) NEWTEL, no asume responsabilidad alguna respecto a la pérdida de información
+            por fallas, deficiencias o interrupciones del servicio o señal por problemas presentados durante la instalación del servicio
+            que pudieran haber afectado la información, hardware, software o la garantía de los equipos, el suscriptor se obliga a tomar las medidas necesarias para evitarlo. f) Cuando el suscriptor se re-conecte a la red, sin previa autorización de NEWTEL, o realice derivaciones no autorizadas propias o a terceros, realice configuraciones distintas a las autorizadas en cuyo caso se responsabiliza de los daños que produzca a la red. g) La reconexión del servicio se efectuará a más tardar dentro de los cinco (5)
+            días hábiles siguientes al pago de los meses adeudados más la mora, más el costo de la reconexión. <strong>IX- ADICION, MODIFICACION o AMPLIACION DE PRODUCTOS Y SERVICIO.</strong> El suscriptor deberá renovar su contrato para la adición de productos, modificación o ampliación de servicios de post venta correspondiente, bajo los términos y
+            condiciones de este contrato. Para solicitar la adición de productos y/o modificación o ampliación
+            de servicios será indispensable que el suscriptor se encuentre activo y al día en el cumplimiento de sus obligaciones.
+        </p>
+
+        <p class="parrafo2">
+            <strong>X- TERMINACIÓN DEL CONTRATO.</strong> a) Vencido el plazo del contrato y por petición del suscriptor con treinta días calendario de anticipación, debiendo pagar los consumos
+            generados y demás saldos pendientes hasta el día que se retire el equipo proporcionado por NEWTEL. b) Por Mora en el pago de dos o más cuotas establecidas a partir de la primera factura vencida y sus recargos por mora. c) Cuando se ocasione mal funcionamiento o daño irreparable a la red de NEWTEL. d) Por conexiones derivadas para sí o para terceros sin autorización de NEWTEL, sin perjuicio de iniciar acciones legales en contra del infractor. e) Como resultado de una decisión de autoridad judicial, administrativa, o de regulación y vigilancia. f) Por incumplimiento de una o más de las obligaciones del suscriptor, en el presente contrato. NEWTEL informará al suscriptor sobre motivos de fuerza mayor o caso fortuito, prohibiciones legales, restricciones, condiciones o limitantes establecidas por la legislación o las autoridades administrativas o judiciales, que hagan imposible la prestación del servicio, y por lo tanto impliquen la terminación del contrato sin responsabilidad exigible. El suscriptor estipula que en estos casos no habrá lugar a indemnizaciones o reparación de daños y perjuicios de ninguna forma a su favor. <strong>XI- RECARGO POR TERMINACIÓN ANTICIPADA DEL CONTRATO.</strong> Si EL SUSCRIPTOR solicita la terminación de contrato antes del plazo acordado facturables posteriores a su vigencia, o cualquiera de sus prórrogas, deberá de estar al día en el pago de sus facturas y pagará a NEWTEL la suma equivalente a los cargos básicos que faltan para completar el plazo mínimo obligatorio inicial, o cualquiera de sus prórrogas. Lo anterior será aplicable de igual forma para aquellos casos en que la terminación anticipada del Contrato sea motivada por incumplimientos del SUSCRIPTOR a los términos y condiciones de este contrato. <strong>XII- CASO FORTUITO O DE FUERZA MAYOR.</strong> NEWTEL y el suscriptor estipulamos que la primera queda exenta de responsabilidad por los daños directos o indirectos, mediatos o inmediatos, lucro cesante, ahorros no producidos o cualquier otra reclamación hecha por el suscriptor que sean causados por fuerza mayor o caso fortuito. Se entenderá como fuerza mayor o caso fortuito acontecimientos impredecibles, o que previstos no pueden evitarse y que imposibiliten el cumplimiento de las obligaciones contractuales para ambas partes. Se reconocen como tales: guerra, beligerancia, invasión, guerra civil, revolución, rebelión, motines insurrección o usurpación del poder, huelgas, confiscación expropiación, destrucción y obstrucción ordenada por cualquier autoridad gubernamental o judicial, causas naturales, tales como terrenos, erupciones volcánicas, tifones, huracanes o inundaciones, destrucción total o parcial de plantas generadoras de electricidad plantas externas, interferencias externa de radiofrecuencias, interrupciones, cortes o congestionamiento en la red de los demás operadores y otras causas inevitables de producirse para la prestación del servicio. <strong>XIII- RESTITUCIÓN DE EQUIPOS.</strong> Por cualquier motivo para la terminación del contrato, todos los equipos y dispositivos, utilizados para prestar el servicio al suscriptor y que sean propiedad de NEWTEL, deberán ser devueltos en su totalidad y en perfecto estado de funcionamiento al término del contrato. <strong>XIV- INCONFORMIDADES.</strong> El suscriptor inconforme puede presentar peticiones, quejas o reclamos, relacionados con la prestación del servicio, utilización, facturación y calidad del mismo o por la atención no adecuada del personal. Esta facultad no exime al suscriptor de pagar los servicios facturados que no hayan sido objeto del reclamo. <strong>XV- DOMICILIO ESPECIAL.</strong> Para todo lo relativo a la interpretación, ejecución y cumplimiento del presente contrato las partes estipulan someterse expresamente a las leyes aplicables y a los tribunales competentes de esta jurisdicción. <strong>XVI- DISPOSICIONES ESPECIALES.</strong> El presente contrato deja sin efecto cualquier contrato anterior a este. <strong>XVII- CONTRA EL LAVADO DE DINERO:</strong> Por este medio el cliente declara: 1. Que todos los fondos que utilizará para el pago de los servicios tendrán un origen lícito, por lo que no estarán relacionados con los delitos de lavado de dinero y de activo, y de financiamiento al terrorismo, descritos en la Ley Contra el Lavado de Dinero y de Activos; ni ninguna otra actividad ilícita; 2. Que los servicios contratados no serán utilizados directa o indirectamente para actividades ilícitas; 3. Que la información consignada es correcta, completa y fiel expresión de la verdad.
+        </p>
+
+        <p class="parrafo3">
+            En la ciudad de {{:municipio}} a los {{:fechaDia}} del mes {{:fechaMes}} del año dos mil {{:fechaAnioCorto}}
+        </p>
+
+        <div class="firmas-container">
+            <table class="firma-table">
+                <tr>
+                    <td class="derecha2">F.________________________</td>
+                    <td class="derecha2"></td>
+                    <td class="derecha2">F.________________________</td>
+                </tr>
+                <tr>
+                    <td>Firma Suscriptor</td>
+                    <td></td>
+                    <td>NEWTEL</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <div class="page-break"></div>
+
+    <!-- ==================== PÁGINA 2: ANEXO 1 - DISPONIBILIDAD DEL SERVICIO ==================== -->
+    <p class="Anexo">ANEXO 1</p>
+    <p class="Anexo">DISPONIBILIDAD DEL SERVICIO</p>
+
+    <p class="cliente">
+        NEWTEL se obliga a mantener sus equipos en funcionamiento y consecuentemente el servicio del cliente, si se diera un evento que está fuera del manejo de la regularidad del servicio, NEWTEL se compromete a ofrecer los siguientes ajustes en la facturación, previa notificación y comprobación por parte de EL CLIENTE:
+    </p>
+
+    <p class="tabla-titulo">Disponibilidad del servicio en zona Metropolitana:</p>
+    <table class="table" id="tabla1_anexo1">
+        <tr>
+            <th>Disponibilidad Mensual en cada servicio contratado</th>
+            <th>Porcentaje de ajuste mensual con el que se penalizará a Newtel</th>
+        </tr>
+        <tr>
+            <td>Disponibilidad de servicio entre 100% y 99.5%</td>
+            <td>0%</td>
+        </tr>
+        <tr>
+            <td>Disponibilidad de servicio menor a 99.5% y mayor o igual a 99.0%</td>
+            <td>Hasta un total del 5% aplicados de manera lineal al tiempo sin servicio de este rango</td>
+        </tr>
+        <tr>
+            <td>Disponibilidad del servicio menor a 99.0% pero mayor o igual a 98.5%</td>
+            <td>10% fijos</td>
+        </tr>
+        <tr>
+            <td>Disponibilidad del servicio menor a 98.5% pero mayor o igual a 97.0%</td>
+            <td>15% fijos</td>
+        </tr>
+        <tr>
+            <td>Disponibilidad del servicio menor a 97.0%</td>
+            <td>20% fijos</td>
+        </tr>
+    </table>
+
+    <p class="tabla-titulo">Disponibilidad del servicio a nivel Departamental:</p>
+    <table class="table" id="tabla2_anexo1">
+        <tr>
+            <th>Disponibilidad Mensual en cada servicio contratado</th>
+            <th>Porcentaje de ajuste mensual con el que se penalizará a Newtel</th>
+        </tr>
+        <tr>
+            <td>Disponibilidad de servicio entre 100% y 98.75%</td>
+            <td>0%</td>
+        </tr>
+        <tr>
+            <td>Disponibilidad de servicio menor a 98.75% y mayor o igual a 98.50%</td>
+            <td>Hasta un total del 20% aplicados de manera lineal al tiempo sin servicio de este rango</td>
+        </tr>
+        <tr>
+            <td>Disponibilidad del servicio menor a 98.50% pero mayor o igual a 98.00%</td>
+            <td>30% fijos</td>
+        </tr>
+    </table>
+
+    <p class="clausula">
+        NEWTEL pone a disposición de EL CLIENTE, el número de teléfono 2550-4411 para que interponga cualquier consulta, duda o reclamo en relación a los servicios recibidos.
+    </p>
+
+    <div class="page-break"></div>
+
+    <!-- ==================== PÁGINA 4: PAGARÉ SIN PROTESTO ==================== -->
+    <p class="pagare">PAGARE SIN PROTESTO</p>
+
+    <p class="fecha">
+        Apopa, ___________________ de ________________________________________ de ____________<br>
+        (Lugar y Fecha de Suscripción)
+    </p>
+
+    <p style="font-size: 12px; margin-bottom: 10px;">POR US$________________________</p>
+
+    <p class="ultimo">
+        PAGARE(MOS) sin protesto en forma incondicional a la Orden de NEW TELECOM, S.A. DE CV en sus oficinas, el día___________de___________de 20_______, la
+        cantidad de________________________________________________________________________________DOLARES DE LOS ESTADOS UNIDOS DE AMERICA. más el
+        interés convencional del __________por ciento mensual, calculados a partir de la fecha de suscripción del presente documento y en caso de que no fueren puntualmente
+        cubiertos el capital mas intereses moratorios del______________por ciento mensual.
+        La obligación del aceptante del presente documento se Origina de Operaciones Mercantiles entre NEW TELECOM, S.A. DE CV y el (Los) suscriptor(es) según Factura(S)
+        de__________________________________________________________________________________________________________________fecha
+        ________________________________________________________________________________________________________________________Para
+        los efectos legales de esta obligación mercantil, fijo(amos) como domicilio especial, la ciudad de San Salvador, y en caso de acción judicial, renuncio (amos) al derecho de apelar del decreto de embargo, sentencia de remate y de cualquier otra providencia apelable que se dictare en el juicio mercantil ejecutivo, o sus incidencias, siendo a mi (nuestro) cargo cualquier gasto que NEW TELECOM, S.A. de CV hiciera en el cobro de este PAGARÉ, inclusive los llamados gastos personales y aún cuando por regla general no hubiere condenaciones en costas, faculto (amos) a NEW TELECOM, S.A. de C.V., para que designe a la persona depositaria de los bienes que se embarguen, a quien relevo(amos) de la obligación de rendir fianza.
+    </p>
+
+    <table class="default">
+        <tr>
+            <td class="derecha">Firma___________________________________________</td>
+            <td class="izquierda">Firma____________________________________________</td>
+        </tr>
+        <tr>
+            <td class="derecha">Nombre suscriptor(es)</td>
+            <td class="izquierda">Nombre de fiador(es)</td>
+        </tr>
+        <tr>
+            <td class="derecha">{{:clienteNombre}}</td>
+            <td class="izquierda">_________________________________________________</td>
+        </tr>
+        <tr>
+            <td class="derecha">Domicilio: {{:direccion}}, {{:colonia}}, {{:municipio}}</td>
+            <td class="izquierda">Domicilio: _______________________________________</td>
+        </tr>
+        <tr>
+            <td class="derecha">DUI de (los) suscriptor(es): {{:clienteDui}}</td>
+            <td class="izquierda">DUI de (los) Avalista(s):__________________________</td>
+        </tr>
+    </table>
+
+    <div class="page-break"></div>
+
+    <!-- ==================== PÁGINA 5: ANEXO 2 - SOLICITUD DE SERVICIO ==================== -->
+    <div class="encabezado-solicitud clearfix">
+        {{if logoBase64}}
+        <img id="logo" src="{{:logoBase64}}" alt="Logo NEWTEL" style="width:100px;height:40px;">
+        {{/if}}
+        SOLICITUD DE SERVICIO
+        <p class="Anexo">ANEXO 2</p>
+        <p class="ultimoContrato">{{:codigo}}</p>
+    </div>
+
+    <table class="tbl_solicitud" border="1" cellspacing="0" cellpadding="0">
+        <tbody>
+            <!-- DATOS PERSONALES -->
+            <tr>
+                <td colspan="50" valign="top"><p><strong>Datos Personales</strong></p></td>
+            </tr>
+            <tr>
+                <td colspan="5" valign="top"><p>Nombre Completo:</p></td>
+                <td colspan="45" valign="top">{{:clienteNombre}}</td>
+            </tr>
+            <tr>
+                <td colspan="6" valign="top"><p>Estado civil:</p></td>
+                <td colspan="5" valign="top">{{:estadoCivil}}</td>
+                <td colspan="10" valign="top"><p>Lugar y fecha de nacimiento:</p></td>
+                <td colspan="31" valign="top">{{:clienteFechaNacimiento}}</td>
+            </tr>
+            <tr>
+                <td colspan="6" valign="top"><p>No. de DUI:</p></td>
+                <td colspan="8" valign="top">{{:clienteDui}}</td>
+                <td colspan="5" valign="top"><p>NIT:</p></td>
+                <td colspan="32" valign="top">{{:clienteNit}}</td>
+            </tr>
+            <tr>
+                <td colspan="7" valign="top"><p>Dirección de residencia:</p></td>
+                <td colspan="43" valign="top">{{:direccion}}, {{:colonia}}</td>
+            </tr>
+            <tr>
+                <td colspan="10" valign="top"><p>Su casa es financiada/propia/alquilada:</p></td>
+                <td colspan="5" valign="top">{{:estadoVivienda}}</td>
+                <td colspan="5" valign="top"><p>Pto de Ref.:</p></td>
+                <td colspan="30" valign="top"></td>
+            </tr>
+            <tr>
+                <td colspan="10" valign="top"><p>Empresa donde labora:</p></td>
+                <td colspan="40" valign="top">{{:clienteEmpresaTrabajo}}</td>
+            </tr>
+            <tr>
+                <td colspan="10" valign="top"><p>Dirección de empleo:</p></td>
+                <td colspan="40" valign="top"></td>
+            </tr>
+            <tr>
+                <td colspan="2" valign="top"><p>Num. Tel 1:</p></td>
+                <td colspan="7" valign="top">{{:clienteTelefono}}</td>
+                <td colspan="2" valign="top"><p>Num.Tel 2</p></td>
+                <td colspan="7" valign="top">{{:clienteWhatsapp}}</td>
+                <td colspan="10" valign="top"><p>Teléfono de oficina:</p></td>
+                <td colspan="25" valign="top">{{:telefonoOficinaConyuge}}</td>
+            </tr>
+            <tr>
+                <td colspan="10" valign="top"><p>Correo Electrónico:</p></td>
+                <td colspan="40" valign="top">{{:clienteCorreo}}</td>
+            </tr>
+
+            <!-- DATOS DE FACTURACIÓN -->
+            <tr>
+                <td colspan="50" valign="top"><p><strong>Datos de Facturación</strong></p></td>
+            </tr>
+            <tr>
+                <td colspan="4" valign="top"><p>Documento a emitir</p></td>
+                <td colspan="4" valign="top"><p>Factura:</p></td>
+                <td valign="top" colspan="3">{{:consumidorFinalMarca}}</td>
+                <td colspan="7" valign="top"><p>Comprobante de crédito fiscal:</p></td>
+                <td valign="top" colspan="6">{{:creditoFiscalMarca}}</td>
+                <td colspan="6" valign="top"><p>Paga IVA</p></td>
+                <td colspan="4" valign="top"><p>SI</p></td>
+                <td colspan="5" valign="top"></td>
+                <td colspan="4" valign="top"><p>NO</p></td>
+                <td colspan="14" valign="top"></td>
+            </tr>
+            <tr>
+                <td colspan="7" valign="top"><p>Emitir a nombre de:</p></td>
+                <td colspan="43" valign="top">{{:clienteNombre}}</td>
+            </tr>
+            <tr>
+                <td colspan="6" valign="top"><p>Número de registro:</p></td>
+                <td colspan="5" valign="top">{{:nrcFacturacion}}</td>
+                <td colspan="2" valign="top"><p>No. de NIT:</p></td>
+                <td colspan="6" valign="top">{{:nitFacturacion}}</td>
+                <td colspan="7" valign="top"><p>Teléfono:</p></td>
+                <td colspan="24" valign="top">{{:clienteTelefono}}</td>
+            </tr>
+            <tr>
+                <td valign="top"><p>Giro</p></td>
+                <td colspan="15" valign="top">{{:actividadEconomica}}</td>
+                <td colspan="10" valign="top"><p>Meses contrato</p></td>
+                <td colspan="25" valign="top">{{:meses_contrato}}</td>
+            </tr>
+            <tr>
+                <td colspan="10" valign="top"><p>Dirección de cobro:</p></td>
+                <td colspan="40" valign="top">{{:direccion}}, {{:colonia}}</td>
+            </tr>
+
+            <!-- DATOS DE INSTALACIÓN -->
+            <tr>
+                <td colspan="50" valign="top"><p><strong>Datos de instalación</strong></p></td>
+            </tr>
+            <tr>
+                <td colspan="10" valign="top"><p>Dirección a instalar:</p></td>
+                <td colspan="40" valign="top">{{:direccionCompleta}}</td>
+            </tr>
+            <tr>
+                <td colspan="3" valign="top"><p>Referencia:</p></td>
+                <td colspan="14" valign="top"></td>
+                <td colspan="8" valign="top"><p>Coordenadas</p></td>
+                <td colspan="25" valign="top"></td>
+            </tr>
+            <tr>
+                <td colspan="8" valign="top"><p>Nombre de contacto:</p></td>
+                <td colspan="10" valign="top">{{:clienteNombre}}</td>
+                <td colspan="6" valign="top"><p>Teléfono:</p></td>
+                <td colspan="26" valign="top">{{:clienteTelefono}}</td>
+            </tr>
+
+            <!-- SERVICIO A CONTRATAR -->
+            <tr>
+                <td colspan="50" valign="top"><p><strong>Servicio a contratar</strong></p></td>
+            </tr>
+            <tr>
+                <td colspan="2" valign="top"><p>TV:</p></td>
+                <td valign="top">{{:llevaCable}}</td>
+                <td colspan="4" valign="top"><p>Básico</p></td>
+                <td colspan="3" valign="top"></td>
+                <td colspan="4" valign="top"><p>Deluxe</p></td>
+                <td colspan="2" valign="top"></td>
+                <td colspan="4" valign="top"><p>Extreme</p></td>
+                <td valign="top" colspan="2"></td>
+                <td colspan="5" valign="top"><p>Premium</p></td>
+                <td colspan="4" valign="top"></td>
+                <td colspan="19" valign="top"></td>
+            </tr>
+            <tr>
+                <td colspan="2" valign="top"><p>Internet:</p></td>
+                <td valign="top">X</td>
+                <td colspan="5" valign="top"><p>Residencial</p></td>
+                <td colspan="2" valign="top"></td>
+                <td colspan="5" valign="top"><p>Corporativo</p></td>
+                <td valign="top"></td>
+                <td colspan="5" valign="top"><p>Ancho de banda</p></td>
+                <td colspan="8" valign="top">{{:planVelocidad}}</td>
+                <td colspan="6" valign="top"><p>Precio:</p></td>
+                <td colspan="15" valign="top">${{:planPrecio}}</td>
+            </tr>
+            <tr>
+                <td colspan="7" valign="top"><p>Servicio Adicional</p></td>
+                <td colspan="43" valign="top"></td>
+            </tr>
+
+            <!-- DATOS DEL CÓNYUGE -->
+            <tr>
+                <td colspan="50" valign="top"><p><strong>Datos del cónyuge</strong></p></td>
+            </tr>
+            <tr>
+                <td colspan="8" valign="top"><p>Nombre Completo:</p></td>
+                <td colspan="42" valign="top">{{:nombreConyuge}}</td>
+            </tr>
+            <tr>
+                <td colspan="6" valign="top"><p>Empresa donde labora:</p></td>
+                <td colspan="10" valign="top"></td>
+                <td colspan="9" valign="top"><p>Dirección de empleo:</p></td>
+                <td colspan="25" valign="top"></td>
+            </tr>
+            <tr>
+                <td colspan="3" valign="top"><p>Teléfono de oficina:</p></td>
+                <td colspan="6" valign="top">{{:telefonoConyuge}}</td>
+                <td colspan="3" valign="top"><p>Móvil:</p></td>
+                <td colspan="4" valign="top"></td>
+                <td colspan="5" valign="top"><p>Correo electrónico:</p></td>
+                <td colspan="29" valign="top"></td>
+            </tr>
+
+            <!-- PARIENTES CERCANOS (REFERENCIAS) -->
+            <tr>
+                <td colspan="50" valign="top"><p><strong>Parientes cercanos que no vivan con usted</strong></p></td>
+            </tr>
+            <tr>
+                <td colspan="5" valign="top"><p>Nombre:</p></td>
+                <td colspan="45" valign="top">{{:referencia1Nombre}}</td>
+            </tr>
+            <tr>
+                <td colspan="6" valign="top"><p>Empresa donde labora:</p></td>
+                <td colspan="9" valign="top"></td>
+                <td colspan="8" valign="top"><p>Dirección de empleo:</p></td>
+                <td colspan="29" valign="top"></td>
+            </tr>
+            <tr>
+                <td colspan="3" valign="top"><p>Teléfono de oficina:</p></td>
+                <td colspan="7" valign="top"></td>
+                <td colspan="2" valign="top"><p>Móvil:</p></td>
+                <td colspan="4" valign="top">{{:referencia1Telefono}}</td>
+                <td colspan="2" valign="top"><p>Correo:</p></td>
+                <td colspan="32" valign="top"></td>
+            </tr>
+            <tr>
+                <td colspan="5" valign="top"><p>Nombre:</p></td>
+                <td colspan="45" valign="top">{{:referencia2Nombre}}</td>
+            </tr>
+            <tr>
+                <td colspan="6" valign="top"><p>Empresa donde labora:</p></td>
+                <td colspan="10" valign="top"></td>
+                <td colspan="7" valign="top"><p>Dirección de empleo:</p></td>
+                <td colspan="27" valign="top"></td>
+            </tr>
+            <tr>
+                <td colspan="3" valign="top"><p>Teléfono de oficina:</p></td>
+                <td colspan="7" valign="top"></td>
+                <td colspan="2" valign="top"><p>Móvil:</p></td>
+                <td colspan="4" valign="top">{{:referencia2Telefono}}</td>
+                <td colspan="2" valign="top"><p>Correo:</p></td>
+                <td colspan="32" valign="top"></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>DECLARO QUE LA INFORMACIÓN PROPORCIONADA EN LA PRESENTE SOLICITUD ES VERÍDICA Y AUTORIZO A NEW TELECOM S.A DE C.V A CORROBORAR DICHA DOCUMENTACIÓN</h3>
+
+    <p class="ultima_fecha">Apopa, a los ___ días del mes de __________ de 20___.</p>
+
+    <table class="firma-table" style="font-size:10px;">
+        <tr>
+            <td class="derecha2">F.__________________</td>
+            <td class="derecha2">F.__________________</td>
+            <td class="derecha2">F.__________________</td>
+        </tr>
+        <tr>
+            <td>Cliente</td>
+            <td>Vendedor</td>
+            <td>Control de calidad</td>
+        </tr>
+    </table>
+
+    <div style="margin-top: 10px; text-align: center; color: #666; font-size: 8px; border-top: 1px solid #ccc; padding-top: 5px;">
+        <p>Documento generado el {{:fechaGeneracion}} - Este documento es válido como comprobante de contratación de servicios</p>
+    </div>
+</body>
+</html>

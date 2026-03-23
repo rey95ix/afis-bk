@@ -124,6 +124,19 @@ export class ContratoPagosController {
     return { data: resultado };
   }
 
+  @Post('facturas/:idFactura/enviar-mh')
+  @ApiOperation({ summary: 'Enviar factura a MH manualmente (sin requerir pago completo)' })
+  async enviarFacturaMh(
+    @Param('idFactura', ParseIntPipe) idFactura: number,
+    @Request() req: any,
+  ) {
+    const resultado = await this.contratoPagosService.enviarFacturaMh(
+      idFactura,
+      req.user.id_usuario,
+    );
+    return { data: resultado };
+  }
+
   @Get(':idContrato/estado-cuenta')
   @ApiOperation({ summary: 'Obtener estado de cuenta completo de un contrato' })
   async obtenerEstadoCuenta(@Param('idContrato', ParseIntPipe) idContrato: number) {

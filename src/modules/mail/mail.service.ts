@@ -222,6 +222,104 @@ export class MailService {
   }
 
   /**
+   * Enviar comprobante de pago con tarjeta al cliente del portal
+   */
+  async sendComprobantePago(
+    email: string,
+    nombreCliente: string,
+    codigoContrato: string,
+    monto: number,
+    numeroAutorizacion: string,
+    terminacionTarjeta: string,
+    fechaTransaccion: string,
+    idFactura: number,
+    conceptoPago: string,
+  ): Promise<void> {
+    const montoFormateado = monto.toFixed(2);
+    const templatePath = path.join(process.cwd(), 'templates', 'cliente-portal', 'comprobante-pago.html');
+    let html: string;
+
+    try {
+      html = fs.readFileSync(templatePath, 'utf-8');
+      html = html.replace(/{{nombreCliente}}/g, nombreCliente);
+      html = html.replace(/{{monto}}/g, montoFormateado);
+      html = html.replace(/{{numeroAutorizacion}}/g, numeroAutorizacion || '');
+      html = html.replace(/{{terminacionTarjeta}}/g, terminacionTarjeta || '');
+      html = html.replace(/{{fechaTransaccion}}/g, fechaTransaccion || new Date().toLocaleString('es-SV'));
+      html = html.replace(/{{codigoContrato}}/g, codigoContrato);
+      html = html.replace(/{{idFactura}}/g, String(idFactura));
+      html = html.replace(/{{conceptoPago}}/g, conceptoPago);
+    } catch (error) {
+      html = this.getComprobantePagoHtmlFallback(
+        nombreCliente, codigoContrato, montoFormateado, numeroAutorizacion,
+        terminacionTarjeta, fechaTransaccion, idFactura, conceptoPago,
+      );
+    }
+
+    await this.sendMail(
+      email,
+      `Comprobante de Pago - Aut. ${numeroAutorizacion}`,
+      `Comprobante de pago: $${montoFormateado} - Autorización: ${numeroAutorizacion} - Contrato: ${codigoContrato} - Factura: ${idFactura}`,
+      html,
+    );
+  }
+
+  private getComprobantePagoHtmlFallback(
+    nombreCliente: string,
+    codigoContrato: string,
+    montoFormateado: string,
+    numeroAutorizacion: string,
+    terminacionTarjeta: string,
+    fechaTransaccion: string,
+    idFactura: number,
+    conceptoPago: string,
+  ): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #16a34a; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+          .amount { text-align: center; font-size: 28px; font-weight: bold; color: #16a34a; margin: 20px 0; }
+          .info-box { background: #ffffff; border-left: 4px solid #16a34a; padding: 15px; margin: 20px 0; border-radius: 4px; }
+          .info-box p { margin: 5px 0; }
+          .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Comprobante de Pago</h1>
+          </div>
+          <div class="content">
+            <h2>Estimado/a ${nombreCliente},</h2>
+            <p>Su pago con tarjeta ha sido procesado exitosamente.</p>
+            <div class="amount">$${montoFormateado}</div>
+            <div class="info-box">
+              <p><strong>No. Autorización:</strong> ${numeroAutorizacion || ''}</p>
+              <p><strong>Tarjeta:</strong> ****${terminacionTarjeta || ''}</p>
+              <p><strong>Fecha:</strong> ${fechaTransaccion || new Date().toLocaleString('es-SV')}</p>
+              <p><strong>Contrato:</strong> ${codigoContrato}</p>
+              <p><strong>Factura:</strong> ${idFactura}</p>
+              <p><strong>Concepto:</strong> ${conceptoPago}</p>
+            </div>
+            <p style="text-align: center; color: #888; font-size: 14px;">Conserve este comprobante para sus registros.</p>
+          </div>
+          <div class="footer">
+            <p>Este es un correo automático, por favor no responda a este mensaje.</p>
+            <p>&copy; ${new Date().getFullYear()} AFIS. Todos los derechos reservados.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  /**
    * Enviar notificación de orden de compra aprobada al encargado
    */
   async sendOrdenCompraAprobada(

@@ -4,6 +4,7 @@ export interface FacturaPuntoXpress {
   fecha_vencimiento: string;
   periodo_facturado: string;
   monto: number;
+  monto_mora: number;
   saldo_pendiente: number;
   cliente: string;
   codigo_cliente: number;

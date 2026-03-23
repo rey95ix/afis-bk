@@ -15,6 +15,9 @@ import { PaginationDto, PaginatedResult } from 'src/common/dto';
 import { OrdenesTrabajoService } from '../ordenes-trabajo/ordenes-trabajo.service';
 import { TipoOrden } from '../ordenes-trabajo/dto/create-orden.dto';
 import { MinioService } from 'src/modules/minio/minio.service';
+import { ConfigService } from '@nestjs/config';
+import { Readable } from 'stream';
+import * as crypto from 'crypto';
 import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -26,6 +29,7 @@ export class ContratosService {
     @Inject(forwardRef(() => OrdenesTrabajoService))
     private readonly ordenesTrabajoService: OrdenesTrabajoService,
     private readonly minioService: MinioService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -650,6 +654,145 @@ export class ContratosService {
       'FIRMAR_CONTRATO',
       id_usuario,
       `Contrato firmado: ${contrato.codigo} - OT creada: ${ordenInstalacion.codigo}${observaciones ? ` - Obs: ${observaciones}` : ''}`,
+    );
+
+    return contratoActualizado;
+  }
+
+  // ==================== FIRMA EN LÍNEA ====================
+
+  /**
+   * Genera un link único para firma online del contrato
+   */
+  async generarLinkFirma(
+    id_contrato: number,
+    id_usuario: number,
+    horas_validez: number = 72,
+  ) {
+    const contrato = await this.findOne(id_contrato);
+
+    if (contrato.estado !== 'PENDIENTE_FIRMA') {
+      throw new BadRequestException(
+        `El contrato debe estar en estado PENDIENTE_FIRMA. Estado actual: ${contrato.estado}`,
+      );
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires_at = new Date();
+    expires_at.setHours(expires_at.getHours() + horas_validez);
+
+    // Invalidar tokens anteriores no usados para este contrato
+    await this.prisma.atcContratoFirmaToken.updateMany({
+      where: { id_contrato, is_used: false },
+      data: { is_used: true, used_at: new Date() },
+    });
+
+    await this.prisma.atcContratoFirmaToken.create({
+      data: {
+        token,
+        id_contrato,
+        expires_at,
+      },
+    });
+
+    const frontendUrl = this.configService.get<string>(
+      'FRONTEND_CLIENTES_URL',
+      'https://app.edal.group/',
+    );
+    const baseUrl = frontendUrl.replace(/\/+$/, '');
+    const url = `${baseUrl}/firmar-contrato/${token}`;
+
+    await this.prisma.logAction(
+      'GENERAR_LINK_FIRMA',
+      id_usuario,
+      `Link de firma generado para contrato ${contrato.codigo} - Válido por ${horas_validez}h`,
+    );
+
+    return { url, token, expires_at };
+  }
+
+  /**
+   * Marca un contrato como firmado desde firma online (sin archivo Multer, usa base64)
+   */
+  async marcarComoFirmadoOnline(
+    id_contrato: number,
+    firmaBuffer: Buffer,
+    ip: string,
+    userAgent: string,
+    token: string,
+  ): Promise<atcContrato> {
+    // Atomic claim: mark token as used (prevents race conditions)
+    const tokenClaimed = await this.prisma.atcContratoFirmaToken.updateMany({
+      where: { token, is_used: false },
+      data: {
+        is_used: true,
+        used_at: new Date(),
+        ip_firmante: ip,
+        user_agent_firmante: (userAgent || '').slice(0, 512),
+      },
+    });
+
+    if (tokenClaimed.count === 0) {
+      throw new BadRequestException('Este contrato ya fue firmado');
+    }
+
+    const contrato = await this.findOne(id_contrato);
+
+    if (contrato.estado !== 'PENDIENTE_FIRMA') {
+      throw new BadRequestException(
+        `El contrato debe estar en estado PENDIENTE_FIRMA. Estado actual: ${contrato.estado}`,
+      );
+    }
+
+    // Subir firma a MinIO
+    const objectName = `contratos-firmados/${contrato.codigo}/firma_online_${Date.now()}.png`;
+    const multerFile: Express.Multer.File = {
+      buffer: firmaBuffer,
+      originalname: 'firma_online.png',
+      mimetype: 'image/png',
+      size: firmaBuffer.length,
+      fieldname: 'firma',
+      encoding: '7bit',
+      stream: Readable.from(firmaBuffer),
+      destination: '',
+      filename: '',
+      path: '',
+    };
+    const { url } = await this.minioService.uploadFile(multerFile, objectName);
+
+    // Conditional update: only proceed if contract is still PENDIENTE_FIRMA
+    const updateResult = await this.prisma.atcContrato.updateMany({
+      where: { id_contrato, estado: 'PENDIENTE_FIRMA' },
+      data: {
+        estado: 'PENDIENTE_INSTALACION',
+        url_contrato_firmado: url,
+      },
+    });
+
+    if (updateResult.count === 0) {
+      throw new BadRequestException('El contrato ya no está pendiente de firma');
+    }
+
+    // Crear OT de instalación usando el usuario creador del contrato
+    const ordenInstalacion = await this.ordenesTrabajoService.create(
+      {
+        tipo: TipoOrden.INSTALACION,
+        id_cliente: contrato.id_cliente,
+        id_direccion_servicio: contrato.id_direccion_servicio,
+        observaciones_tecnico: `Instalación para contrato ${contrato.codigo} - Firmado en línea`,
+        id_contrato,
+      },
+      contrato.id_usuario_creador,
+    );
+
+    // Fetch updated contract with relations
+    const contratoActualizado = await this.findOne(id_contrato);
+
+    // Log
+    await this.prisma.logAction(
+      'FIRMAR_CONTRATO_ONLINE',
+      contrato.id_usuario_creador,
+      `Contrato firmado en línea: ${contrato.codigo} - OT: ${ordenInstalacion.codigo} - IP: ${ip}`,
     );
 
     return contratoActualizado;

@@ -20,6 +20,7 @@ import { CreateContratoDto } from './dto/create-contrato.dto';
 import { UpdateContratoDto } from './dto/update-contrato.dto';
 import { MarcarFirmadoDto } from './dto/marcar-firmado.dto';
 import { CambiarEstadoContratoDto } from './dto/cambiar-estado-contrato.dto';
+import { GenerarLinkFirmaDto } from './dto/generar-link-firma.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -134,6 +135,24 @@ export class ContratosController {
     });
 
     res.end(pdfBuffer);
+  }
+
+  @RequirePermissions('atencion_cliente.contratos:editar')
+  @Post(':id/generar-link-firma')
+  @ApiOperation({
+    summary: 'Generar link de firma online para el contrato',
+    description: 'Genera un token único y retorna un link para que el cliente firme el contrato en línea.',
+  })
+  @ApiParam({ name: 'id', description: 'ID del contrato', type: Number })
+  @ApiResponse({ status: 200, description: 'Link de firma generado exitosamente.' })
+  @ApiResponse({ status: 400, description: 'Contrato no está en estado PENDIENTE_FIRMA.' })
+  @ApiResponse({ status: 404, description: 'Contrato no encontrado.' })
+  generarLinkFirma(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: GenerarLinkFirmaDto,
+    @GetUser() usuario,
+  ) {
+    return this.contratosService.generarLinkFirma(id, usuario.id_usuario, dto.horas_validez);
   }
 
   @RequirePermissions('atencion_cliente.contratos:editar')

@@ -1271,6 +1271,104 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
   crearPermisoCustom('olt', 'gestion', 'cambiar_plan', 'Cambiar Plan ONT', 'Modificar perfil de tráfico del ONT', {
     requiere_auditoria: true,
   }),
+
+  // =============================================================
+  // MODULO: CUENTAS POR PAGAR
+  // =============================================================
+
+  // Cuentas por Pagar
+  crearPermiso('cxp', 'cuentas', 'VER', 'Ver Cuentas por Pagar', 'Ver listado y detalles de cuentas por pagar'),
+  crearPermisoCustom('cxp', 'cuentas', 'editar', 'Editar CxP', 'Editar cuentas por pagar y actualizar estados', {
+    requiere_auditoria: true,
+  }),
+
+  // Pagos CxP
+  crearPermisoCustom('cxp', 'pagos', 'crear', 'Registrar Pagos CxP', 'Registrar pagos a cuentas por pagar', {
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom('cxp', 'pagos', 'anular', 'Anular Pagos CxP', 'Anular pagos de cuentas por pagar', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+
+  // =============================================================
+  // MODULO: FACTURACION (permisos adicionales)
+  // =============================================================
+
+  // Cobros / Facturas
+  crearPermiso('facturacion', 'cobros', 'VER', 'Ver Cobros', 'Ver listado y detalles de cobros y facturas'),
+  crearPermiso('facturacion', 'cobros', 'CREAR', 'Crear Cobros', 'Ingresar nuevos cobros y generar facturas', {
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom('facturacion', 'cobros', 'anular', 'Anular Cobros', 'Anular cobros y facturas emitidas', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom('facturacion', 'cobros', 'enviar_mh', 'Enviar a MH', 'Enviar facturas manualmente al Ministerio de Hacienda para firma', {
+    requiere_auditoria: true,
+  }),
+
+  // Factura Directa
+  crearPermiso('facturacion', 'factura_directa', 'VER', 'Ver Facturas Directas', 'Ver listado y detalles de facturas directas'),
+  crearPermiso('facturacion', 'factura_directa', 'CREAR', 'Crear Facturas Directas', 'Crear facturas directas sin contrato', {
+    requiere_auditoria: true,
+  }),
+
+  // Clientes Directos
+  crearPermiso('facturacion', 'clientes_directos', 'VER', 'Ver Clientes Directos', 'Ver listado de clientes directos de facturacion'),
+  crearPermiso('facturacion', 'clientes_directos', 'CREAR', 'Crear Clientes Directos', 'Crear nuevos clientes directos', {
+    requiere_auditoria: true,
+  }),
+  crearPermiso('facturacion', 'clientes_directos', 'EDITAR', 'Editar Clientes Directos', 'Modificar clientes directos existentes', {
+    requiere_auditoria: true,
+  }),
+  crearPermiso('facturacion', 'clientes_directos', 'ELIMINAR', 'Eliminar Clientes Directos', 'Eliminar clientes directos', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+
+  // Anulaciones
+  crearPermiso('facturacion', 'anulaciones', 'VER', 'Ver Anulaciones', 'Ver listado de anulaciones de documentos tributarios'),
+
+  // =============================================================
+  // MODULO: ADMINISTRACION (permisos adicionales)
+  // =============================================================
+
+  // Configuracion General
+  crearPermiso('administracion', 'general_data', 'VER', 'Ver Configuracion General', 'Ver datos de configuracion general del sistema'),
+  crearPermiso('administracion', 'general_data', 'EDITAR', 'Editar Configuracion General', 'Modificar configuracion general del sistema', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+
+  // =============================================================
+  // MODULO: INVENTARIO (permisos adicionales)
+  // =============================================================
+
+  // Salidas Temporales OT
+  crearPermiso('inventario', 'salidas_temporales', 'VER', 'Ver Salidas Temporales', 'Ver listado y detalles de salidas temporales OT'),
+  crearPermiso('inventario', 'salidas_temporales', 'CREAR', 'Crear Salidas Temporales', 'Crear nuevas salidas temporales de inventario', {
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom('inventario', 'salidas_temporales', 'cancelar', 'Cancelar Salidas Temporales', 'Cancelar salidas temporales no finalizadas', {
+    requiere_auditoria: true,
+  }),
+
+  // Visualizacion de Inventario (vista consolidada)
+  crearPermiso('inventario', 'inventario', 'VER', 'Ver Visualizacion de Inventario', 'Acceder a la vista consolidada de inventario'),
+
+  // Reparaciones (faltaba :ver)
+  crearPermiso('inventario', 'reparaciones', 'VER', 'Ver Reparaciones', 'Ver listado y detalles de reparaciones de equipos'),
+
+  // =============================================================
+  // MODULO: MIGRACION
+  // =============================================================
+
+  crearPermiso('migracion', 'dashboard', 'VER', 'Ver Dashboard Migracion', 'Acceder al dashboard de migracion de datos'),
+  crearPermisoCustom('migracion', 'cliente', 'ejecutar', 'Ejecutar Migracion Cliente', 'Ejecutar migracion individual de clientes', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
 ];
 
 /**

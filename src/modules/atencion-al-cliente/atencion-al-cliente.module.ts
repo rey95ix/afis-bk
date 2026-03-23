@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
+import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { MinioModule } from '../minio/minio.module';
@@ -37,6 +38,7 @@ import { ContratoInstalacionService } from './contratos/contrato-instalacion.ser
     SmsModule,
     OpenaiModule,
     FacturacionModule,
+    ConfigModule,
   ],
   controllers: [
     ClientesController,
@@ -64,6 +66,7 @@ import { ContratoInstalacionService } from './contratos/contrato-instalacion.ser
     ContratosService,
     ContratoInstalacionService,
   ],
+  exports: [ContratosService, OrdenesTrabajoService],
 })
 export class AtencionAlClienteModule { }
 

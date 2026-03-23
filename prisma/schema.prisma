@@ -2693,6 +2693,7 @@ model atcContrato {
   pagosTarjetaPortal  pago_tarjeta_portal[]
   intentsPagoTarjeta  pago_tarjeta_intent[]
   validacionesComprobante whatsapp_validacion_comprobante[]
+  firmaTokens             atcContratoFirmaToken[]
 
   @@index([id_cliente])
   @@index([id_plan])
@@ -2700,6 +2701,23 @@ model atcContrato {
   @@index([estado])
   @@index([fecha_venta])
   @@index([id_mora_config])
+}
+
+// Token para firma online de contrato
+model atcContratoFirmaToken {
+  id_token            Int       @id @default(autoincrement())
+  token               String    @unique @db.VarChar(64)
+  id_contrato         Int
+  contrato            atcContrato @relation(fields: [id_contrato], references: [id_contrato], onDelete: Cascade, onUpdate: NoAction, map: "fk_firma_token_contrato")
+  created_at          DateTime  @default(now())
+  expires_at          DateTime
+  used_at             DateTime?
+  is_used             Boolean   @default(false)
+  ip_firmante         String?
+  user_agent_firmante String?   @db.Text
+
+  @@index([token])
+  @@index([id_contrato])
 }
 
 // Datos técnicos de la instalación del contrato

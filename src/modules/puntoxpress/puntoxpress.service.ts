@@ -437,6 +437,7 @@ export class PuntoXpressService {
       fecha_vencimiento: fechaVenc ? fechaVenc.toISOString().split('T')[0] : '',
       periodo_facturado: periodoFacturado,
       monto: Number(cxc?.monto_total || factura.total),
+      monto_mora: Number(cxc?.monto_mora || 0),
       saldo_pendiente: Number(cxc?.saldo_pendiente || 0),
       cliente: factura.cliente?.titular || factura.cliente_nombre || '',
       codigo_cliente: factura.cliente?.id_cliente || factura.id_cliente || 0,

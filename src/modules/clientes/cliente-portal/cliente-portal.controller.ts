@@ -33,6 +33,7 @@ export class ClientePortalController {
       cliente.id_cliente,
       id,
     );
+    console.log('Detalle contrato:', data);
     return { data };
   }
 
