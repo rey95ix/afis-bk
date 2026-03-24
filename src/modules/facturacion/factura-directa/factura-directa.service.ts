@@ -3711,4 +3711,43 @@ export class FacturaDirectaService {
     const diaFinal = Math.min(day, ultimoDia);
     return new Date(year, month, diaFinal);
   }
+
+  /**
+   * Genera codigo_generacion (UUID v4 en mayúsculas) para todas las facturas
+   * que aún no han sido emitidas a MH (codigo_generacion IS NULL).
+   */
+  async generarCodigosGeneracionFaltantes(): Promise<{
+    success: boolean;
+    totalActualizados: number;
+    ids: number[];
+  }> {
+    const facturasSinCodigo = await this.prisma.facturaDirecta.findMany({
+      where: { codigo_generacion: null },
+      select: { id_factura_directa: true },
+    });
+
+    if (facturasSinCodigo.length === 0) {
+      return { success: true, totalActualizados: 0, ids: [] };
+    }
+
+    const updates = facturasSinCodigo.map((f) =>
+      this.prisma.facturaDirecta.update({
+        where: { id_factura_directa: f.id_factura_directa },
+        data: { codigo_generacion: uuidv4().toUpperCase() },
+        select: { id_factura_directa: true },
+      }),
+    );
+
+    const results = await this.prisma.$transaction(updates);
+
+    this.logger.log(
+      `Generados codigo_generacion para ${results.length} facturas: [${results.map((r) => r.id_factura_directa).join(', ')}]`,
+    );
+
+    return {
+      success: true,
+      totalActualizados: results.length,
+      ids: results.map((r) => r.id_factura_directa),
+    };
+  }
 }

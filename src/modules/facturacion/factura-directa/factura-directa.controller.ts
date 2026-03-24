@@ -104,6 +104,17 @@ export class FacturaDirectaController {
     return this.facturaDirectaService.crearNotaCredito(createDto, id_usuario, id_sucursal);
   }
 
+  @Post('generar-codigos-generacion')
+  @RequirePermissions('facturacion.factura_directa:editar')
+  @ApiOperation({
+    summary: 'Generar codigo_generacion para facturas sin emitir a MH',
+    description: 'Busca todas las facturas directas con codigo_generacion NULL y les asigna un UUID v4 en mayúsculas.',
+  })
+  @ApiResponse({ status: 200, description: 'Resultado de la generación masiva.' })
+  generarCodigosGeneracion() {
+    return this.facturaDirectaService.generarCodigosGeneracionFaltantes();
+  }
+
   @Get()
   @RequirePermissions('facturacion.factura_directa:ver')
   @ApiOperation({ summary: 'Listar facturas directas con paginación y filtros' })
