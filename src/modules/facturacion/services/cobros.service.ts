@@ -688,7 +688,7 @@ export class CobrosService {
    * @returns Lista paginada de contratos con info de pago
    */
   async getContratosPendientes(dto: ContratosPendientesDto): Promise<ContratosPendientesResponse> {
-    const { page = 1, limit = 10, search, estado } = dto;
+    const { page = 1, limit = 10, search, estado, soloEnMora } = dto;
     const skip = (page - 1) * limit;
 
     // Estados de contrato que pueden facturarse
@@ -698,6 +698,15 @@ export class CobrosService {
     const whereClause: any = {
       // estado: { in: estadosFacturables },
       ...(estado && { cliente: { estado } }),
+      ...(soloEnMora && {
+        facturasDirectas: {
+          some: {
+            estado_pago: 'PENDIENTE',
+            estado: 'ACTIVO',
+            fecha_vencimiento: { lt: new Date() },
+          },
+        },
+      }),
     };
 
     // Búsqueda por nombre de cliente o número de contrato

@@ -1,5 +1,5 @@
-import { IsOptional, IsInt, IsString, IsEnum, Min, Max } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsOptional, IsInt, IsString, IsEnum, IsBoolean, Min, Max } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
@@ -42,6 +42,12 @@ export class ContratosPendientesDto {
   @IsOptional()
   @IsString()
   estado?: EstadoClienteFiltrable;
+
+  @ApiPropertyOptional({ description: 'Filtrar solo contratos en mora', type: Boolean })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  soloEnMora?: boolean;
 }
 
 /**

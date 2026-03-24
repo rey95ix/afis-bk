@@ -51,6 +51,7 @@ export class CobrosController {
     enum: ['INSTALADO_ACTIVO', 'EN_MORA', 'VELOCIDAD_REDUCIDA'],
     description: 'Filtrar por estado',
   })
+  @ApiQuery({ name: 'soloEnMora', required: false, type: Boolean, description: 'Filtrar solo contratos en mora' })
   @ApiResponse({
     status: 200,
     description: 'Lista de contratos pendientes',

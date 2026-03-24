@@ -5,6 +5,7 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   ParseIntPipe,
   Request,
   UseInterceptors,
@@ -21,6 +22,7 @@ import {
   RegistrarAcuerdoPagoDto,
   AplicarDescuentoFacturaDto,
 } from '../dto/contrato-pagos.dto';
+import { AbonosListadoDto } from '../dto/abonos-listado.dto';
 
 @ApiTags('Facturación - Contrato Pagos')
 @ApiBearerAuth(HEADER_API_BEARER_AUTH)
@@ -28,6 +30,13 @@ import {
 @Controller('facturacion/contrato-pagos')
 export class ContratoPagosController {
   constructor(private readonly contratoPagosService: ContratoPagosService) {}
+
+  @Get('abonos')
+  @ApiOperation({ summary: 'Listar todos los abonos con filtros y paginación' })
+  async listarAbonos(@Query() dto: AbonosListadoDto) {
+    const result = await this.contratoPagosService.listarAbonos(dto);
+    return { data: result };
+  }
 
   @Get(':idContrato/facturas')
   @ApiOperation({ summary: 'Obtener facturas de un contrato con estado de pago' })

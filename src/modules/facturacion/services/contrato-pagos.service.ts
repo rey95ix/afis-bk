@@ -12,6 +12,7 @@ import { MinioService } from '../../minio/minio.service';
 import { ComprobanteAnalyzerService } from '../../whatsapp-chat/validacion-comprobante/comprobante-analyzer.service';
 import { Prisma } from '@prisma/client';
 import { RegistrarPagoContratoDto, AplicarDescuentoFacturaDto } from '../dto/contrato-pagos.dto';
+import { AbonosListadoDto } from '../dto/abonos-listado.dto';
 import { redondearMonto } from '../dte/builders/numero-letras.util';
 
 // ============================================
@@ -708,6 +709,104 @@ export class ContratoPagosService {
   /**
    * Obtener historial de abonos de un contrato
    */
+  async listarAbonos(dto: AbonosListadoDto) {
+    const { page = 1, limit = 20, search, fechaDesde, fechaHasta, metodoPago } = dto;
+    const skip = (page - 1) * limit;
+
+    const whereClause: any = {
+      activo: true,
+      ...(metodoPago && { metodo_pago: metodoPago }),
+    };
+
+    if (fechaDesde || fechaHasta) {
+      whereClause.fecha_pago = {};
+      if (fechaDesde) whereClause.fecha_pago.gte = new Date(fechaDesde);
+      if (fechaHasta) {
+        const hasta = new Date(fechaHasta);
+        hasta.setHours(23, 59, 59, 999);
+        whereClause.fecha_pago.lte = hasta;
+      }
+    }
+
+    if (search) {
+      whereClause.cuentaPorCobrar = {
+        contrato: {
+          OR: [
+            { codigo: { contains: search, mode: 'insensitive' } },
+            { cliente: { titular: { contains: search, mode: 'insensitive' } } },
+          ],
+        },
+      };
+    }
+
+    const [abonos, total] = await Promise.all([
+      this.prisma.abono_cxc.findMany({
+        where: whereClause,
+        include: {
+          usuario: {
+            select: { nombres: true, apellidos: true },
+          },
+          cuentaPorCobrar: {
+            include: {
+              contrato: {
+                select: {
+                  codigo: true,
+                  cliente: {
+                    select: { titular: true },
+                  },
+                },
+              },
+              facturaDirecta: {
+                select: {
+                  numero_cuota: true,
+                  periodo_inicio: true,
+                  periodo_fin: true,
+                  es_instalacion: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: { fecha_pago: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.abono_cxc.count({ where: whereClause }),
+    ]);
+
+    const data = abonos.map((a) => ({
+      idAbono: a.id_abono,
+      monto: Number(a.monto),
+      saldoAnterior: Number(a.saldo_anterior),
+      saldoPosterior: Number(a.saldo_posterior),
+      metodoPago: a.metodo_pago,
+      referencia: a.referencia,
+      fechaPago: a.fecha_pago.toISOString(),
+      observaciones: a.observaciones,
+      usuario: a.usuario
+        ? `${a.usuario.nombres} ${a.usuario.apellidos}`
+        : null,
+      cliente: a.cuentaPorCobrar.contrato?.cliente?.titular || null,
+      contrato: a.cuentaPorCobrar.contrato?.codigo || null,
+      factura: {
+        numeroCuota: a.cuentaPorCobrar.facturaDirecta.numero_cuota,
+        periodoInicio: a.cuentaPorCobrar.facturaDirecta.periodo_inicio?.toISOString() || null,
+        periodoFin: a.cuentaPorCobrar.facturaDirecta.periodo_fin?.toISOString() || null,
+        esInstalacion: a.cuentaPorCobrar.facturaDirecta.es_instalacion,
+      },
+    }));
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
   async obtenerAbonosContrato(idContrato: number) {
     const contrato = await this.prisma.atcContrato.findUnique({
       where: { id_contrato: idContrato },

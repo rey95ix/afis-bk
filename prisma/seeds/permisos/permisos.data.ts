@@ -1330,6 +1330,9 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
   // Anulaciones
   crearPermiso('facturacion', 'anulaciones', 'VER', 'Ver Anulaciones', 'Ver listado de anulaciones de documentos tributarios'),
 
+  // Abonos
+  crearPermiso('facturacion', 'abonos', 'VER', 'Ver Abonos', 'Ver historial global de abonos y pagos realizados'),
+
   // =============================================================
   // MODULO: ADMINISTRACION (permisos adicionales)
   // =============================================================
@@ -1369,6 +1372,12 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     es_critico: true,
     requiere_auditoria: true,
   }),
+
+  // =============================================================
+  // MODULO: LOGS
+  // =============================================================
+
+  crearPermiso('logs', 'punto_xpress', 'VER', 'Ver Logs PuntoXpress', 'Ver logs del endpoint legacy de PuntoXpress'),
 ];
 
 /**

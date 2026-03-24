@@ -21,6 +21,7 @@ import { CxcModule } from './modules/cxc/cxc.module';
 import { CxpModule } from './modules/cxp/cxp.module';
 import { PuntoXpressModule } from './modules/puntoxpress/puntoxpress.module';
 import { OltModule } from './modules/olt/olt.module';
+import { LogsModule } from './modules/logs/logs.module';
 
 
 @Module({
@@ -49,6 +50,7 @@ import { OltModule } from './modules/olt/olt.module';
     CxpModule, // Módulo de cuentas por pagar
     PuntoXpressModule, // Módulo PuntoXpress (integradores externos)
     OltModule, // Módulo de gestión OLT/ONT
+    LogsModule, // Módulo de logs del sistema
     // UtilidadesModule, //TODO Habilitar módulo de utilidades
   ],
   controllers: [],
