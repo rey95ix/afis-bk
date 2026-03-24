@@ -21,7 +21,7 @@ import { CxcModule } from './modules/cxc/cxc.module';
 import { CxpModule } from './modules/cxp/cxp.module';
 import { PuntoXpressModule } from './modules/puntoxpress/puntoxpress.module';
 import { OltModule } from './modules/olt/olt.module';
-import { LogsModule } from './modules/logs/logs.module';
+import { LogsModule } from './modules/logs-sistema/logs.module';
 
 
 @Module({
