@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Body,
+  Req,
   UnauthorizedException,
   BadRequestException,
   HttpCode,
@@ -57,15 +58,27 @@ export class PuntoXpressLegacyController {
   })
   @ApiResponse({ status: 200, description: 'Respuesta según método invocado' })
   @HttpCode(200)
-  async handleLegacy(@Body() dto: LegacyRequestDto) {
+  async handleLegacy(@Body() dto: LegacyRequestDto, @Req() req: any) {
+    const start = Date.now();
+    const ip = req.ip || req.headers['x-forwarded-for']?.toString();
+    const { token, contrasena, ...safeBody } = dto as any;
+
+    let result: any;
+    let codigoRespuesta: number | undefined;
+    let errorMsg: string | undefined;
+
     try {
       // Autenticación no requiere token
       if (dto.metodo === 'Autenticacion') {
         if (!dto.usuario || !dto.contrasena) {
-          return { codigo: 2, mensaje: 'Faltan credenciales' };
+          result = { codigo: 2, mensaje: 'Faltan credenciales' };
+          codigoRespuesta = 2;
+          return result;
         }
-        const result = await this.authService.login(dto.usuario, dto.contrasena);
-        return { codigo: 0, ...result };
+        const authResult = await this.authService.login(dto.usuario, dto.contrasena);
+        result = { codigo: 0, ...authResult };
+        codigoRespuesta = 0;
+        return result;
       }
 
       // El resto de métodos requieren token
@@ -73,34 +86,60 @@ export class PuntoXpressLegacyController {
 
       switch (dto.metodo) {
         case 'BusquedaCorrelativo': {
-          if (!dto.correlativo) return { codigo: 2, mensaje: 'Falta correlativo' };
+          if (!dto.correlativo) {
+            result = { codigo: 2, mensaje: 'Falta correlativo' };
+            codigoRespuesta = 2;
+            return result;
+          }
           const facturas = await this.service.buscarPorCorrelativo(dto.correlativo);
-          return facturas.map((f) => this.mapFacturaLegacy(f));
+          result = facturas.map((f) => this.mapFacturaLegacy(f));
+          codigoRespuesta = 0;
+          return result;
         }
 
         case 'BusquedaCodigoCliente': {
-          if (!dto.codigo_cliente) return { codigo: 2, mensaje: 'Falta codigo_cliente' };
+          if (!dto.codigo_cliente) {
+            result = { codigo: 2, mensaje: 'Falta codigo_cliente' };
+            codigoRespuesta = 2;
+            return result;
+          }
           const facturas = await this.service.buscarPorCodigoCliente(Number(dto.codigo_cliente));
-          return facturas.map((f) => this.mapFacturaLegacy(f));
+          result = facturas.map((f) => this.mapFacturaLegacy(f));
+          codigoRespuesta = 0;
+          return result;
         }
 
         case 'BusquedaDUI': {
-          if (!dto.dui) return { codigo: 2, mensaje: 'Falta dui' };
+          if (!dto.dui) {
+            result = { codigo: 2, mensaje: 'Falta dui' };
+            codigoRespuesta = 2;
+            return result;
+          }
           const facturas = await this.service.buscarPorDui(dto.dui);
-          return facturas.map((f) => this.mapFacturaLegacy(f));
+          result = facturas.map((f) => this.mapFacturaLegacy(f));
+          codigoRespuesta = 0;
+          return result;
         }
 
         case 'BusquedaNombre': {
-          if (!dto.nombre) return { codigo: 2, mensaje: 'Falta nombre' };
+          if (!dto.nombre) {
+            result = { codigo: 2, mensaje: 'Falta nombre' };
+            codigoRespuesta = 2;
+            return result;
+          }
           const facturas = await this.service.buscarPorNombre(dto.nombre);
-          return facturas.map((f) => this.mapFacturaLegacy(f));
+          result = facturas.map((f) => this.mapFacturaLegacy(f));
+          codigoRespuesta = 0;
+          return result;
         }
 
         case 'AplicarPago': {
           if (!dto.id_factura || !dto.monto || !dto.colector) {
-            return { codigo: 2, mensaje: 'Faltan campos requeridos: id_factura, monto, colector' };
+            result = { codigo: 2, mensaje: 'Faltan campos requeridos: id_factura, monto, colector' };
+            codigoRespuesta = 2;
+            return result;
           }
-          const result = await this.service.aplicarPago(
+          const pagoResult = await this.service.aplicarPago(
             {
               id_factura_directa: Number(dto.id_factura),
               monto: Number(dto.monto),
@@ -109,32 +148,57 @@ export class PuntoXpressLegacyController {
             },
             integrador.id_integrador,
           );
-          return { codigo: 0, ...result };
+          result = { codigo: 0, ...pagoResult };
+          codigoRespuesta = 0;
+          return result;
         }
 
         case 'AnularPago': {
           if (!dto.id_pago || !dto.motivo) {
-            return { codigo: 2, mensaje: 'Faltan campos requeridos: id_pago, motivo' };
+            result = { codigo: 2, mensaje: 'Faltan campos requeridos: id_pago, motivo' };
+            codigoRespuesta = 2;
+            return result;
           }
-          const result = await this.service.anularPago(
+          const anularResult = await this.service.anularPago(
             Number(dto.id_pago),
             { motivo: dto.motivo },
             integrador.id_integrador,
           );
-          return { codigo: 0, ...result };
+          result = { codigo: 0, ...anularResult };
+          codigoRespuesta = 0;
+          return result;
         }
 
         default:
-          return { codigo: 3, mensaje: `Método "${dto.metodo}" no reconocido` };
+          result = { codigo: 3, mensaje: `Método "${dto.metodo}" no reconocido` };
+          codigoRespuesta = 3;
+          return result;
       }
     } catch (error) {
+      errorMsg = error.message || 'Error interno';
       if (error instanceof UnauthorizedException) {
-        return { codigo: 1, mensaje: error.message };
+        result = { codigo: 1, mensaje: error.message };
+        codigoRespuesta = 1;
+      } else if (error instanceof BadRequestException) {
+        result = { codigo: 2, mensaje: error.message };
+        codigoRespuesta = 2;
+      } else {
+        result = { codigo: 99, mensaje: errorMsg };
+        codigoRespuesta = 99;
       }
-      if (error instanceof BadRequestException) {
-        return { codigo: 2, mensaje: error.message };
-      }
-      return { codigo: 99, mensaje: error.message || 'Error interno' };
+      return result;
+    } finally {
+      this.prisma.puntoxpress_legacy_log.create({
+        data: {
+          metodo: dto.metodo,
+          request_body: safeBody,
+          response_body: result ?? null,
+          codigo_respuesta: codigoRespuesta,
+          ip,
+          duracion_ms: Date.now() - start,
+          error: errorMsg,
+        },
+      }).catch(() => {});
     }
   }
 

@@ -5141,6 +5141,21 @@ model puntoxpress_integrador {
   @@map("punto_express_integrador")
 }
 
+model puntoxpress_legacy_log {
+  id               Int      @id @default(autoincrement())
+  metodo           String?
+  request_body     Json
+  response_body    Json?
+  codigo_respuesta Int?
+  ip               String?
+  duracion_ms      Int?
+  error            String?
+  fecha_creacion   DateTime @default(now())
+
+  @@index([fecha_creacion])
+  @@index([metodo])
+}
+
 // ============= MÓDULO OLT (INFRAESTRUCTURA FTTH) =============
 
 model olt_equipo {
