@@ -32,10 +32,10 @@ async function bootstrap() {
     }),
   );
   const config = new DocumentBuilder()
-    .setTitle('IXC API')
-    .setDescription('The IXC API description')
+    .setTitle('AFI API')
+    .setDescription('The AFI API description')
     .setVersion('1.0')
-    .addTag('ixc')
+    .addTag('afi-api')
     .addBearerAuth(
       {
         type: 'http',
