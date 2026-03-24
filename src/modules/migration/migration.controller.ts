@@ -266,6 +266,23 @@ export class MigrationController {
     return this.migrationService.cleanupAllClientes(body.concurrency);
   }
 
+  @Post('remigrate-sin-facturas')
+  @Auth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Remigrar clientes sin facturas',
+    description: 'Identifica clientes en PostgreSQL que no tienen facturaDirecta y los remigra desde MySQL.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resultado de la remigración',
+  })
+  async remigrateClientesSinFacturas(
+    @Body() body: { concurrency?: number },
+  ): Promise<{ total: number; migrated: number; errors: any[] }> {
+    return this.migrationService.remigrateClientesSinFacturas( );
+  }
+
   @Post('cliente/:idCustomer')
   @Auth()
   @HttpCode(HttpStatus.OK)

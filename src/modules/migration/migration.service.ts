@@ -1055,6 +1055,55 @@ export class MigrationService {
   }
 
   /**
+   * Remigra clientes que no tienen facturaDirecta en PostgreSQL
+   */
+  async remigrateClientesSinFacturas(
+    concurrency: number = 1,
+  ): Promise<{ total: number; migrated: number; errors: MigrationError[] }> {
+    const errors: MigrationError[] = [];
+    let migrated = 0;
+
+    // Buscar clientes sin facturaDirecta
+    const clientesSinFacturas: { id_cliente: number }[] = await this.prisma.$queryRawUnsafe(`
+      SELECT c.id_cliente FROM cliente c
+      LEFT JOIN "facturaDirecta" f ON c.id_cliente = f.id_cliente
+      WHERE f.id_cliente IS NULL
+    `);
+
+    const total = clientesSinFacturas.length;
+    this.addLog('INFO', 'remigrate-sin-facturas',
+      `Encontrados ${total} clientes sin facturaDirecta. Iniciando remigración...`);
+
+    for (const cliente of clientesSinFacturas) {
+      try {
+        this.addLog('INFO', 'remigrate-sin-facturas',
+          `Remigrando cliente ${cliente.id_cliente} (${migrated + 1}/${total})...`);
+
+        await this.migrateClienteById(cliente.id_cliente, {
+          includeContratos: true,
+          includeFacturas: true,
+          includeDocumentos: false,
+        });
+
+        migrated++;
+      } catch (error) {
+        this.addLog('WARN', 'remigrate-sin-facturas',
+          `Error remigrando cliente ${cliente.id_cliente}: ${error instanceof Error ? error.message : error}`);
+        errors.push({
+          table: 'cliente',
+          recordId: cliente.id_cliente,
+          message: error instanceof Error ? error.message : 'Error en remigración',
+        });
+      }
+    }
+
+    this.addLog('INFO', 'remigrate-sin-facturas',
+      `Remigración completada: ${migrated}/${total} clientes procesados, ${errors.length} errores`);
+
+    return { total, migrated, errors };
+  }
+
+  /**
    * Migra un cliente específico por su ID de MySQL
    */
   async migrateClienteById(
