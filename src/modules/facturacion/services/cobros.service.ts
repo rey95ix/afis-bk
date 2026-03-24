@@ -696,7 +696,7 @@ export class CobrosService {
 
     // Construir where clause
     const whereClause: any = {
-      estado: { in: estadosFacturables },
+      // estado: { in: estadosFacturables },
       ...(estado && { cliente: { estado } }),
     };
 

@@ -358,7 +358,10 @@ export class ContratosMigrationService {
                 id_usuario_creador: this.DEFAULT_USER_ID,
                 fecha_venta: service?.date_sale ? parseDate(service.date_sale) ?? new Date() : new Date(),
                 fecha_instalacion: service?.date_installation ? parseDate(service.date_installation) ?? undefined : undefined,
-                fecha_inicio_contrato: service?.date_contract_start ? parseDate(service.date_contract_start) ?? undefined : undefined,
+                fecha_inicio_contrato: parseDate(service?.date_contract_start)
+              ?? parseDate(service?.date_installation)
+              ?? parseDate(service?.date_sale)
+              ?? undefined,
                 fecha_fin_contrato: service?.date_contract_end ? parseDate(service.date_contract_end) ?? undefined : undefined,
                 meses_contrato: service?.contract_month || 12,
                 estado: mapEstadoClienteToContrato(customerStatus) as any,
@@ -377,7 +380,10 @@ export class ContratosMigrationService {
                 id_usuario_creador: this.DEFAULT_USER_ID,
                 fecha_venta: service?.date_sale ? parseDate(service.date_sale) ?? new Date() : new Date(),
                 fecha_instalacion: service?.date_installation ? parseDate(service.date_installation) ?? undefined : undefined,
-                fecha_inicio_contrato: service?.date_contract_start ? parseDate(service.date_contract_start) ?? undefined : undefined,
+                fecha_inicio_contrato: parseDate(service?.date_contract_start)
+              ?? parseDate(service?.date_installation)
+              ?? parseDate(service?.date_sale)
+              ?? undefined,
                 fecha_fin_contrato: service?.date_contract_end ? parseDate(service.date_contract_end) ?? undefined : undefined,
                 meses_contrato: service?.contract_month || 12,
                 estado: mapEstadoClienteToContrato(customerStatus) as any,
@@ -526,12 +532,35 @@ export class ContratosMigrationService {
             id_usuario_creador: this.DEFAULT_USER_ID,
             fecha_venta: service?.date_sale ? parseDate(service.date_sale) ?? new Date() : new Date(),
             fecha_instalacion: service?.date_installation ? parseDate(service.date_installation) ?? undefined : undefined,
-            fecha_inicio_contrato: service?.date_contract_start ? parseDate(service.date_contract_start) ?? undefined : undefined,
+            fecha_inicio_contrato: parseDate(service?.date_contract_start)
+              ?? parseDate(service?.date_installation)
+              ?? parseDate(service?.date_sale)
+              ?? undefined,
             fecha_fin_contrato: service?.date_contract_end ? parseDate(service.date_contract_end) ?? undefined : undefined,
             meses_contrato: service?.contract_month || 12,
             estado: mapEstadoClienteToContrato(customerStatus) as any,
           },
         });
+
+        // If fecha_inicio_contrato is still null, derive from earliest MySQL bill
+        if (!result.fecha_inicio_contrato) {
+          const earliestBill = await this.mysql.queryOne<RowDataPacket>(
+            'SELECT MIN(periodo_start) as earliest FROM tbl_bill WHERE id_customers = ? AND periodo_start IS NOT NULL',
+            [contract.id_customers],
+          );
+          if (earliestBill?.earliest) {
+            const derivedDate = parseDate(earliestBill.earliest);
+            if (derivedDate) {
+              await this.prisma.atcContrato.update({
+                where: { id_contrato: result.id_contrato },
+                data: { fecha_inicio_contrato: derivedDate },
+              });
+              this.logger.warn(
+                `Contrato ${result.id_contrato}: fecha_inicio_contrato derivada de earliest bill: ${derivedDate.toISOString()}`,
+              );
+            }
+          }
+        }
 
         mappings.contratos.set(contract.id_customers_contract, result.id_contrato);
         migratedIds.push(result.id_contrato);

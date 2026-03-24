@@ -3277,6 +3277,8 @@ export class FacturaDirectaService {
     cuotaInicial?: number,
     cuotaFinal?: number,
     moraLegacy?: { cuota: number; monto: number },
+    skipEstadoCheck?: boolean,
+    diaVencimientoOverride?: number,
   ): Promise<{ facturaIds: number[]; instalacionId?: number }> {
     const db = tx || this.prisma;
 
@@ -3301,7 +3303,7 @@ export class FacturaDirectaService {
       throw new NotFoundException(`Contrato ${idContrato} no encontrado`);
     }
 
-    if (contrato.estado !== 'INSTALADO_ACTIVO') {
+    if (!skipEstadoCheck && contrato.estado !== 'INSTALADO_ACTIVO') {
       throw new BadRequestException(
         `Contrato ${idContrato} no está en estado INSTALADO_ACTIVO (estado: ${contrato.estado})`,
       );
@@ -3378,11 +3380,23 @@ export class FacturaDirectaService {
     const primeraCuota = cuotaInicial || 1;
     const ultimaCuota = cuotaFinal ?? mesesContrato;
     for (let cuota = primeraCuota; cuota <= ultimaCuota; cuota++) {
-      const { periodoInicio, periodoFin, fechaVencimiento } = this.calcularFechasPeriodo(
+      const { periodoInicio, periodoFin, fechaVencimiento: fechaVencimientoCiclo } = this.calcularFechasPeriodo(
         fechaInicio,
         cuota,
         contrato.ciclo,
       );
+
+      // Si hay override de día de vencimiento (migración), usarlo en lugar del ciclo
+      let fechaVencimiento = fechaVencimientoCiclo;
+      if (diaVencimientoOverride) {
+        const baseDate = new Date(fechaInicio);
+        baseDate.setMonth(baseDate.getMonth() + (cuota - 1)); // mes del periodo
+        fechaVencimiento = this.crearFechaSegura(
+          baseDate.getFullYear(),
+          baseDate.getMonth(),
+          diaVencimientoOverride,
+        );
+      }
 
       // Líneas de detalle
       const detalles: Array<{
