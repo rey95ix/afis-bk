@@ -14,6 +14,7 @@ import { Prisma } from '@prisma/client';
 import { RegistrarPagoContratoDto, AplicarDescuentoFacturaDto } from '../dto/contrato-pagos.dto';
 import { AbonosListadoDto } from '../dto/abonos-listado.dto';
 import { redondearMonto } from '../dte/builders/numero-letras.util';
+import { v4 as uuidv4 } from 'uuid';
 
 // ============================================
 // INTERFACES
@@ -314,6 +315,19 @@ export class ContratoPagosService {
             `Error al firmar factura #${item.idFactura}: ${error.message}`,
           );
           // No bloquear el flujo si falla la firma
+        }
+      }
+    }
+
+    // Generar siguiente factura si la última fue pagada completamente
+    for (const item of resultado) {
+      if (item.estadoResultante === 'PAGADO') {
+        try {
+          await this.generarSiguienteFacturaSiUltima(item.idFactura, idContrato, idUsuario);
+        } catch (error) {
+          this.logger.error(
+            `Error al generar siguiente factura tras pago de #${item.idFactura}: ${error.message}`,
+          );
         }
       }
     }
@@ -1337,5 +1351,197 @@ export class ContratoPagosService {
 
     // Primera firma: asignar bloque, construir DTE, firmar y transmitir
     return this.facturaDirectaService.firmarYEnviarFactura(idFactura, idUsuario);
+  }
+
+  /**
+   * Genera la siguiente factura del contrato si la factura pagada era la última pendiente.
+   */
+  private async generarSiguienteFacturaSiUltima(
+    idFacturaPagada: number,
+    idContrato: number,
+    idUsuario: number,
+  ): Promise<void> {
+    // Verificar si existen más facturas pendientes para este contrato
+    const pendientes = await this.prisma.facturaDirecta.count({
+      where: {
+        id_contrato: idContrato,
+        id_factura_directa: { not: idFacturaPagada },
+        estado: 'ACTIVO',
+        estado_pago: { in: ['PENDIENTE', 'PARCIAL', 'VENCIDA', 'EN_ACUERDO'] },
+      },
+    });
+
+    if (pendientes > 0) return;
+
+    // Cargar la factura pagada con sus detalles
+    const facturaPagada = await this.prisma.facturaDirecta.findUnique({
+      where: { id_factura_directa: idFacturaPagada },
+      include: { detalles: true },
+    });
+
+    if (!facturaPagada || !facturaPagada.id_contrato) return;
+
+    // Calcular fechas del siguiente mes
+    const addOneMonth = (date: Date): Date => {
+      const result = new Date(date);
+      const originalDay = result.getDate();
+      result.setMonth(result.getMonth() + 1);
+      // Manejar desborde de mes (ej: 31 enero → 28 feb)
+      if (result.getDate() !== originalDay) {
+        result.setDate(0); // Último día del mes anterior
+      }
+      return result;
+    };
+
+    const nuevoPeriodoInicio = facturaPagada.periodo_inicio
+      ? addOneMonth(new Date(facturaPagada.periodo_inicio))
+      : null;
+    const nuevoPeriodoFin = facturaPagada.periodo_fin
+      ? addOneMonth(new Date(facturaPagada.periodo_fin))
+      : null;
+    const nuevaFechaVencimiento = facturaPagada.fecha_vencimiento
+      ? addOneMonth(new Date(facturaPagada.fecha_vencimiento))
+      : null;
+    const nuevaCuota = facturaPagada.numero_cuota != null
+      ? facturaPagada.numero_cuota + 1
+      : null;
+
+    // Crear la nueva factura
+    const nuevaFactura = await this.prisma.facturaDirecta.create({
+      data: {
+        // Campos frescos
+        numero_factura: null,
+        id_bloque: null,
+        id_tipo_factura: null,
+        fecha_de_pago: null,
+        estado: 'ACTIVO',
+        estado_pago: 'PENDIENTE',
+        estado_dte: 'BORRADOR',
+        intentos_dte: 0,
+        ultimo_error_dte: null,
+        monto_mora: 0,
+        descuento: 0,
+        descuento_porcentaje: null,
+        descuento_motivo: null,
+        descuento_usuario: null,
+        descuento_fecha: null,
+        efectivo: 0,
+        tarjeta: 0,
+        cheque: 0,
+        transferencia: 0,
+        id_cuenta_tarjeta: null,
+        id_cuenta_cheque: null,
+        id_cuenta_transferencia: null,
+        id_metodo_pago: null,
+        codigo_generacion: uuidv4().toUpperCase(),
+        numero_control: null,
+        dte_json: null,
+        dte_firmado: null,
+        sello_recepcion: null,
+        fecha_recepcion_mh: null,
+        codigo_msg_mh: null,
+        descripcion_msg_mh: null,
+        observaciones_mh: null,
+        anulacion_codigo_generacion: null,
+        anulacion_sello_recepcion: null,
+        anulacion_json: null,
+        anulacion_firmada: null,
+        fecha_anulacion: null,
+        anulacion_motivo: null,
+        anulacion_codigo_msg: null,
+        anulacion_descripcion_msg: null,
+        total_letras: null,
+        observaciones: null,
+        id_factura_original: null,
+        dias_credito: null,
+        fecha_pago_estimada: null,
+
+        // Fechas del nuevo periodo
+        periodo_inicio: nuevoPeriodoInicio,
+        periodo_fin: nuevoPeriodoFin,
+        fecha_vencimiento: nuevaFechaVencimiento,
+        numero_cuota: nuevaCuota,
+
+        // Copiados de la factura original
+        id_contrato: facturaPagada.id_contrato,
+        id_cliente: facturaPagada.id_cliente,
+        id_cliente_facturacion: facturaPagada.id_cliente_facturacion,
+        id_cliente_directo: facturaPagada.id_cliente_directo,
+        id_sucursal: facturaPagada.id_sucursal,
+        id_usuario: idUsuario,
+        total_cuotas: facturaPagada.total_cuotas,
+        es_instalacion: facturaPagada.es_instalacion,
+        condicion_operacion: facturaPagada.condicion_operacion,
+        cliente_nombre: facturaPagada.cliente_nombre,
+        cliente_nrc: facturaPagada.cliente_nrc,
+        cliente_nit: facturaPagada.cliente_nit,
+        cliente_direccion: facturaPagada.cliente_direccion,
+        cliente_giro: facturaPagada.cliente_giro,
+        cliente_telefono: facturaPagada.cliente_telefono,
+        cliente_correo: facturaPagada.cliente_correo,
+        subtotal: facturaPagada.subtotal,
+        subTotalVentas: facturaPagada.subTotalVentas,
+        totalNoSuj: facturaPagada.totalNoSuj,
+        totalExenta: facturaPagada.totalExenta,
+        totalGravada: facturaPagada.totalGravada,
+        totalNoGravado: facturaPagada.totalNoGravado,
+        descuNoSuj: facturaPagada.descuNoSuj,
+        descuExenta: facturaPagada.descuExenta,
+        descuGravada: facturaPagada.descuGravada,
+        iva: facturaPagada.iva,
+        iva_retenido: facturaPagada.iva_retenido,
+        iva_percibido: facturaPagada.iva_percibido,
+        renta_retenido: facturaPagada.renta_retenido,
+        total: facturaPagada.total,
+        flete: facturaPagada.flete,
+        seguro: facturaPagada.seguro,
+
+        // Detalles (copiar líneas de la factura original)
+        detalles: {
+          create: facturaPagada.detalles.map((d) => ({
+            num_item: d.num_item,
+            codigo: d.codigo,
+            nombre: d.nombre,
+            descripcion: d.descripcion,
+            nota: d.nota,
+            cantidad: d.cantidad,
+            uni_medida: d.uni_medida,
+            precio_unitario: d.precio_unitario,
+            precio_sin_iva: d.precio_sin_iva,
+            precio_con_iva: d.precio_con_iva,
+            tipo_detalle: d.tipo_detalle,
+            venta_gravada: d.venta_gravada,
+            venta_exenta: d.venta_exenta,
+            venta_nosujeto: d.venta_nosujeto,
+            venta_nograbada: d.venta_nograbada,
+            subtotal: d.subtotal,
+            descuento: d.descuento,
+            iva: d.iva,
+            total: d.total,
+            id_catalogo: d.id_catalogo,
+            id_descuento: d.id_descuento,
+          })),
+        },
+      },
+    });
+
+    // Crear cuenta por cobrar para la nueva factura
+    if (nuevaFechaVencimiento) {
+      await this.cxcService.crearCxcParaFacturaContrato(
+        {
+          id_factura_directa: nuevaFactura.id_factura_directa,
+          id_cliente: facturaPagada.id_cliente!,
+          id_contrato: facturaPagada.id_contrato!,
+          total: nuevaFactura.total,
+          fecha_vencimiento: nuevaFechaVencimiento,
+        },
+        facturaPagada.id_sucursal,
+        idUsuario,
+      );
+    }
+
+    this.logger.log(
+      `Factura #${nuevaFactura.id_factura_directa} (cuota ${nuevaCuota}) generada automáticamente para contrato #${idContrato}`,
+    );
   }
 }

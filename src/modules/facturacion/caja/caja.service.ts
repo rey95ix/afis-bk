@@ -11,6 +11,7 @@ export class CajaService {
       where: {
         id_usuario: idUsuario,
         id_cierre_usuario: null,
+        abonoCxc: { activo: true },
       },
       include: {
         cliente: { select: { id_cliente: true, titular: true } },
@@ -43,6 +44,7 @@ export class CajaService {
         where: {
           id_usuario: idUsuario,
           id_cierre_usuario: null,
+          abonoCxc: { activo: true },
         },
       });
 
@@ -211,7 +213,7 @@ export class CajaService {
 
   async obtenerMovimientosPendientesDiario() {
     const movimientos = await this.prisma.caja_movimiento.findMany({
-      where: { id_cierre_diario: null },
+      where: { id_cierre_diario: null, abonoCxc: { activo: true } },
       include: {
         usuario: { select: { id_usuario: true, nombres: true, apellidos: true } },
         cliente: { select: { id_cliente: true, titular: true } },
@@ -241,7 +243,7 @@ export class CajaService {
   async generarCierreDiario(idUsuarioCreador: number) {
     return this.prisma.$transaction(async (tx) => {
       const movimientos = await tx.caja_movimiento.findMany({
-        where: { id_cierre_diario: null },
+        where: { id_cierre_diario: null, abonoCxc: { activo: true } },
       });
 
       if (movimientos.length === 0) {
