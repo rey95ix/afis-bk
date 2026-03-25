@@ -68,8 +68,15 @@ export class ComprasService {
       }
     }
 
+    // Obtener código del tipo de factura para determinar tratamiento de IVA
+    const tipoFactura = await this.prisma.facturasTipos.findUnique({
+      where: { id_tipo_factura: compraData.id_tipo_factura },
+      select: { codigo: true },
+    });
+    const codigoTipoFactura = tipoFactura?.codigo ?? undefined;
+
     // Calcular totales automáticamente (incluye TODAS las líneas)
-    const calculated = this.calculateTotals(detalles, compraData);
+    const calculated = this.calculateTotals(detalles, compraData, codigoTipoFactura);
 
     // Validar series antes de crear (solo líneas de inventario)
     for (const detalle of detalles) {
@@ -433,9 +440,17 @@ export class ComprasService {
       }
     }
 
+    // Obtener código del tipo de factura para determinar tratamiento de IVA
+    const idTipoFactura: number | undefined = compraData.id_tipo_factura || ((await this.prisma.compras.findUnique({ where: { id_compras: id }, select: { id_tipo_factura: true } }))?.id_tipo_factura ?? undefined);
+    const tipoFacturaUpd = idTipoFactura ? await this.prisma.facturasTipos.findUnique({
+      where: { id_tipo_factura: idTipoFactura },
+      select: { codigo: true },
+    }) : null;
+    const codigoTipoFactura = tipoFacturaUpd?.codigo ?? undefined;
+
     let calculated: any = null;
     if (detalles && detalles.length > 0) {
-      calculated = this.calculateTotals(detalles, compraData);
+      calculated = this.calculateTotals(detalles, compraData, codigoTipoFactura);
 
       // Validar series antes de actualizar (solo líneas de inventario)
       for (const detalle of detalles) {
@@ -902,12 +917,12 @@ export class ComprasService {
   /**
    * Calcula los totales de la compra automáticamente
    */
-  private calculateTotals(detalles: any[], compraData: any) {
+  private calculateTotals(detalles: any[], compraData: any, codigoTipoFactura?: string) {
     let subtotal = 0;
     let descuentoTotal = 0;
 
-    // Obtener tasa de IVA (puede venir de configuración general)
-    const tasaIVA = 0.13; // 13% por defecto
+    // Solo Crédito Fiscal (código '03') calcula IVA por separado; para el resto, IVA va incluido
+    const tasaIVA = codigoTipoFactura === '03' ? 0.13 : 0;
 
     // Calcular subtotal y descuentos
     detalles.forEach((detalle) => {
