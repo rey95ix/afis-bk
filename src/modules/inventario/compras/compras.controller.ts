@@ -13,6 +13,7 @@ import { ComprasService } from './compras.service';
 import { CreateCompraDto } from './dto/create-compra.dto';
 import { UpdateCompraDto } from './dto/update-compra.dto';
 import { FilterCompraDto } from './dto/filter-compra.dto';
+import { AnularCompraDto } from './dto/anular-compra.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -158,6 +159,31 @@ export class ComprasController {
     @GetUser() user: any,
   ) {
     return this.comprasService.recepcionar(id, user.id_usuario, body.series);
+  }
+
+  @RequirePermissions('inventario.compras:anular')
+  @Put(':id/anular')
+  @ApiOperation({
+    summary: 'Anular una compra',
+    description:
+      'Anula una compra revirtiendo todos sus efectos: inventario, series, movimientos bancarios y cuentas por pagar. Requiere motivo de anulación.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'La compra ha sido anulada exitosamente.',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'La compra no puede ser anulada (series en uso, pagos pendientes, stock insuficiente, etc.).',
+  })
+  @ApiResponse({ status: 404, description: 'Compra no encontrada.' })
+  anular(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() anularCompraDto: AnularCompraDto,
+    @GetUser() user: any,
+  ) {
+    return this.comprasService.anular(id, anularCompraDto, user.id_usuario);
   }
 
   @RequirePermissions('inventario.compras:ver')

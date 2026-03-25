@@ -259,8 +259,9 @@ export class MovimientosBancariosService {
     id_movimiento: number,
     dto: AnularMovimientoDto,
     id_usuario: number,
+    externalTx?: Prisma.TransactionClient,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    const execute = async (tx: Prisma.TransactionClient) => {
       // 1. Obtener movimiento original
       const movimiento = await tx.movimiento_bancario.findUnique({
         where: { id_movimiento },
@@ -365,7 +366,14 @@ export class MovimientosBancariosService {
           usuario: { select: { id_usuario: true, nombres: true, apellidos: true } },
         },
       });
-    });
+    };
+
+    // When an external transaction client is provided, reuse it so bank reversal
+    // and the caller's operations are committed or rolled back atomically.
+    if (externalTx) {
+      return execute(externalTx);
+    }
+    return this.prisma.$transaction(execute);
   }
 
   async findAll(

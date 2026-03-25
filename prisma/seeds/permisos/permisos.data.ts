@@ -518,6 +518,14 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     'Recepcionar productos e ingresar al inventario',
     { requiere_auditoria: true },
   ),
+  crearPermisoCustom(
+    'inventario',
+    'compras',
+    'anular',
+    'Anular Compras',
+    'Anular compras revirtiendo inventario y pagos',
+    { es_critico: true, requiere_auditoria: true },
+  ),
 
   // Importaciones
   crearPermiso('inventario', 'importaciones', 'VER', 'Ver Importaciones', 'Ver listado y detalles de importaciones'),

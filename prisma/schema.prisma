@@ -156,6 +156,8 @@ model usuarios {
   // Cotizaciones de compra
   cotizaciones_compra_registra   cotizaciones_compra[]           @relation("usuario_registra_cotizacion_compra")
   cotizaciones_compra_selecciona cotizaciones_compra[]           @relation("usuario_selecciona_cotizacion_compra")
+  // Compras anuladas
+  compras_anuladas               compras[]                       @relation("usuario_anula_compra")
   // OLT
   olt_comandos                   olt_comando[]
   olt_cambios_equipo             olt_cambio_equipo[]
@@ -961,6 +963,13 @@ model compras {
   id_movimiento_bancario  Int?
   monto_pagado            Float?    @default(0)
   fecha_pago              DateTime?
+
+  // Anulación
+  anulada              Boolean   @default(false)
+  motivo_anulacion     String?   @db.Text
+  fecha_anulacion      DateTime?
+  id_usuario_anula     Int?
+  usuario_anula        usuarios? @relation("usuario_anula_compra", fields: [id_usuario_anula], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_compra_usuario_anula")
 
   @@index([id_tipo_factura], name: "fk_compras_tipo_factura_id")
   @@index([id_sucursal], name: "fk_compras_sucursal_id")

@@ -10,6 +10,7 @@ import { MovimientosBancariosService } from '../../bancos/movimientos-bancarios/
 import { CreateCompraDto } from './dto/create-compra.dto';
 import { UpdateCompraDto } from './dto/update-compra.dto';
 import { FilterCompraDto } from './dto/filter-compra.dto';
+import { AnularCompraDto } from './dto/anular-compra.dto';
 import { compras, Prisma } from '@prisma/client';
 import { convertToUTC } from 'src/common/helpers';
 
@@ -626,6 +627,213 @@ export class ComprasService {
       });
 
       return compra;
+    });
+  }
+
+  /**
+   * Anula una compra revirtiendo todos sus efectos (inventario, series, CxP, banco)
+   */
+  async anular(id: number, dto: AnularCompraDto, id_usuario: number) {
+    const compra = await this.findOne(id);
+
+    // Validar estado
+    if (compra.estado !== 'ACTIVO') {
+      throw new BadRequestException(
+        'Solo se pueden anular compras en estado ACTIVO',
+      );
+    }
+
+    if (compra.anulada) {
+      throw new BadRequestException('Esta compra ya ha sido anulada');
+    }
+
+    // Si fue recepcionada, validar que se pueda revertir el inventario
+    if (compra.recepcionada) {
+      const inventoryDetalles = compra.ComprasDetalle.filter(
+        (d) => d.afecta_inventario !== false,
+      );
+
+      for (const detalle of inventoryDetalles) {
+        // Validar series: todas deben estar DISPONIBLE
+        if (detalle.tiene_serie) {
+          const seriesNoDisponibles = await this.prisma.inventario_series.findMany({
+            where: {
+              id_compra_detalle: detalle.id_compras_detalle,
+              estado: { not: 'DISPONIBLE' },
+            },
+            select: { numero_serie: true, estado: true },
+          });
+
+          if (seriesNoDisponibles.length > 0) {
+            const lista = seriesNoDisponibles
+              .map((s) => `${s.numero_serie} (${s.estado})`)
+              .join(', ');
+            throw new BadRequestException(
+              `No se puede anular: las siguientes series no están disponibles: ${lista}. Debe liberarlas primero.`,
+            );
+          }
+        }
+
+        // Validar stock suficiente
+        if (detalle.id_catalogo) {
+          const estante = await this.prisma.estantes.findFirst({
+            where: { id_bodega: compra.id_bodega ?? 0, estado: 'ACTIVO' },
+          });
+
+          if (estante) {
+            const inventario = await this.prisma.inventario.findFirst({
+              where: {
+                id_catalogo: detalle.id_catalogo,
+                id_bodega: compra.id_bodega ?? 0,
+                id_estante: estante.id_estante,
+              },
+            });
+
+            if (
+              !inventario ||
+              inventario.cantidad_disponible < detalle.cantidad_inventario
+            ) {
+              throw new BadRequestException(
+                `No hay suficiente stock para revertir el producto "${detalle.nombre}". ` +
+                `Stock actual: ${inventario?.cantidad_disponible ?? 0}, necesita revertir: ${detalle.cantidad_inventario}`,
+              );
+            }
+          }
+        }
+      }
+    }
+
+    return await this.prisma.$transaction(async (tx) => {
+      // Revertir movimiento bancario dentro de la transacción principal para
+      // garantizar atomicidad: si cualquier operación posterior falla, la
+      // reversión bancaria también se deshace.
+      if (compra.pago_registrado && compra.id_movimiento_bancario) {
+        await this.movimientosBancariosService.anularMovimiento(
+          compra.id_movimiento_bancario,
+          { motivo_anulacion: `Anulación de compra: ${dto.motivo_anulacion}` },
+          id_usuario,
+          tx,
+        );
+      }
+
+      // Anular CxP asociada (si existe y no tiene pagos)
+      await this.cxpService.anularCxpPorCompra(id, tx);
+
+      // Revertir inventario si fue recepcionada
+      if (compra.recepcionada) {
+        const inventoryDetalles = compra.ComprasDetalle.filter(
+          (d) => d.afecta_inventario !== false,
+        );
+
+        const estante = await tx.estantes.findFirst({
+          where: { id_bodega: compra.id_bodega ?? 0, estado: 'ACTIVO' },
+        });
+
+        for (const detalle of inventoryDetalles) {
+          if (!detalle.id_catalogo || !estante) continue;
+
+          const inventario = await tx.inventario.findFirst({
+            where: {
+              id_catalogo: detalle.id_catalogo,
+              id_bodega: compra.id_bodega ?? 0,
+              id_estante: estante.id_estante,
+            },
+          });
+
+          if (!inventario) continue;
+
+          // Recalcular costo promedio
+          const cantidadActual = inventario.cantidad_disponible;
+          const costoPromedioActual = Number(inventario.costo_promedio || 0);
+          const cantidadRevertir = detalle.cantidad_inventario;
+          const costoRevertir = Number(detalle.costo_unitario);
+          const cantidadRestante = cantidadActual - cantidadRevertir;
+
+          const nuevoCostoPromedio =
+            cantidadRestante > 0
+              ? (costoPromedioActual * cantidadActual -
+                costoRevertir * cantidadRevertir) /
+              cantidadRestante
+              : 0;
+
+          // Decrementar stock
+          await tx.inventario.update({
+            where: { id_inventario: inventario.id_inventario },
+            data: {
+              cantidad_disponible: { decrement: cantidadRevertir },
+              costo_promedio: Math.max(nuevoCostoPromedio, 0),
+            },
+          });
+
+          // Crear movimiento de devolución
+          await tx.movimientos_inventario.create({
+            data: {
+              tipo: 'DEVOLUCION',
+              id_catalogo: detalle.id_catalogo,
+              id_bodega_origen: compra.id_bodega ?? 0,
+              cantidad: cantidadRevertir,
+              costo_unitario: costoRevertir,
+              id_compra: compra.id_compras,
+              id_usuario,
+              observaciones: `Anulación de compra - Factura: ${compra.numero_factura}. Motivo: ${dto.motivo_anulacion}`,
+            },
+          });
+
+          // Revertir series
+          if (detalle.tiene_serie) {
+            await tx.inventario_series.updateMany({
+              where: {
+                id_compra_detalle: detalle.id_compras_detalle,
+              },
+              data: {
+                id_inventario: null,
+                estado: 'BAJA',
+                motivo_baja: `Anulación de compra - Factura: ${compra.numero_factura}`,
+                fecha_baja: new Date(),
+              },
+            });
+          }
+        }
+      } else {
+        // Si no fue recepcionada, dar de baja las series creadas (si existen)
+        for (const detalle of compra.ComprasDetalle) {
+          if (detalle.tiene_serie) {
+            await tx.inventario_series.updateMany({
+              where: {
+                id_compra_detalle: detalle.id_compras_detalle,
+              },
+              data: {
+                estado: 'BAJA',
+                motivo_baja: `Anulación de compra - Factura: ${compra.numero_factura}`,
+                fecha_baja: new Date(),
+              },
+            });
+          }
+        }
+      }
+
+      // Marcar compra como anulada
+      const compraAnulada = await tx.compras.update({
+        where: { id_compras: id },
+        data: {
+          estado: 'INACTIVO',
+          anulada: true,
+          motivo_anulacion: dto.motivo_anulacion,
+          fecha_anulacion: new Date(),
+          id_usuario_anula: id_usuario,
+        },
+      });
+
+      // Registrar en log
+      await tx.log.create({
+        data: {
+          accion: 'ANULAR_COMPRA',
+          id_usuario,
+          descripcion: `Compra anulada: Factura ${compra.numero_factura}. Motivo: ${dto.motivo_anulacion}`,
+        },
+      });
+
+      return compraAnulada;
     });
   }
 
