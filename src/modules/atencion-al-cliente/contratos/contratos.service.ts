@@ -228,6 +228,13 @@ export class ContratosService {
   ): Promise<atcContrato> {
     const existingContrato = await this.findOne(id);
 
+    // Solo permitir edición en estado PENDIENTE_FIRMA
+    if (existingContrato.estado !== 'PENDIENTE_FIRMA') {
+      throw new BadRequestException(
+        `Solo se pueden editar contratos en estado PENDIENTE_FIRMA. Estado actual: ${existingContrato.estado}`,
+      );
+    }
+
     // Validar plan si se actualiza
     if (
       updateContratoDto.id_plan &&
@@ -562,6 +569,18 @@ export class ContratosService {
 
       // Cable (para marcar si lleva TV)
       llevaCable: '', // Se puede calcular basado en el tipo de plan
+
+      // Anexo 2
+      planPrecioSinIva: contrato.plan?.precio?.toFixed(2) || '0.00',
+      tipoPlan:
+        contrato.plan?.tipoPlan?.nombre ||
+        contrato.plan?.tipoPlan?.tipoServicio?.nombre ||
+        'Residencial',
+      clienteProfesion: contrato.cliente?.empresa_trabajo || 'N/A',
+      direccionInstalacion: `${contrato.direccionServicio?.direccion || ''}, ${contrato.direccionServicio?.colonias?.nombre || ''}, ${contrato.direccionServicio?.municipio?.nombre || ''}, ${contrato.direccionServicio?.departamento?.nombre || ''}`.replace(
+        /^, |, $/g,
+        '',
+      ),
     };
 
     const API_REPORT =

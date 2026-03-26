@@ -61,7 +61,7 @@ export class MailService {
 
     await this.sendMail(
       user.correo_electronico,
-      'Bienvenido a AFIS - Credenciales de Acceso',
+      'Bienvenido - Credenciales de Acceso',
       `Tu usuario ha sido creado. Usuario: ${user.correo_electronico}, Contraseña temporal: ${temporaryPassword}. Accede en: ${loginUrl}`,
       html,
     );
@@ -264,6 +264,104 @@ export class MailService {
     );
   }
 
+  /**
+   * Enviar comprobante de pago PuntoXpress al cliente
+   */
+  async sendComprobantePagoPuntoXpress(
+    email: string,
+    nombreCliente: string,
+    codigoContrato: string,
+    monto: number,
+    referencia: string,
+    colector: string,
+    fechaTransaccion: string,
+    idFactura: number,
+    conceptoPago: string,
+  ): Promise<void> {
+    const montoFormateado = monto.toFixed(2);
+    const templatePath = path.join(process.cwd(), 'templates', 'puntoxpress', 'comprobante-pago.html');
+    let html: string;
+
+    try {
+      html = fs.readFileSync(templatePath, 'utf-8');
+      html = html.replace(/{{nombreCliente}}/g, nombreCliente);
+      html = html.replace(/{{monto}}/g, montoFormateado);
+      html = html.replace(/{{referencia}}/g, referencia || 'N/A');
+      html = html.replace(/{{colector}}/g, colector || '');
+      html = html.replace(/{{fechaTransaccion}}/g, fechaTransaccion || new Date().toLocaleString('es-SV'));
+      html = html.replace(/{{codigoContrato}}/g, codigoContrato);
+      html = html.replace(/{{idFactura}}/g, String(idFactura));
+      html = html.replace(/{{conceptoPago}}/g, conceptoPago);
+    } catch (error) {
+      html = this.getComprobantePagoPuntoXpressHtmlFallback(
+        nombreCliente, codigoContrato, montoFormateado, referencia,
+        colector, fechaTransaccion, idFactura, conceptoPago,
+      );
+    }
+
+    await this.sendMail(
+      email,
+      `Comprobante de Pago - Factura ${idFactura}`,
+      `Comprobante de pago PuntoXpress: $${montoFormateado} - Referencia: ${referencia} - Contrato: ${codigoContrato} - Factura: ${idFactura}`,
+      html,
+    );
+  }
+
+  private getComprobantePagoPuntoXpressHtmlFallback(
+    nombreCliente: string,
+    codigoContrato: string,
+    montoFormateado: string,
+    referencia: string,
+    colector: string,
+    fechaTransaccion: string,
+    idFactura: number,
+    conceptoPago: string,
+  ): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #16a34a; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+          .amount { text-align: center; font-size: 28px; font-weight: bold; color: #16a34a; margin: 20px 0; }
+          .info-box { background: #ffffff; border-left: 4px solid #16a34a; padding: 15px; margin: 20px 0; border-radius: 4px; }
+          .info-box p { margin: 5px 0; }
+          .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Comprobante de Pago</h1>
+          </div>
+          <div class="content">
+            <h2>Estimado/a ${nombreCliente},</h2>
+            <p>Su pago a traves de PuntoXpress ha sido procesado exitosamente.</p>
+            <div class="amount">$${montoFormateado}</div>
+            <div class="info-box">
+              <p><strong>Referencia:</strong> ${referencia || 'N/A'}</p>
+              <p><strong>Colector:</strong> ${colector || ''}</p>
+              <p><strong>Fecha:</strong> ${fechaTransaccion || new Date().toLocaleString('es-SV')}</p>
+              <p><strong>Contrato:</strong> ${codigoContrato}</p>
+              <p><strong>Factura:</strong> ${idFactura}</p>
+              <p><strong>Concepto:</strong> ${conceptoPago}</p>
+            </div>
+            <p style="text-align: center; color: #888; font-size: 14px;">Conserve este comprobante para sus registros.</p>
+          </div>
+          <div class="footer">
+            <p>Este es un correo automatico, por favor no responda a este mensaje.</p>
+            <p>&copy; ${new Date().getFullYear()} NewTel. Todos los derechos reservados.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
   private getComprobantePagoHtmlFallback(
     nombreCliente: string,
     codigoContrato: string,
@@ -311,7 +409,7 @@ export class MailService {
           </div>
           <div class="footer">
             <p>Este es un correo automático, por favor no responda a este mensaje.</p>
-            <p>&copy; ${new Date().getFullYear()} AFIS. Todos los derechos reservados.</p>
+            <p>&copy; ${new Date().getFullYear()} NewTel. Todos los derechos reservados.</p>
           </div>
         </div>
       </body>
@@ -359,7 +457,7 @@ export class MailService {
           </div>
           <div class="footer">
             <p>Este es un correo automático, por favor no responda a este mensaje.</p>
-            <p>&copy; ${new Date().getFullYear()} AFIS. Todos los derechos reservados.</p>
+            <p>&copy; ${new Date().getFullYear()} NewTel. Todos los derechos reservados.</p>
           </div>
         </div>
       </body>
@@ -508,7 +606,7 @@ export class MailService {
           </div>
           <div class="footer">
             <p>Este es un correo automático, por favor no responda a este mensaje.</p>
-            <p>&copy; ${new Date().getFullYear()} AFIS. Todos los derechos reservados.</p>
+            <p>&copy; ${new Date().getFullYear()} NewTel. Todos los derechos reservados.</p>
           </div>
         </div>
       </body>

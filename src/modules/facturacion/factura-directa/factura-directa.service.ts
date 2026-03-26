@@ -1380,8 +1380,11 @@ export class FacturaDirectaService {
       ivaRetenido: Number(factura.iva_retenido) || 0,
       rentaRetenido: Number(factura.renta_retenido) || 0,
       ivaPercibido: Number(factura.iva_percibido) || 0,
+      // Descuentos a nivel de encabezado (desde los valores guardados en BD)
+      descuGravada: Number(factura.descuGravada) || 0,
+      descuExenta: Number(factura.descuExenta) || 0,
+      descuNoSuj: Number(factura.descuNoSuj) || 0,
     };
-    console.log("buildParams",buildParams)
     // Seleccionar el builder apropiado
     const builder = tipoDte === '14'
       ? this.fseBuilder
@@ -3061,7 +3064,7 @@ export class FacturaDirectaService {
       where: { id_factura_directa: idFactura },
       include: {
         contrato: {
-          include: { cliente: { include: { datosfacturacion: { where: { estado: 'ACTIVO' }, take: 1 } } } },
+          include: { cliente: { include: { datosfacturacion: { where: { estado: 'ACTIVO' }, take: 1, include: { dTETipoDocumentoIdentificacion: true, dTEActividadEconomica: true, municipio: { include: { Departamento: true } }, departamento: true } } } } },
         },
         detalles: { orderBy: { num_item: 'asc' } },
         sucursal: {
@@ -3075,6 +3078,14 @@ export class FacturaDirectaService {
             tipoDocumento: true,
             actividadEconomica: true,
             municipio: { include: { Departamento: true } },
+          },
+        },
+        clienteFacturacion: {
+          include: {
+            dTETipoDocumentoIdentificacion: true,
+            dTEActividadEconomica: true,
+            municipio: { include: { Departamento: true } },
+            departamento: true,
           },
         },
       },
@@ -3105,7 +3116,7 @@ export class FacturaDirectaService {
     const sucursal = factura.sucursal;
 
     // 3. Determinar tipo de DTE (FC o CCF según datos de facturación)
-    const datosFacturacion = factura.contrato?.cliente?.datosfacturacion?.[0];
+    const datosFacturacion = factura.clienteFacturacion || factura.contrato?.cliente?.datosfacturacion?.[0];
     const tieneNitNrc = datosFacturacion?.nit && datosFacturacion?.nrc;
     const tipoDte: TipoDte = tieneNitNrc ? '03' : '01';
 
@@ -3150,19 +3161,19 @@ export class FacturaDirectaService {
     } else {
       // Para facturas de contrato, construir receptor desde datos de facturación
       receptor = {
-        tipoDocumento: tieneNitNrc ? '36' : null,
-        numDocumento: this.sanitizarIdentificador(factura.cliente_nit) || null,
-        nit: this.sanitizarIdentificador(factura.cliente_nit) || null,
-        nrc: this.sanitizarIdentificador(factura.cliente_nrc) || '',
-        nombre: factura.cliente_nombre || '',
-        codActividad: null,
-        descActividad: null,
-        nombreComercial: null,
-        telefono: factura.cliente_telefono || null,
-        correo: factura.cliente_correo || null,
-        departamento: null,
-        municipio: null,
-        complemento: factura.cliente_direccion || null,
+        tipoDocumento: datosFacturacion?.dTETipoDocumentoIdentificacion?.codigo || (tieneNitNrc ? '36' : null),
+        numDocumento: this.sanitizarIdentificador(datosFacturacion?.nit || factura.cliente_nit) || null,
+        nit: this.sanitizarIdentificador(datosFacturacion?.nit || factura.cliente_nit) || null,
+        nrc: this.sanitizarIdentificador(datosFacturacion?.nrc || factura.cliente_nrc) || '',
+        nombre: datosFacturacion?.nombre_empresa || factura.cliente_nombre || '',
+        codActividad: datosFacturacion?.dTEActividadEconomica?.codigo || null,
+        descActividad: datosFacturacion?.dTEActividadEconomica?.nombre || null,
+        nombreComercial: datosFacturacion?.nombre_empresa || null,
+        telefono: datosFacturacion?.telefono || factura.cliente_telefono || null,
+        correo: datosFacturacion?.correo_electronico || factura.cliente_correo || null,
+        departamento: datosFacturacion?.departamento?.codigo || null,
+        municipio: datosFacturacion?.municipio?.codigo || null,
+        complemento: datosFacturacion?.direccion_facturacion || factura.cliente_direccion || null,
       };
     }
 
@@ -3175,6 +3186,10 @@ export class FacturaDirectaService {
       receptor,
       items,
       condicionOperacion: 1, // Contado (ya está pagada)
+      // Descuentos a nivel de encabezado
+      descuGravada: Number(factura.descuGravada) || 0,
+      descuExenta: Number(factura.descuExenta) || 0,
+      descuNoSuj: Number(factura.descuNoSuj) || 0,
     };
 
     const builder = tipoDte === '03' ? this.ccfBuilder : this.fcBuilder;

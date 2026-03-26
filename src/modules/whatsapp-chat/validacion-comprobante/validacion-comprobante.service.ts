@@ -628,6 +628,17 @@ export class ValidacionComprobanteService {
   }
 
   /**
+   * Obtener lista de bancos activos para filtros
+   */
+  async getBancos() {
+    return this.prisma.cat_banco.findMany({
+      where: { activo: true },
+      select: { id_banco: true, nombre: true },
+      orderBy: { nombre: 'asc' },
+    });
+  }
+
+  /**
    * Listar validaciones con filtros y paginación
    */
   async findAll(query: QueryValidacionDto) {

@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { ConsultarCxcDto, CrearAbonoDto, AnularAbonoDto } from './dto';
-import { Prisma } from '@prisma/client';
+import { Prisma, estado_cxc, estado_pago_factura } from '@prisma/client';
 import { PaginatedResult } from 'src/common/dto';
 
 /** Métodos de pago compatibles con registro bancario */
@@ -296,8 +296,16 @@ export class CxcService {
     const montoAbono = new Prisma.Decimal(abono.monto.toString());
     const nuevoSaldoPendiente = new Prisma.Decimal(cxc.saldo_pendiente.toString()).plus(montoAbono);
     const nuevoTotalAbonado = new Prisma.Decimal(cxc.total_abonado.toString()).minus(montoAbono);
-    const nuevoEstado = nuevoTotalAbonado.eq(0) ? 'PENDIENTE' : 'PAGADA_PARCIAL';
-    const estadoPagoFactura = nuevoTotalAbonado.eq(0) ? 'PENDIENTE' : 'PARCIAL';
+    const vencida = cxc.facturaDirecta?.fecha_vencimiento && new Date(cxc.facturaDirecta.fecha_vencimiento) < new Date();
+    let nuevoEstado: estado_cxc;
+    let estadoPagoFactura: estado_pago_factura;
+    if (!nuevoTotalAbonado.eq(0)) {
+      nuevoEstado = estado_cxc.PAGADA_PARCIAL;
+      estadoPagoFactura = estado_pago_factura.PARCIAL;
+    } else {
+      nuevoEstado = vencida ? estado_cxc.VENCIDA : estado_cxc.PENDIENTE;
+      estadoPagoFactura = vencida ? estado_pago_factura.VENCIDA : estado_pago_factura.PENDIENTE;
+    }
 
     await this.prisma.$transaction(async (tx) => {
       // 1. Marcar abono como inactivo
@@ -306,7 +314,12 @@ export class CxcService {
         data: { activo: false },
       });
 
-      // 2. Recalcular CxC
+      // 2. Eliminar caja_movimiento asociado
+      await tx.caja_movimiento.deleteMany({
+        where: { id_abono_cxc: id_abono },
+      });
+
+      // 3. Recalcular CxC
       await tx.cuenta_por_cobrar.update({
         where: { id_cxc: cxc.id_cxc },
         data: {
@@ -316,13 +329,13 @@ export class CxcService {
         },
       });
 
-      // 3. Actualizar estado de pago de la factura
+      // 4. Actualizar estado de pago de la factura
       await tx.facturaDirecta.update({
         where: { id_factura_directa: cxc.id_factura_directa },
         data: { estado_pago: estadoPagoFactura },
       });
 
-      // 4. Revertir movimiento bancario si existe
+      // 5. Revertir movimiento bancario si existe
       if (abono.id_movimiento_bancario) {
         const movOrig = await tx.movimiento_bancario.findUnique({
           where: { id_movimiento: abono.id_movimiento_bancario },

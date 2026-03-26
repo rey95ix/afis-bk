@@ -5,10 +5,11 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { facturaDirecta, Prisma } from '@prisma/client';
+import { Prisma, estado_cxc, estado_pago_factura } from '@prisma/client';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { FacturaPuntoXpress } from './interfaces';
 import { AplicarPagoDto, AnularPagoPuntoXpressDto } from './dto';
+import { MailService } from 'src/modules/mail/mail.service';
 
 // Estados de CXC que se consideran "pendientes de pago"
 const ESTADOS_CXC_PENDIENTES = ['PENDIENTE', 'PAGADA_PARCIAL', 'VENCIDA'] as const;
@@ -22,6 +23,7 @@ export class PuntoXpressService {
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
+    private mailService: MailService,
   ) {
     this.portalSystemUserId = Number(
       this.configService.get<string>('PORTAL_SYSTEM_USER_ID', '1'),
@@ -105,8 +107,8 @@ export class PuntoXpressService {
       where: {
         estado: 'ACTIVO',
         cliente: {
-          titular: { 
-            equals: nombre, mode: 'insensitive' 
+          titular: {
+            equals: nombre, mode: 'insensitive'
           },
         },
         cuenta_por_cobrar: {
@@ -134,9 +136,10 @@ export class PuntoXpressService {
       include: {
         facturaDirecta: {
           include: {
-            cliente: { select: { id_cliente: true, titular: true, estado: true } },
+            cliente: { select: { id_cliente: true, titular: true, estado: true, correo_electronico: true } },
           },
         },
+        contrato: { select: { codigo: true } },
       },
     });
 
@@ -261,6 +264,26 @@ export class PuntoXpressService {
       `Pago aplicado: Abono #${resultado.id_abono}, CXC #${cxc.id_cxc}, $${montoPago}`,
     );
 
+    // Enviar comprobante de pago por correo (fire-and-forget)
+    const clienteEmail = cxc.facturaDirecta.cliente?.correo_electronico;
+    if (clienteEmail) {
+      this.mailService
+        .sendComprobantePagoPuntoXpress(
+          clienteEmail,
+          cxc.facturaDirecta.cliente?.titular || '',
+          cxc.contrato?.codigo || '',
+          Number(montoPago),
+          dto.referencia || `ABN-${resultado.id_abono}`,
+          dto.colector,
+          new Date().toLocaleString('es-SV'),
+          dto.id_factura_directa,
+          'Pago de servicio',
+        )
+        .catch((err) =>
+          this.logger.warn(`Error enviando comprobante de pago: ${err.message}`),
+        );
+    }
+
     return {
       estado: 'OK',
       mensaje: 'Pago aplicado con éxito',
@@ -310,8 +333,17 @@ export class PuntoXpressService {
 
       const nuevoSaldoPendiente = new Prisma.Decimal(cxc.saldo_pendiente.toString()).plus(montoAbono);
       const nuevoTotalAbonado = new Prisma.Decimal(cxc.total_abonado.toString()).minus(montoAbono);
-      const nuevoEstado = nuevoTotalAbonado.eq(0) ? 'PENDIENTE' : 'PAGADA_PARCIAL';
-      const estadoPagoFactura = nuevoTotalAbonado.eq(0) ? 'PENDIENTE' : 'PARCIAL';
+      const factura = abono.cuentaPorCobrar.facturaDirecta;
+      const vencida = factura?.fecha_vencimiento && new Date(factura.fecha_vencimiento) < new Date();
+      let nuevoEstado: estado_cxc;
+      let estadoPagoFactura: estado_pago_factura;
+      if (!nuevoTotalAbonado.eq(0)) {
+        nuevoEstado = estado_cxc.PAGADA_PARCIAL;
+        estadoPagoFactura = estado_pago_factura.PARCIAL;
+      } else {
+        nuevoEstado = vencida ? estado_cxc.VENCIDA : estado_cxc.PENDIENTE;
+        estadoPagoFactura = vencida ? estado_pago_factura.VENCIDA : estado_pago_factura.PENDIENTE;
+      }
 
       // 1. Marcar abono como inactivo
       await tx.abono_cxc.update({
@@ -319,7 +351,12 @@ export class PuntoXpressService {
         data: { activo: false },
       });
 
-      // 2. Recalcular CxC
+      // 2. Eliminar caja_movimiento asociado
+      await tx.caja_movimiento.deleteMany({
+        where: { id_abono_cxc: idAbono },
+      });
+
+      // 3. Recalcular CxC
       await tx.cuenta_por_cobrar.update({
         where: { id_cxc: idCxc },
         data: {
@@ -329,7 +366,7 @@ export class PuntoXpressService {
         },
       });
 
-      // 3. Actualizar estado de pago de la factura
+      // 4. Actualizar estado de pago de la factura
       await tx.facturaDirecta.update({
         where: { id_factura_directa: idFactura },
         data: { estado_pago: estadoPagoFactura },

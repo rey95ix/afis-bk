@@ -23,6 +23,7 @@ import {
   AplicarDescuentoFacturaDto,
 } from '../dto/contrato-pagos.dto';
 import { AbonosListadoDto } from '../dto/abonos-listado.dto';
+import { FixDuplicatedInvoicesDto } from '../dto/fix-duplicated-invoices.dto';
 
 @ApiTags('Facturación - Contrato Pagos')
 @ApiBearerAuth(HEADER_API_BEARER_AUTH)
@@ -36,6 +37,26 @@ export class ContratoPagosController {
   async listarAbonos(@Query() dto: AbonosListadoDto) {
     const result = await this.contratoPagosService.listarAbonos(dto);
     return { data: result };
+  }
+
+  @Get('facturas-duplicadas/detectar')
+  @ApiOperation({ summary: 'Detectar contratos con primera factura duplicada' })
+  async detectarFacturasDuplicadas() {
+    const data = await this.contratoPagosService.detectarFacturasDuplicadas();
+    return { data };
+  }
+
+  @Post('facturas-duplicadas/corregir')
+  @ApiOperation({ summary: 'Corregir facturas duplicadas retrocediendo la original un mes' })
+  async corregirFacturasDuplicadas(
+    @Body() dto: FixDuplicatedInvoicesDto,
+    @Request() req: any,
+  ) {
+    const resultado = await this.contratoPagosService.corregirFacturasDuplicadas(
+      dto.idsContratos,
+      req.user.id_usuario,
+    );
+    return { data: resultado };
   }
 
   @Get(':idContrato/facturas')

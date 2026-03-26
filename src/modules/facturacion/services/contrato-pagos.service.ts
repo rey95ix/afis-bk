@@ -14,6 +14,7 @@ import { Prisma } from '@prisma/client';
 import { RegistrarPagoContratoDto, AplicarDescuentoFacturaDto } from '../dto/contrato-pagos.dto';
 import { AbonosListadoDto } from '../dto/abonos-listado.dto';
 import { redondearMonto } from '../dte/builders/numero-letras.util';
+import { convertToUTC } from 'src/common/helpers/dates.helper';
 import { v4 as uuidv4 } from 'uuid';
 
 // ============================================
@@ -734,12 +735,8 @@ export class ContratoPagosService {
 
     if (fechaDesde || fechaHasta) {
       whereClause.fecha_pago = {};
-      if (fechaDesde) whereClause.fecha_pago.gte = new Date(fechaDesde);
-      if (fechaHasta) {
-        const hasta = new Date(fechaHasta);
-        hasta.setHours(23, 59, 59, 999);
-        whereClause.fecha_pago.lte = hasta;
-      }
+      if (fechaDesde) whereClause.fecha_pago.gte = convertToUTC(fechaDesde);
+      if (fechaHasta) whereClause.fecha_pago.lte = convertToUTC(fechaHasta, 'fin');
     }
 
     if (search) {
@@ -753,7 +750,7 @@ export class ContratoPagosService {
       };
     }
 
-    const [abonos, total] = await Promise.all([
+    const [abonos, total, totalesPorMetodo] = await Promise.all([
       this.prisma.abono_cxc.findMany({
         where: whereClause,
         include: {
@@ -786,6 +783,12 @@ export class ContratoPagosService {
         take: limit,
       }),
       this.prisma.abono_cxc.count({ where: whereClause }),
+      this.prisma.abono_cxc.groupBy({
+        by: ['metodo_pago'],
+        where: whereClause,
+        _sum: { monto: true },
+        _count: { id_abono: true },
+      }),
     ]);
 
     const data = abonos.map((a) => ({
@@ -810,6 +813,14 @@ export class ContratoPagosService {
       },
     }));
 
+    const resumenMetodos = totalesPorMetodo.map((g) => ({
+      metodoPago: g.metodo_pago,
+      total: Number(g._sum.monto) || 0,
+      cantidad: g._count.id_abono,
+    }));
+
+    const totalGeneral = resumenMetodos.reduce((sum, r) => sum + r.total, 0);
+
     return {
       data,
       meta: {
@@ -817,6 +828,10 @@ export class ContratoPagosService {
         page,
         limit,
         totalPages: Math.ceil(total / limit),
+      },
+      resumen: {
+        porMetodo: resumenMetodos,
+        totalGeneral,
       },
     };
   }
@@ -913,11 +928,76 @@ export class ContratoPagosService {
       throw new BadRequestException('No se puede aplicar descuento a una factura ya pagada');
     }
 
-    // Calcular subtotal original (sin descuentos previos)
-    const subTotalOriginal = factura.detalles.reduce(
-      (sum, d) => sum + Number(d.cantidad) * Number(d.precio_unitario),
-      0,
-    );
+    // Verificar y resolver id_bloque si no está asignado
+    if (!factura.id_bloque) {
+      // Determinar tipo de cliente desde datos de facturación
+      let tipoCliente: string | null = null;
+
+      if (factura.id_cliente_facturacion) {
+        const datosFacturacion = await this.prisma.clienteDatosFacturacion.findUnique({
+          where: { id_cliente_datos_facturacion: factura.id_cliente_facturacion },
+          select: { tipo: true },
+        });
+        tipoCliente = datosFacturacion?.tipo || null;
+      }
+
+      if (!tipoCliente && factura.id_cliente) {
+        const datosFacturacion = await this.prisma.clienteDatosFacturacion.findFirst({
+          where: { id_cliente: factura.id_cliente, estado: 'ACTIVO' },
+          select: { tipo: true },
+        });
+        tipoCliente = datosFacturacion?.tipo || null;
+      }
+
+      // PERSONA → codigo '01' (Consumidor Final), EMPRESA → codigo '03' (CCF)
+      const codigoTipo = tipoCliente === 'EMPRESA' ? '03' : '01';
+
+      const bloque = await this.prisma.facturasBloques.findFirst({
+        where: {
+          estado: 'ACTIVO',
+          Tipo: { codigo: codigoTipo },
+        },
+        select: { id_bloque: true, id_tipo_factura: true },
+      });
+
+      if (!bloque) {
+        throw new BadRequestException(
+          `No se encontró un bloque de facturas activo para tipo ${codigoTipo === '01' ? 'Consumidor Final' : 'CCF'}`,
+        );
+      }
+
+      await this.prisma.facturaDirecta.update({
+        where: { id_factura_directa: idFactura },
+        data: {
+          id_bloque: bloque.id_bloque,
+          id_tipo_factura: bloque.id_tipo_factura,
+        },
+      });
+
+      // Actualizar datos locales para el resto del cálculo
+      factura.id_bloque = bloque.id_bloque;
+      factura.id_tipo_factura = bloque.id_tipo_factura;
+      (factura as any).tipoFactura = { codigo: codigoTipo };
+    }
+
+    // Calcular subtotales BRUTOS por tipo de detalle (sin descuentos)
+    const tipoDte = (factura as any).tipoFactura?.codigo || '01';
+    const IVA_RATE = 0.13;
+
+    let totalGravadaBruto = 0;
+    let totalExentaBruto = 0;
+    let totalNoSujBruto = 0;
+
+    for (const d of factura.detalles) {
+      const itemSubtotal = Number(d.cantidad) * Number(d.precio_unitario);
+      switch (d.tipo_detalle) {
+        case 'GRAVADO': totalGravadaBruto += itemSubtotal; break;
+        case 'EXENTA': totalExentaBruto += itemSubtotal; break;
+        case 'NOSUJETO': totalNoSujBruto += itemSubtotal; break;
+      }
+    }
+
+    const subTotalOriginal = totalGravadaBruto + totalExentaBruto + totalNoSujBruto;
 
     // Calcular descuento total
     let descuentoTotal: number;
@@ -931,80 +1011,86 @@ export class ContratoPagosService {
       throw new BadRequestException('El descuento no puede ser igual o mayor al subtotal de la factura');
     }
 
-    // Distribuir proporcionalmente entre ítems
-    const detallesConDescuento = this.distribuirDescuento(factura.detalles, descuentoTotal);
+    // Distribuir descuento proporcionalmente por tipo (solo a nivel de encabezado, NO por ítem)
+    // Esto sigue la estructura DTE donde descuGravada/descuExenta/descuNoSuj van en el resumen
+    let descuGravada = 0;
+    let descuExenta = 0;
+    let descuNoSuj = 0;
 
-    // Recalcular totales
-    const tipoDte = (factura as any).tipoFactura?.codigo || '01';
-    const IVA_RATE = 0.13;
-    let totalGravada = 0;
-    let totalExenta = 0;
-    let totalNoSuj = 0;
-    let totalIva = 0;
+    if (subTotalOriginal > 0) {
+      descuGravada = redondearMonto(descuentoTotal * (totalGravadaBruto / subTotalOriginal));
+      descuExenta = redondearMonto(descuentoTotal * (totalExentaBruto / subTotalOriginal));
+      descuNoSuj = redondearMonto(descuentoTotal * (totalNoSujBruto / subTotalOriginal));
 
-    for (const det of detallesConDescuento) {
-      const montoNeto = det.subtotalSinDesc - det.descuento;
-
-      switch (det.tipo_detalle) {
-        case 'GRAVADO':
-          totalGravada += montoNeto;
-          if (tipoDte === '01' || tipoDte === '14') {
-            totalIva += montoNeto - montoNeto / (1 + IVA_RATE);
-          } else {
-            totalIva += montoNeto * IVA_RATE;
-          }
-          break;
-        case 'EXENTA':
-          totalExenta += montoNeto;
-          break;
-        case 'NOSUJETO':
-          totalNoSuj += montoNeto;
-          break;
+      // Asignar residuo de redondeo al bucket más grande que tenga valor
+      const residuo = redondearMonto(descuentoTotal - descuGravada - descuExenta - descuNoSuj);
+      if (residuo !== 0) {
+        if (totalGravadaBruto >= totalExentaBruto && totalGravadaBruto >= totalNoSujBruto) {
+          descuGravada = redondearMonto(descuGravada + residuo);
+        } else if (totalExentaBruto >= totalNoSujBruto) {
+          descuExenta = redondearMonto(descuExenta + residuo);
+        } else {
+          descuNoSuj = redondearMonto(descuNoSuj + residuo);
+        }
       }
     }
 
-    totalGravada = redondearMonto(totalGravada);
-    totalExenta = redondearMonto(totalExenta);
-    totalNoSuj = redondearMonto(totalNoSuj);
-    totalIva = redondearMonto(totalIva);
+    // Totales BRUTOS (antes de descuento) - coinciden con estructura DTE resumen
+    const totalGravada = redondearMonto(totalGravadaBruto);
+    const totalExenta = redondearMonto(totalExentaBruto);
+    const totalNoSuj = redondearMonto(totalNoSujBruto);
     const subtotalVentas = redondearMonto(totalGravada + totalExenta + totalNoSuj);
     const subtotal = redondearMonto(subtotalVentas - descuentoTotal);
+
+    // Cálculo de IVA según tipo de DTE
+    let totalIva: number;
+    const gravadaDescontada = redondearMonto(totalGravada - descuGravada);
+
+    if (tipoDte === '01' || tipoDte === '14') {
+      // FC/FSE: IVA incluido en precios, extraer del monto gravado descontado
+      totalIva = redondearMonto(gravadaDescontada - gravadaDescontada / (1 + IVA_RATE));
+    } else {
+      // CCF: IVA separado, calcular sobre gravada descontada
+      totalIva = redondearMonto(gravadaDescontada * IVA_RATE);
+    }
+
+    // Total según tipo de DTE
     const totalNuevo = (tipoDte === '01' || tipoDte === '14')
-      ? subtotal
-      : redondearMonto(subtotal + totalIva);
+      ? subtotal  // FC/FSE: IVA ya incluido en precios
+      : redondearMonto(subtotal + totalIva);  // CCF: agregar IVA
 
     const totalAnterior = Number(factura.total);
 
     // Actualizar en transacción
     await this.prisma.$transaction(async (tx) => {
-      // Actualizar cada detalle
-      for (const det of detallesConDescuento) {
-        const montoNeto = det.subtotalSinDesc - det.descuento;
+      // Resetear descuento a nivel de ítems (el descuento es solo a nivel de encabezado/resumen DTE)
+      for (const det of factura.detalles) {
+        const itemSubtotal = Number(det.cantidad) * Number(det.precio_unitario);
         let ivaItem = 0;
         let ventaGravada = 0;
 
         if (det.tipo_detalle === 'GRAVADO') {
-          ventaGravada = montoNeto;
+          ventaGravada = itemSubtotal;
           if (tipoDte === '01' || tipoDte === '14') {
-            ivaItem = redondearMonto(montoNeto - montoNeto / (1 + IVA_RATE), 4);
+            ivaItem = redondearMonto(itemSubtotal - itemSubtotal / (1 + IVA_RATE), 4);
           } else {
-            ivaItem = redondearMonto(montoNeto * IVA_RATE, 4);
+            ivaItem = redondearMonto(itemSubtotal * IVA_RATE, 4);
           }
         }
 
         await tx.facturaDirectaDetalle.update({
           where: { id_detalle: det.id_detalle },
           data: {
-            descuento: redondearMonto(det.descuento),
+            descuento: 0,  // Sin descuento por ítem - va en el encabezado
             venta_gravada: redondearMonto(ventaGravada),
             iva: redondearMonto(ivaItem),
-            subtotal: redondearMonto(det.subtotalSinDesc),
-            total: redondearMonto(montoNeto),
+            subtotal: redondearMonto(itemSubtotal),
+            total: redondearMonto(itemSubtotal),
           },
         });
       }
 
-      // Actualizar factura
+      // Actualizar factura con totales y descuentos a nivel de encabezado
       await tx.facturaDirecta.update({
         where: { id_factura_directa: idFactura },
         data: {
@@ -1013,6 +1099,9 @@ export class ContratoPagosService {
           descuento_motivo: dto.motivo || null,
           descuento_usuario: idUsuario,
           descuento_fecha: new Date(),
+          descuGravada,
+          descuExenta,
+          descuNoSuj,
           totalGravada,
           totalExenta,
           totalNoSuj,
@@ -1172,6 +1261,9 @@ export class ContratoPagosService {
           descuento_motivo: null,
           descuento_usuario: null,
           descuento_fecha: null,
+          descuGravada: 0,
+          descuExenta: 0,
+          descuNoSuj: 0,
           totalGravada,
           totalExenta,
           totalNoSuj,
@@ -1543,5 +1635,262 @@ export class ContratoPagosService {
     this.logger.log(
       `Factura #${nuevaFactura.id_factura_directa} (cuota ${nuevaCuota}) generada automáticamente para contrato #${idContrato}`,
     );
+  }
+
+  // ============================================
+  // DETECCIÓN Y CORRECCIÓN DE FACTURAS DUPLICADAS
+  // ============================================
+
+  /**
+   * Detecta contratos donde la primera factura fue duplicada.
+   * Retorna solo los IDs de contrato afectados.
+   */
+  async detectarFacturasDuplicadas(): Promise<{ idsContratos: number[] }> {
+    const duplicados: Array<{ id_contrato: number }> = await this.prisma.$queryRawUnsafe(`
+      SELECT DISTINCT fd.id_contrato
+      FROM "facturaDirecta" fd
+      WHERE fd.id_contrato IS NOT NULL
+        AND fd.fecha_vencimiento IS NOT NULL
+        AND fd.estado = 'ACTIVO'
+      GROUP BY fd.id_contrato, fd.fecha_vencimiento, fd.periodo_inicio, fd.periodo_fin
+      HAVING COUNT(*) > 1
+        AND MIN(fd.id_factura_directa) = (
+          SELECT MIN(f2.id_factura_directa)
+          FROM "facturaDirecta" f2
+          WHERE f2.id_contrato = fd.id_contrato
+            AND f2.fecha_vencimiento IS NOT NULL
+            AND f2.estado = 'ACTIVO'
+        )
+      ORDER BY fd.id_contrato
+    `);
+
+    return { idsContratos: duplicados.map((d) => d.id_contrato) };
+  }
+
+  /**
+   * Obtiene detalle completo de duplicados para uso interno de corrección.
+   */
+  private async obtenerDuplicadosDetallados() {
+    const duplicados: Array<{
+      id_contrato: number;
+      fecha_vencimiento: Date;
+      periodo_inicio: Date;
+      periodo_fin: Date;
+      total_facturas: number;
+      facturas_ids: number[];
+      cuotas: (number | null)[];
+    }> = await this.prisma.$queryRawUnsafe(`
+      SELECT
+        fd.id_contrato,
+        fd.fecha_vencimiento,
+        fd.periodo_inicio,
+        fd.periodo_fin,
+        COUNT(*)::int AS total_facturas,
+        ARRAY_AGG(fd.id_factura_directa ORDER BY fd.id_factura_directa) AS facturas_ids,
+        ARRAY_AGG(fd.numero_cuota ORDER BY fd.id_factura_directa) AS cuotas
+      FROM "facturaDirecta" fd
+      WHERE fd.id_contrato IS NOT NULL
+        AND fd.fecha_vencimiento IS NOT NULL
+        AND fd.estado = 'ACTIVO'
+      GROUP BY fd.id_contrato, fd.fecha_vencimiento, fd.periodo_inicio, fd.periodo_fin
+      HAVING COUNT(*) > 1
+        AND MIN(fd.id_factura_directa) = (
+          SELECT MIN(f2.id_factura_directa)
+          FROM "facturaDirecta" f2
+          WHERE f2.id_contrato = fd.id_contrato
+            AND f2.fecha_vencimiento IS NOT NULL
+            AND f2.estado = 'ACTIVO'
+        )
+      ORDER BY fd.id_contrato, fd.fecha_vencimiento
+    `);
+
+    const resultado: Array<{
+      idContrato: number;
+      fechaVencimiento: string;
+      periodoInicio: string;
+      periodoFin: string;
+      totalFacturas: number;
+      idsFacturas: number[];
+      cuotas: (number | null)[];
+      idFacturaCorregir: number;
+      fechasDestino: {
+        fechaVencimiento: string;
+        periodoInicio: string;
+        periodoFin: string;
+      };
+      conflicto: boolean;
+      detalleConflicto?: string;
+    }> = [];
+
+    for (const dup of duplicados) {
+      const idFacturaCorregir = dup.facturas_ids[0]; // menor ID
+
+      const targetFechaVencimiento = this.restarUnMes(new Date(dup.fecha_vencimiento));
+      const targetPeriodoInicio = this.restarUnMes(new Date(dup.periodo_inicio));
+      const targetPeriodoFin = this.restarUnMes(new Date(dup.periodo_fin));
+
+      // Verificar conflicto: ¿ya existe factura activa en la fecha destino?
+      const existente = await this.prisma.facturaDirecta.findFirst({
+        where: {
+          id_contrato: dup.id_contrato,
+          fecha_vencimiento: targetFechaVencimiento,
+          periodo_inicio: targetPeriodoInicio,
+          periodo_fin: targetPeriodoFin,
+          estado: 'ACTIVO',
+          id_factura_directa: { not: idFacturaCorregir },
+        },
+        select: { id_factura_directa: true },
+      });
+
+      resultado.push({
+        idContrato: dup.id_contrato,
+        fechaVencimiento: dup.fecha_vencimiento.toISOString(),
+        periodoInicio: dup.periodo_inicio.toISOString(),
+        periodoFin: dup.periodo_fin.toISOString(),
+        totalFacturas: dup.total_facturas,
+        idsFacturas: dup.facturas_ids,
+        cuotas: dup.cuotas,
+        idFacturaCorregir,
+        fechasDestino: {
+          fechaVencimiento: targetFechaVencimiento.toISOString(),
+          periodoInicio: targetPeriodoInicio.toISOString(),
+          periodoFin: targetPeriodoFin.toISOString(),
+        },
+        conflicto: !!existente,
+        detalleConflicto: existente
+          ? `Ya existe factura #${existente.id_factura_directa} en la fecha destino`
+          : undefined,
+      });
+    }
+
+    return resultado;
+  }
+
+  /**
+   * Corrige facturas duplicadas retrocediendo la original un mes.
+   */
+  async corregirFacturasDuplicadas(idsContratos?: number[], idUsuario?: number) {
+    let grupos = await this.obtenerDuplicadosDetallados();
+
+    if (idsContratos && idsContratos.length > 0) {
+      const set = new Set(idsContratos);
+      grupos = grupos.filter((g) => set.has(g.idContrato));
+    }
+
+    const corregidos: Array<{
+      idContrato: number;
+      idFactura: number;
+      fechasOriginales: { fechaVencimiento: string; periodoInicio: string; periodoFin: string };
+      fechasNuevas: { fechaVencimiento: string; periodoInicio: string; periodoFin: string };
+      cxcActualizada: boolean;
+    }> = [];
+
+    const conflictos: Array<{
+      idContrato: number;
+      idFactura: number;
+      razon: string;
+    }> = [];
+
+    for (const grupo of grupos) {
+      if (grupo.conflicto) {
+        conflictos.push({
+          idContrato: grupo.idContrato,
+          idFactura: grupo.idFacturaCorregir,
+          razon: grupo.detalleConflicto || 'Conflicto de fecha destino',
+        });
+        continue;
+      }
+
+      try {
+        const targetFechaVencimiento = new Date(grupo.fechasDestino.fechaVencimiento);
+        const targetPeriodoInicio = new Date(grupo.fechasDestino.periodoInicio);
+        const targetPeriodoFin = new Date(grupo.fechasDestino.periodoFin);
+
+        await this.prisma.$transaction(async (tx) => {
+          // Re-validar conflicto dentro de la transacción
+          const existente = await tx.facturaDirecta.findFirst({
+            where: {
+              id_contrato: grupo.idContrato,
+              fecha_vencimiento: targetFechaVencimiento,
+              periodo_inicio: targetPeriodoInicio,
+              periodo_fin: targetPeriodoFin,
+              estado: 'ACTIVO',
+              id_factura_directa: { not: grupo.idFacturaCorregir },
+            },
+            select: { id_factura_directa: true },
+          });
+
+          if (existente) {
+            throw new Error(
+              `Conflicto: ya existe factura #${existente.id_factura_directa} en la fecha destino`,
+            );
+          }
+
+          // Actualizar facturaDirecta
+          await tx.facturaDirecta.update({
+            where: { id_factura_directa: grupo.idFacturaCorregir },
+            data: {
+              fecha_vencimiento: targetFechaVencimiento,
+              periodo_inicio: targetPeriodoInicio,
+              periodo_fin: targetPeriodoFin,
+            },
+          });
+
+          // Actualizar cuenta_por_cobrar (si existe)
+          await tx.cuenta_por_cobrar.updateMany({
+            where: { id_factura_directa: grupo.idFacturaCorregir },
+            data: {
+              fecha_vencimiento: targetFechaVencimiento,
+              fecha_emision: targetPeriodoInicio,
+            },
+          });
+        });
+
+        const cxc = await this.prisma.cuenta_por_cobrar.findUnique({
+          where: { id_factura_directa: grupo.idFacturaCorregir },
+          select: { id_cxc: true },
+        });
+
+        corregidos.push({
+          idContrato: grupo.idContrato,
+          idFactura: grupo.idFacturaCorregir,
+          fechasOriginales: {
+            fechaVencimiento: grupo.fechaVencimiento,
+            periodoInicio: grupo.periodoInicio,
+            periodoFin: grupo.periodoFin,
+          },
+          fechasNuevas: {
+            fechaVencimiento: grupo.fechasDestino.fechaVencimiento,
+            periodoInicio: grupo.fechasDestino.periodoInicio,
+            periodoFin: grupo.fechasDestino.periodoFin,
+          },
+          cxcActualizada: !!cxc,
+        });
+
+        this.logger.log(
+          `Factura #${grupo.idFacturaCorregir} del contrato #${grupo.idContrato} corregida: fechas retrocedidas 1 mes`,
+        );
+      } catch (error) {
+        conflictos.push({
+          idContrato: grupo.idContrato,
+          idFactura: grupo.idFacturaCorregir,
+          razon: error.message || 'Error desconocido',
+        });
+      }
+    }
+
+    return {
+      totalDetectados: grupos.length,
+      totalCorregidos: corregidos.length,
+      totalConflictos: conflictos.length,
+      corregidos,
+      conflictos,
+    };
+  }
+
+  private restarUnMes(fecha: Date): Date {
+    const d = new Date(fecha);
+    d.setMonth(d.getMonth() - 1);
+    return d;
   }
 }

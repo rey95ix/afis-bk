@@ -125,6 +125,17 @@ export class ValidacionComprobanteController {
   }
 
   @RequirePermissions('atencion_cliente.whatsapp_validaciones:ver')
+  @Get('bancos')
+  @ApiOperation({
+    summary: 'Listar bancos',
+    description: 'Obtiene la lista de bancos activos para filtros.',
+  })
+  @ApiResponse({ status: 200, description: 'Lista de bancos obtenida exitosamente' })
+  getBancos() {
+    return this.service.getBancos();
+  }
+
+  @RequirePermissions('atencion_cliente.whatsapp_validaciones:ver')
   @Get('stats')
   @ApiOperation({
     summary: 'Obtener estadísticas',

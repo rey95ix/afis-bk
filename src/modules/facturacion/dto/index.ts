@@ -3,3 +3,4 @@ export * from './anular-cobro.dto';
 export * from './contratos-pendientes.dto';
 export * from './contrato-pagos.dto';
 export * from './abonos-listado.dto';
+export * from './fix-duplicated-invoices.dto';

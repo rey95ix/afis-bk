@@ -245,10 +245,20 @@ export class FcBuilderService implements IDteBuilder {
     const subTotalVentas = redondearMonto(
       totales.totalNoSuj + totales.totalExenta + totales.totalGravada,
     );
-    const subTotal = redondearMonto(subTotalVentas - totales.totalDescuento);
+    // Descuento: suma de ítems + descuentos a nivel de encabezado (descuGravada/descuExenta/descuNoSuj)
+    const headerDescuento = (params.descuGravada ?? 0) + (params.descuExenta ?? 0) + (params.descuNoSuj ?? 0);
+    const totalDescuentoCompleto = redondearMonto(totales.totalDescuento + headerDescuento);
+    const subTotal = redondearMonto(subTotalVentas - totalDescuentoCompleto);
 
-    // En FC: montoTotalOperacion = subTotal + IVA
-    const montoTotalOperacion = redondearMonto(subTotal );
+    // Recalcular IVA sobre gravada descontada si hay descuento de encabezado
+    let totalIvaFinal = totales.totalIva;
+    if (params.descuGravada && params.descuGravada > 0) {
+      const gravadaDescontada = totales.totalGravada - params.descuGravada;
+      totalIvaFinal = redondearMonto(gravadaDescontada - gravadaDescontada / (1 + this.IVA_RATE));
+    }
+
+    // En FC: montoTotalOperacion = subTotal (IVA ya incluido en precios)
+    const montoTotalOperacion = redondearMonto(subTotal);
     const totalPagar = montoTotalOperacion;
 
     // Construir pagos si existen
@@ -265,11 +275,11 @@ export class FcBuilderService implements IDteBuilder {
       totalExenta: totales.totalExenta,
       totalGravada: totales.totalGravada,
       subTotalVentas,
-      descuNoSuj: 0,
-      descuExenta: 0,
-      descuGravada: 0,
-      porcentajeDescuento: 0,
-      totalDescu: totales.totalDescuento,
+      descuNoSuj: params.descuNoSuj ?? 0,
+      descuExenta: params.descuExenta ?? 0,
+      descuGravada: params.descuGravada ?? 0,
+      porcentajeDescuento: params.porcentajeDescuento ?? 0,
+      totalDescu: totalDescuentoCompleto,
       tributos: null,
       subTotal,
       ivaRete1: 0,
@@ -278,7 +288,7 @@ export class FcBuilderService implements IDteBuilder {
       totalNoGravado: 0,
       totalPagar,
       totalLetras: numeroALetras(totalPagar),
-      totalIva: totales.totalIva,
+      totalIva: totalIvaFinal,
       saldoFavor: 0,
       condicionOperacion: (params.condicionOperacion || 1) as 1 | 2 | 3,
       pagos,

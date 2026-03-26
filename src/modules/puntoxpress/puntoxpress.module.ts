@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PrismaModule } from 'src/modules/prisma/prisma.module';
+import { MailModule } from 'src/modules/mail/mail.module';
 import { PuntoXpressController } from './puntoxpress.controller';
 import { PuntoXpressLegacyController } from './puntoxpress-legacy.controller';
 import { PuntoXpressService } from './puntoxpress.service';
@@ -13,6 +14,7 @@ import { JwtPuntoXpressStrategy } from './strategies/jwt-puntoxpress.strategy';
   imports: [
     PrismaModule,
     ConfigModule,
+    MailModule,
     PassportModule.register({ defaultStrategy: 'jwt-puntoxpress' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

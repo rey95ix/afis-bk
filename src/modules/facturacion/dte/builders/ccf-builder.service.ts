@@ -232,22 +232,31 @@ export class CcfBuilderService implements IDteBuilder {
     const subTotalVentas = redondearMonto(
       totales.totalNoSuj + totales.totalExenta + totales.totalGravada,
     );
-    const subTotal = redondearMonto(subTotalVentas - totales.totalDescuento);
+    // Descuento: suma de ítems + descuentos a nivel de encabezado (descuGravada/descuExenta/descuNoSuj)
+    const headerDescuento = (params.descuGravada ?? 0) + (params.descuExenta ?? 0) + (params.descuNoSuj ?? 0);
+    const subTotal = redondearMonto(subTotalVentas - totales.totalDescuento - headerDescuento);
+
+    // Recalcular IVA sobre gravada descontada si hay descuento de encabezado
+    let totalIvaFinal = totales.totalIva;
+    if (params.descuGravada && params.descuGravada > 0) {
+      const gravadaDescontada = totales.totalGravada - params.descuGravada;
+      totalIvaFinal = redondearMonto(gravadaDescontada * this.IVA_RATE);
+    }
 
     // Construir tributos del resumen (IVA)
     const tributos: Tributo[] | null =
-      totales.totalIva > 0
+      totalIvaFinal > 0
         ? [
             {
               codigo: this.IVA_CODE,
               descripcion: 'Impuesto al Valor Agregado 13%',
-              valor: totales.totalIva,
+              valor: totalIvaFinal,
             },
           ]
         : null;
 
     // En CCF: montoTotalOperacion = subTotal + IVA
-    const montoTotalOperacion = redondearMonto(subTotal + totales.totalIva);
+    const montoTotalOperacion = redondearMonto(subTotal + totalIvaFinal);
     const ivaRete1 = params.ivaRetenido ?? 0;
     const reteRenta = params.rentaRetenido ?? 0;
     const ivaPerci1 = params.ivaPercibido ?? 0;
@@ -271,7 +280,7 @@ export class CcfBuilderService implements IDteBuilder {
       descuExenta: params.descuExenta ?? 0,
       descuGravada: params.descuGravada ?? 0,
       porcentajeDescuento: params.porcentajeDescuento ?? 0,
-      totalDescu: totales.totalDescuento,
+      totalDescu: redondearMonto(totales.totalDescuento + headerDescuento),
       tributos,
       subTotal,
       ivaPerci1: params.ivaPercibido ?? 0,
