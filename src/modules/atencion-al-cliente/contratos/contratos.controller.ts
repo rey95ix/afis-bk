@@ -20,6 +20,7 @@ import { CreateContratoDto } from './dto/create-contrato.dto';
 import { UpdateContratoDto } from './dto/update-contrato.dto';
 import { MarcarFirmadoDto } from './dto/marcar-firmado.dto';
 import { CambiarEstadoContratoDto } from './dto/cambiar-estado-contrato.dto';
+import { RenovarContratoDto } from './dto/renovar-contrato.dto';
 import { GenerarLinkFirmaDto } from './dto/generar-link-firma.dto';
 import {
   ApiTags,
@@ -174,6 +175,32 @@ export class ContratosController {
     @GetUser() usuario,
   ) {
     return this.contratosService.cambiarEstado(id, cambiarEstadoDto, usuario.id_usuario);
+  }
+
+  @RequirePermissions('atencion_cliente.contratos:editar')
+  @Post(':id/renovar')
+  @ApiOperation({
+    summary: 'Renovar un contrato',
+    description:
+      'Crea un nuevo contrato basado en uno existente. El contrato anterior se da de baja y sus facturas pendientes se eliminan.',
+  })
+  @ApiParam({ name: 'id', description: 'ID del contrato a renovar', type: Number })
+  @ApiResponse({
+    status: 201,
+    description: 'Contrato renovado exitosamente. Retorna el nuevo contrato.',
+  })
+  @ApiResponse({ status: 400, description: 'Contrato en estado no renovable.' })
+  @ApiResponse({ status: 404, description: 'Contrato no encontrado.' })
+  renovarContrato(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() renovarContratoDto: RenovarContratoDto,
+    @GetUser() usuario,
+  ) {
+    return this.contratosService.renovarContrato(
+      id,
+      renovarContratoDto,
+      usuario.id_usuario,
+    );
   }
 
   @RequirePermissions('atencion_cliente.contratos:editar')

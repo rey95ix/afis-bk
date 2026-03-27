@@ -1315,6 +1315,9 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
   crearPermisoCustom('facturacion', 'cobros', 'enviar_mh', 'Enviar a MH', 'Enviar facturas manualmente al Ministerio de Hacienda para firma', {
     requiere_auditoria: true,
   }),
+  crearPermisoCustom('facturacion', 'cobros', 'eliminar_mora', 'Eliminar Mora', 'Eliminar mora aplicada a una factura', {
+    requiere_auditoria: true,
+  }),
 
   // Factura Directa
   crearPermiso('facturacion', 'factura_directa', 'VER', 'Ver Facturas Directas', 'Ver listado y detalles de facturas directas'),

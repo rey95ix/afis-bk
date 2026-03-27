@@ -368,6 +368,7 @@ export class ContratoPagosService {
       where: {
         id_contrato: idContrato,
         estado: { notIn: ['PAGADA_TOTAL', 'ANULADA'] },
+        mora_exonerada: false,
         fecha_vencimiento: { lt: new Date(ahora.getTime() - diasGraciaMs) },
         // Excluir las que tienen acuerdo de pago vigente
         OR: [
@@ -1184,6 +1185,90 @@ export class ContratoPagosService {
     );
 
     return { totalAnterior, totalNuevo, descuento: 0 };
+  }
+
+  /**
+   * Eliminar mora de una factura
+   */
+  async eliminarMoraFactura(idFactura: number, idUsuario: number) {
+    const factura = await this.prisma.facturaDirecta.findUnique({
+      where: { id_factura_directa: idFactura },
+      include: {
+        cuenta_por_cobrar: true,
+      },
+    });
+
+    if (!factura) {
+      throw new NotFoundException(`Factura #${idFactura} no encontrada`);
+    }
+
+    if (factura.estado !== 'ACTIVO') {
+      throw new BadRequestException('Solo se puede modificar facturas activas');
+    }
+
+    const moraActual = Number(factura.monto_mora);
+
+    if (moraActual <= 0) {
+      throw new BadRequestException('La factura no tiene mora aplicada');
+    }
+
+    const cxc = factura.cuenta_por_cobrar;
+    if (!cxc) {
+      throw new BadRequestException('La factura no tiene cuenta por cobrar asociada');
+    }
+
+    const saldoActual = Number(cxc.saldo_pendiente);
+    const totalAbonado = Number(cxc.total_abonado);
+    const nuevoSaldo = redondearMonto(saldoActual - moraActual);
+
+    // Determinar nuevo estado
+    let nuevoEstadoPago: any = factura.estado_pago;
+    let nuevoEstadoCxc = cxc.estado;
+
+    if (factura.estado_pago !== 'EN_ACUERDO') {
+      if (nuevoSaldo <= 0) {
+        nuevoEstadoPago = 'PAGADO';
+        nuevoEstadoCxc = 'PAGADA_TOTAL';
+      } else if (totalAbonado > 0) {
+        nuevoEstadoPago = 'PARCIAL';
+        nuevoEstadoCxc = 'PAGADA_PARCIAL';
+      } else {
+        nuevoEstadoPago = 'PENDIENTE';
+        nuevoEstadoCxc = 'PENDIENTE';
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.cuenta_por_cobrar.update({
+        where: { id_cxc: cxc.id_cxc },
+        data: {
+          saldo_pendiente: Math.max(0, nuevoSaldo),
+          monto_mora: 0,
+          mora_exonerada: true,
+          estado: nuevoEstadoCxc,
+        },
+      });
+
+      await tx.facturaDirecta.update({
+        where: { id_factura_directa: idFactura },
+        data: {
+          monto_mora: 0,
+          estado_pago: nuevoEstadoPago,
+        },
+      });
+    });
+
+    await this.prisma.logAction(
+      'ELIMINAR_MORA_FACTURA',
+      idUsuario,
+      `Mora eliminada de factura #${idFactura}. Mora: $${moraActual}, Saldo: $${saldoActual} → $${Math.max(0, nuevoSaldo)}`,
+    );
+
+    return {
+      moraEliminada: moraActual,
+      saldoAnterior: saldoActual,
+      saldoNuevo: Math.max(0, nuevoSaldo),
+    };
   }
 
   /**

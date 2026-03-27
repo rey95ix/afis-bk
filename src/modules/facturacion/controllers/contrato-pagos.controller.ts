@@ -141,6 +141,19 @@ export class ContratoPagosController {
     return { data: resultado };
   }
 
+  @Delete('facturas/:idFactura/mora')
+  @ApiOperation({ summary: 'Eliminar mora de una factura' })
+  async eliminarMora(
+    @Param('idFactura', ParseIntPipe) idFactura: number,
+    @Request() req: any,
+  ) {
+    const resultado = await this.contratoPagosService.eliminarMoraFactura(
+      idFactura,
+      req.user.id_usuario,
+    );
+    return { data: resultado };
+  }
+
   @Delete('facturas/:idFactura/acuerdo-pago')
   @ApiOperation({ summary: 'Cancelar acuerdo de pago de una factura' })
   async cancelarAcuerdo(

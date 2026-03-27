@@ -2686,6 +2686,11 @@ model atcContrato {
   id_mora_config Int?
   moraConfig     mora_configuracion? @relation("mora_contrato", fields: [id_mora_config], references: [id_mora_config], onDelete: NoAction, onUpdate: NoAction, map: "fk_contrato_mora_config")
 
+  // Renovación: referencia al contrato anterior que fue renovado
+  id_contrato_anterior Int?
+  contratoAnterior     atcContrato?  @relation("renovacion_contrato", fields: [id_contrato_anterior], references: [id_contrato], onDelete: NoAction, onUpdate: NoAction, map: "fk_contrato_anterior")
+  contratosRenovados   atcContrato[] @relation("renovacion_contrato")
+
   // Auditoría
   id_usuario_creador Int
   usuarioCreador     usuarios @relation(fields: [id_usuario_creador], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_contrato_usuario_creador")
@@ -4582,6 +4587,7 @@ model cuenta_por_cobrar {
 
   // === MORA ===
   monto_mora                 Decimal                  @default(0) @db.Decimal(12, 2)
+  mora_exonerada             Boolean                  @default(false)
   id_mora_config             Int?
   moraConfig                 mora_configuracion?      @relation("mora_cxc", fields: [id_mora_config], references: [id_mora_config], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_mora_config")
 
