@@ -201,7 +201,7 @@ export class FacturaDirectaService {
         dto,
         totalesCalculados,
       );
-      console.log("buildParams",buildParams);
+      console.log("buildParams", buildParams);
 
       // Soportamos FC (01), CCF (03) y FSE (14)
       if (tipoDte !== '01' && tipoDte !== '03' && tipoDte !== '14') {
@@ -214,7 +214,7 @@ export class FacturaDirectaService {
           ? this.ccfBuilder
           : this.fcBuilder;
       const { documento, totales } = builder.build(buildParams);
-      console.log("buildParams2",buildParams);
+      console.log("buildParams2", buildParams);
       this.logger.log(`DTE construido. Total a pagar: $${totales.totalPagar}`);
 
       // ==================== PASO 6: GUARDAR FACTURA ====================
@@ -229,7 +229,7 @@ export class FacturaDirectaService {
         dto,
         idUsuario,
       );
-      console.log("documento",documento); 
+      console.log("documento", documento);
       // ==================== PASO 7: FIRMAR DTE ====================
       const signResult = await this.signer.firmar(
         datos.generalData.nit!,
@@ -3338,6 +3338,17 @@ export class FacturaDirectaService {
         `Cliente del contrato ${idContrato} no tiene datos de facturación activos`,
       );
     }
+    // 1.1 validaar que tipos de facturas se van a crear y asignar bloque correspondiente
+    const tipoFacturaCodigo = datosFacturacion.tipo == 'PERSONA' ? '01' : '03';
+    const esFC = tipoFacturaCodigo === '01'; // FC: precios incluyen IVA; CCF: precios sin IVA
+    const tipoFactura = await db.facturasBloques.findFirst({
+      where: {
+        estado: 'ACTIVO',
+        Tipo: { codigo: tipoFacturaCodigo },
+      },
+    });
+    const id_bloque = tipoFactura?.id_bloque;
+    const id_tipo_factura = tipoFactura?.id_tipo_factura;
 
     // 2. Verificar idempotencia: si ya tiene facturas proyectadas, skip
     const facturasExistentes = await db.facturaDirecta.count({
@@ -3391,6 +3402,55 @@ export class FacturaDirectaService {
     const facturaIds: number[] = [];
     let instalacionId: number | undefined;
 
+    // Helper: calcula precios de detalle según tipo de factura (FC vs CCF)
+    const calcularPreciosDetalle = (montoConIva: number) => {
+      if (!aplicaIva) {
+        const monto = redondearMonto(montoConIva);
+        return {
+          precioUnitario: redondearMonto(montoConIva, DECIMALES_ITEM),
+          precioSinIva: redondearMonto(montoConIva, DECIMALES_ITEM),
+          precioConIva: redondearMonto(montoConIva, DECIMALES_ITEM),
+          ventaGravada: 0,
+          ventaExenta: monto,
+          iva: 0,
+          subtotal: monto,
+          total: monto,
+          tipoDetalle: 'EXENTA' as const,
+        };
+      }
+
+      const sinIva = redondearMonto(montoConIva / (1 + porcentajeIva / 100));
+      const iva = redondearMonto(montoConIva - sinIva);
+
+      if (esFC) {
+        // FC: precio_unitario CON IVA, ventaGravada CON IVA
+        return {
+          precioUnitario: redondearMonto(montoConIva, DECIMALES_ITEM),
+          precioSinIva: redondearMonto(sinIva, DECIMALES_ITEM),
+          precioConIva: redondearMonto(montoConIva, DECIMALES_ITEM),
+          ventaGravada: redondearMonto(montoConIva),
+          ventaExenta: 0,
+          iva: redondearMonto(iva),
+          subtotal: redondearMonto(montoConIva),
+          total: redondearMonto(montoConIva),
+          tipoDetalle: 'GRAVADO' as const,
+        };
+      } else {
+        // CCF: precio_unitario SIN IVA, ventaGravada SIN IVA
+        return {
+          precioUnitario: redondearMonto(sinIva, DECIMALES_ITEM),
+          precioSinIva: redondearMonto(sinIva, DECIMALES_ITEM),
+          precioConIva: redondearMonto(montoConIva, DECIMALES_ITEM),
+          ventaGravada: redondearMonto(sinIva),
+          ventaExenta: 0,
+          iva: redondearMonto(iva),
+          subtotal: redondearMonto(sinIva),
+          total: redondearMonto(sinIva),
+          tipoDetalle: 'GRAVADO' as const,
+        };
+      }
+    };
+
     // 7. Generar facturas de cuotas mensuales
     const primeraCuota = cuotaInicial || 1;
     const ultimaCuota = cuotaFinal ?? mesesContrato;
@@ -3413,6 +3473,29 @@ export class FacturaDirectaService {
         );
       }
 
+      // Prorrateo: si es cuota 1 y la fecha de instalación no coincide con el inicio del ciclo,
+      // ajustar periodoInicio a la fecha de instalación y calcular monto proporcional
+      let periodoInicioFinal = periodoInicio;
+      let precioEfectivo = precioBase;
+
+      if (cuota === primeraCuota && primeraCuota === 1) {
+        const fechaInstalacion = new Date(fechaInicio);
+        fechaInstalacion.setHours(0, 0, 0, 0);
+        const inicioCiclo = new Date(periodoInicio);
+        inicioCiclo.setHours(0, 0, 0, 0);
+
+        // Si la instalación es posterior al inicio del ciclo, prorratear
+        if (fechaInstalacion.getTime() > inicioCiclo.getTime()) {
+          periodoInicioFinal = fechaInstalacion;
+
+          const finPeriodo = new Date(periodoFin);
+          finPeriodo.setHours(0, 0, 0, 0);
+          const diasAFacturar = Math.round((finPeriodo.getTime() - fechaInstalacion.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+          const montoDiario = precioBase / 30;
+          precioEfectivo = redondearMonto(montoDiario * diasAFacturar);
+        }
+      }
+
       // Líneas de detalle
       const detalles: Array<{
         num_item: number;
@@ -3433,33 +3516,34 @@ export class FacturaDirectaService {
 
       let numItem = 1;
 
-      // Línea de servicio mensual
-      const precioSinIva = aplicaIva ? redondearMonto(precioBase / (1 + porcentajeIva / 100)) : precioBase;
-      const ivaServicio = aplicaIva ? redondearMonto(precioBase - precioSinIva) : 0;
+      // Línea de servicio mensual (usa precioEfectivo que puede estar prorrateado en cuota 1)
+      const preciosServicio = calcularPreciosDetalle(precioEfectivo);
+
+      const esProrrateo = precioEfectivo !== precioBase;
+      const nombreCuota = esProrrateo
+        ? `${contrato.plan.nombre} - Cuota ${cuota}/${mesesContrato} (Prorrateo)`
+        : `${contrato.plan.nombre} - Cuota ${cuota}/${mesesContrato}`;
 
       detalles.push({
         num_item: numItem++,
-        nombre: `${contrato.plan.nombre} - Cuota ${cuota}/${mesesContrato}`,
-        descripcion: `Servicio ${contrato.plan.nombre} - Período ${periodoInicio.toLocaleDateString('es-SV')} al ${periodoFin.toLocaleDateString('es-SV')}`,
+        nombre: nombreCuota,
+        descripcion: `Servicio ${contrato.plan.nombre} - Período ${periodoInicioFinal.toLocaleDateString('es-SV')} al ${periodoFin.toLocaleDateString('es-SV')}`,
         cantidad: 1,
         uni_medida: 99,
-        precio_unitario: redondearMonto(precioSinIva, DECIMALES_ITEM),
-        precio_sin_iva: redondearMonto(precioSinIva, DECIMALES_ITEM),
-        precio_con_iva: redondearMonto(precioBase, DECIMALES_ITEM),
-        tipo_detalle: aplicaIva ? 'GRAVADO' : 'EXENTA',
-        venta_gravada: aplicaIva ? redondearMonto(precioSinIva) : 0,
-        venta_exenta: aplicaIva ? 0 : redondearMonto(precioBase),
-        subtotal: redondearMonto(precioSinIva),
-        iva: redondearMonto(ivaServicio),
-        total: redondearMonto(precioBase),
+        precio_unitario: preciosServicio.precioUnitario,
+        precio_sin_iva: preciosServicio.precioSinIva,
+        precio_con_iva: preciosServicio.precioConIva,
+        tipo_detalle: preciosServicio.tipoDetalle,
+        venta_gravada: preciosServicio.ventaGravada,
+        venta_exenta: preciosServicio.ventaExenta,
+        subtotal: preciosServicio.subtotal,
+        iva: preciosServicio.iva,
+        total: preciosServicio.total,
       });
 
       // Si cuota 1 y NO facturar_instalacion_separada, incluir instalación
       if (cuota === 1 && !facturarInstalacionSeparada && costoInstalacion > 0) {
-        const instalacionSinIva = aplicaIva
-          ? redondearMonto(costoInstalacion / (1 + porcentajeIva / 100))
-          : costoInstalacion;
-        const ivaInstalacion = aplicaIva ? redondearMonto(costoInstalacion - instalacionSinIva) : 0;
+        const preciosInstalacion = calcularPreciosDetalle(costoInstalacion);
 
         detalles.push({
           num_item: numItem++,
@@ -3467,15 +3551,15 @@ export class FacturaDirectaService {
           descripcion: `Costo de instalación - ${contrato.plan.nombre}`,
           cantidad: 1,
           uni_medida: 99,
-          precio_unitario: redondearMonto(instalacionSinIva, DECIMALES_ITEM),
-          precio_sin_iva: redondearMonto(instalacionSinIva, DECIMALES_ITEM),
-          precio_con_iva: redondearMonto(costoInstalacion, DECIMALES_ITEM),
-          tipo_detalle: aplicaIva ? 'GRAVADO' : 'EXENTA',
-          venta_gravada: aplicaIva ? redondearMonto(instalacionSinIva) : 0,
-          venta_exenta: aplicaIva ? 0 : redondearMonto(costoInstalacion),
-          subtotal: redondearMonto(instalacionSinIva),
-          iva: redondearMonto(ivaInstalacion),
-          total: redondearMonto(costoInstalacion),
+          precio_unitario: preciosInstalacion.precioUnitario,
+          precio_sin_iva: preciosInstalacion.precioSinIva,
+          precio_con_iva: preciosInstalacion.precioConIva,
+          tipo_detalle: preciosInstalacion.tipoDetalle,
+          venta_gravada: preciosInstalacion.ventaGravada,
+          venta_exenta: preciosInstalacion.ventaExenta,
+          subtotal: preciosInstalacion.subtotal,
+          iva: preciosInstalacion.iva,
+          total: preciosInstalacion.total,
         });
       }
 
@@ -3504,14 +3588,17 @@ export class FacturaDirectaService {
       const totalExenta = redondearMonto(detalles.reduce((s, d) => s + d.venta_exenta, 0));
       const subtotal = redondearMonto(totalGravada + totalExenta);
       const ivaTotal = redondearMonto(detalles.reduce((s, d) => s + d.iva, 0));
-      const total = redondearMonto(subtotal + ivaTotal);
+      // FC: IVA incluido en totalGravada → total = subtotal
+      // CCF: IVA se suma aparte → total = subtotal + ivaTotal
+      const total = esFC ? redondearMonto(subtotal) : redondearMonto(subtotal + ivaTotal);
 
       const factura = await db.facturaDirecta.create({
         data: {
           // Sin numero_factura, bloque ni tipo (se asignan al firmar)
           numero_factura: null,
-          id_bloque: null,
-          id_tipo_factura: null,
+          id_bloque,
+          id_tipo_factura,
+          codigo_generacion: uuidv4().toUpperCase(),
 
           // Contrato y cliente
           id_contrato: idContrato,
@@ -3519,8 +3606,8 @@ export class FacturaDirectaService {
           id_cliente_facturacion: datosFacturacion.id_cliente_datos_facturacion,
           ...clienteSnapshot,
 
-          // Período
-          periodo_inicio: periodoInicio,
+          // Período (usa periodoInicioFinal que puede ser la fecha de instalación en cuota 1)
+          periodo_inicio: periodoInicioFinal,
           periodo_fin: periodoFin,
           fecha_vencimiento: fechaVencimiento,
           numero_cuota: cuota,
@@ -3587,15 +3674,13 @@ export class FacturaDirectaService {
 
     // 8. Si facturar_instalacion_separada y hay costo, crear factura aparte (solo si empezamos desde cuota 1)
     if (facturarInstalacionSeparada && costoInstalacion > 0 && primeraCuota <= 1) {
-      const instalacionSinIva = aplicaIva
-        ? redondearMonto(costoInstalacion / (1 + porcentajeIva / 100))
-        : costoInstalacion;
-      const ivaInstalacion = aplicaIva ? redondearMonto(costoInstalacion - instalacionSinIva) : 0;
+      const preciosInstSep = calcularPreciosDetalle(costoInstalacion);
 
-      const totalGravada = aplicaIva ? redondearMonto(instalacionSinIva) : 0;
-      const totalExenta = aplicaIva ? 0 : redondearMonto(costoInstalacion);
+      const totalGravada = preciosInstSep.ventaGravada;
+      const totalExenta = preciosInstSep.ventaExenta;
       const subtotal = redondearMonto(totalGravada + totalExenta);
-      const total = redondearMonto(subtotal + ivaInstalacion);
+      const ivaInstalacion = preciosInstSep.iva;
+      const total = esFC ? redondearMonto(subtotal) : redondearMonto(subtotal + ivaInstalacion);
 
       const { periodoInicio, periodoFin, fechaVencimiento } = this.calcularFechasPeriodo(
         fechaInicio,
@@ -3606,9 +3691,9 @@ export class FacturaDirectaService {
       const facturaInstalacion = await db.facturaDirecta.create({
         data: {
           numero_factura: null,
-          id_bloque: null,
-          id_tipo_factura: null,
-
+          id_bloque,
+          id_tipo_factura,
+          codigo_generacion: uuidv4().toUpperCase(),
           id_contrato: idContrato,
           id_cliente: contrato.id_cliente,
           id_cliente_facturacion: datosFacturacion.id_cliente_datos_facturacion,
@@ -3640,14 +3725,14 @@ export class FacturaDirectaService {
             create: [
               {
                 num_item: 1,
-                nombre: 'Instalación del servicio',
+                nombre: `Instalación del servicio - ${contrato.plan.nombre}`,
                 descripcion: `Costo de instalación - ${contrato.plan.nombre}`,
                 cantidad: 1,
                 uni_medida: 99,
-                precio_unitario: redondearMonto(instalacionSinIva, DECIMALES_ITEM),
-                precio_sin_iva: redondearMonto(instalacionSinIva, DECIMALES_ITEM),
-                precio_con_iva: redondearMonto(costoInstalacion, DECIMALES_ITEM),
-                tipo_detalle: aplicaIva ? 'GRAVADO' : 'EXENTA',
+                precio_unitario: preciosInstSep.precioUnitario,
+                precio_sin_iva: preciosInstSep.precioSinIva,
+                precio_con_iva: preciosInstSep.precioConIva,
+                tipo_detalle: preciosInstSep.tipoDetalle,
                 venta_gravada: totalGravada,
                 venta_exenta: totalExenta,
                 subtotal: subtotal,
@@ -3661,14 +3746,17 @@ export class FacturaDirectaService {
 
       instalacionId = facturaInstalacion.id_factura_directa;
 
-      // Auto-crear CxC para factura de instalación
+      // Auto-crear CxC para factura de instalación (vence 48h después)
+      const vencimientoInstalacion = new Date();
+      vencimientoInstalacion.setDate(vencimientoInstalacion.getDate() + 2);
+
       await this.cxcService.crearCxcParaFacturaContrato(
         {
           id_factura_directa: facturaInstalacion.id_factura_directa,
           id_cliente: contrato.id_cliente,
           id_contrato: idContrato,
           total: facturaInstalacion.total,
-          fecha_vencimiento: fechaVencimiento,
+          fecha_vencimiento: vencimientoInstalacion,
         },
         sucursal.id_sucursal,
         userId,

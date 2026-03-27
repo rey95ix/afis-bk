@@ -451,7 +451,7 @@ export class ContratosService {
     }
 
     const templateHtml = fs.readFileSync(templatePath, 'utf-8');
-
+    const urlContratoFirmado = contrato?.url_contrato_firmado;
     // Cargar logo como base64
     const logoPath = path.join(
       process.cwd(),
@@ -577,6 +577,7 @@ export class ContratosService {
         contrato.plan?.tipoPlan?.tipoServicio?.nombre ||
         'Residencial',
       clienteProfesion: contrato.cliente?.empresa_trabajo || 'N/A',
+      urlContratoFirmado: urlContratoFirmado || '',
       direccionInstalacion: `${contrato.direccionServicio?.direccion || ''}, ${contrato.direccionServicio?.colonias?.nombre || ''}, ${contrato.direccionServicio?.municipio?.nombre || ''}, ${contrato.direccionServicio?.departamento?.nombre || ''}`.replace(
         /^, |, $/g,
         '',

@@ -5,7 +5,10 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MinioService } from '../../minio/minio.service';
 import { SmsService } from '../../sms/sms.service';
 import { FcmService } from '../../fcm/fcm.service';
 import { FacturaDirectaService } from '../../facturacion/factura-directa/factura-directa.service';
@@ -31,10 +34,83 @@ export class OrdenesTrabajoService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly minioService: MinioService,
     private readonly smsService: SmsService,
     private readonly fcmService: FcmService,
     private readonly facturaDirectaService: FacturaDirectaService,
   ) { }
+
+  private static readonly MIME_TO_EXT: Record<string, string> = {
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/jpg': '.jpg',
+    'image/gif': '.gif',
+    'application/pdf': '.pdf',
+    'video/mp4': '.mp4',
+  };
+
+  /**
+   * Sube archivos a MinIO (fuera de transacción) y retorna metadata para crear registros en BD.
+   * Limpia archivos ya subidos si alguno falla.
+   */
+  private async subirArchivosAMinio(
+    archivos: Express.Multer.File[],
+    idOrden: number,
+    contexto: string,
+    userId: number,
+  ) {
+    const uploaded: { objectName: string; url: string; archivo: Express.Multer.File }[] = [];
+
+    try {
+      for (const archivo of archivos) {
+        const ext = OrdenesTrabajoService.MIME_TO_EXT[archivo.mimetype] ?? '.bin';
+        const objectName = `ordenes-trabajo/${idOrden}/evidencias/${randomUUID()}${ext}`;
+
+        const { url } = await this.minioService.uploadFile(archivo, objectName);
+        uploaded.push({ objectName, url, archivo });
+      }
+    } catch (err) {
+      // Limpiar archivos ya subidos si falla uno
+      await Promise.allSettled(
+        uploaded.map(u => this.minioService.deleteFile(u.objectName)),
+      );
+      this.logger.error(`Error subiendo evidencia a MinIO: ${err.message}`);
+      throw new BadRequestException(
+        'No se pudieron subir los archivos de evidencia. Intente de nuevo.',
+      );
+    }
+
+    return uploaded.map(u => ({
+      id_orden: idOrden,
+      tipo: u.archivo.mimetype.startsWith('image/')
+        ? 'FOTO'
+        : u.archivo.mimetype === 'application/pdf'
+          ? 'PDF'
+          : u.archivo.mimetype.startsWith('video/')
+            ? 'VIDEO'
+            : 'OTRO',
+      url: u.url,
+      metadata: JSON.stringify({
+        nombreOriginal: u.archivo.originalname,
+        tamano: u.archivo.size,
+        mimeType: u.archivo.mimetype,
+        contexto,
+      }),
+      subido_por: userId,
+    }));
+  }
+
+  /**
+   * Crea registros de evidencia en BD (dentro de transacción).
+   */
+  private async crearRegistrosEvidencia(
+    evidencias: Awaited<ReturnType<typeof this.subirArchivosAMinio>>,
+    prisma: Prisma.TransactionClient,
+  ) {
+    for (const evidencia of evidencias) {
+      await prisma.ot_evidencias.create({ data: evidencia as any });
+    }
+  }
 
   private async generarCodigoOrden(): Promise<string> {
     const now = new Date();
@@ -884,6 +960,11 @@ export class OrdenesTrabajoService {
       throw new NotFoundException(`Orden de trabajo con ID ${id} no encontrada`);
     }
 
+    // Subir archivos a MinIO ANTES de abrir la transacción para no bloquear conexiones de BD
+    const evidenciasData = archivos && archivos.length > 0
+      ? await this.subirArchivosAMinio(archivos, id, 'CAMBIO_ESTADO', userId)
+      : [];
+
     const result = await this.prisma.$transaction(async (prisma) => {
       const ordenActualizada = await prisma.orden_trabajo.update({
         where: { id_orden: id },
@@ -901,31 +982,9 @@ export class OrdenesTrabajoService {
         },
       });
 
-      // Procesar y guardar evidencias si se subieron archivos
-      if (archivos && archivos.length > 0) {
-        for (const archivo of archivos) {
-          const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
-          const urlArchivo = `${baseUrl}/uploads/evidencias/${archivo.filename}`;
-
-          await prisma.ot_evidencias.create({
-            data: {
-              id_orden: id,
-              tipo: archivo.mimetype.startsWith('image/')
-                ? 'FOTO'
-                : archivo.mimetype === 'application/pdf'
-                  ? 'PDF'
-                  : 'OTRO',
-              url: urlArchivo,
-              metadata: JSON.stringify({
-                nombreOriginal: archivo.originalname,
-                tamano: archivo.size,
-                mimeType: archivo.mimetype,
-                contexto: 'CAMBIO_ESTADO',
-              }),
-              subido_por: userId,
-            },
-          });
-        }
+      // Crear registros de evidencia en BD (archivos ya están en MinIO)
+      if (evidenciasData.length > 0) {
+        await this.crearRegistrosEvidencia(evidenciasData, prisma);
       }
 
       // Si es una OT de INSTALACIÓN y el estado cambia a COMPLETADA, actualizar contrato vinculado
@@ -1092,6 +1151,11 @@ export class OrdenesTrabajoService {
         ? 'COMPLETADA'
         : 'CANCELADA';
 
+    // Subir archivos a MinIO ANTES de abrir la transacción para no bloquear conexiones de BD
+    const evidenciasData = archivos && archivos.length > 0
+      ? await this.subirArchivosAMinio(archivos, id, 'CIERRE_ORDEN', userId)
+      : [];
+
     const result = await this.prisma.$transaction(async (prisma) => {
       const ordenActualizada = await prisma.orden_trabajo.update({
         where: { id_orden: id },
@@ -1165,31 +1229,9 @@ export class OrdenesTrabajoService {
         },
       });
 
-      // Procesar y guardar evidencias de cierre si se subieron archivos
-      if (archivos && archivos.length > 0) {
-        for (const archivo of archivos) {
-          const baseUrl = process.env.BASE_URL || 'http://localhost:4000';
-          const urlArchivo = `${baseUrl}/uploads/evidencias/${archivo.filename}`;
-
-          await prisma.ot_evidencias.create({
-            data: {
-              id_orden: id,
-              tipo: archivo.mimetype.startsWith('image/')
-                ? 'FOTO'
-                : archivo.mimetype === 'application/pdf'
-                  ? 'PDF'
-                  : 'OTRO',
-              url: urlArchivo,
-              metadata: JSON.stringify({
-                nombreOriginal: archivo.originalname,
-                tamano: archivo.size,
-                mimeType: archivo.mimetype,
-                contexto: 'CIERRE_ORDEN',
-              }),
-              subido_por: userId,
-            },
-          });
-        }
+      // Crear registros de evidencia en BD (archivos ya están en MinIO)
+      if (evidenciasData.length > 0) {
+        await this.crearRegistrosEvidencia(evidenciasData, prisma);
       }
 
       return ordenActualizada;

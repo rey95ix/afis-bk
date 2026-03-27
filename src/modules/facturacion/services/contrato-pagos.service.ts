@@ -90,7 +90,7 @@ export class ContratoPagosService {
     private readonly facturaDirectaService: FacturaDirectaService,
     private readonly minioService: MinioService,
     private readonly comprobanteAnalyzer: ComprobanteAnalyzerService,
-  ) {}
+  ) { }
 
   /**
    * Analizar comprobante de pago: sube imagen a MinIO y extrae datos con IA
@@ -215,10 +215,10 @@ export class ContratoPagosService {
       },
       orderBy: { fecha_vencimiento: 'asc' },
     });
-
     if (cxcs.length === 0) {
       throw new BadRequestException('No hay facturas pendientes de pago para este contrato');
     }
+    console.log(cxcs[0])
 
     const montoTotal = dto.monto;
     let montoRestante = montoTotal;
@@ -706,13 +706,13 @@ export class ContratoPagosService {
       },
       instalacion: contrato.instalacion
         ? {
-            fechaInstalacion: contrato.instalacion.fecha_instalacion?.toISOString() || null,
-            instalado: contrato.instalacion.instalado,
-            wifiNombre: contrato.instalacion.wifi_nombre,
-            macOnu: contrato.instalacion.mac_onu,
-            numeroSerieOnu: contrato.instalacion.numero_serie_onu,
-            potenciaOnu: contrato.instalacion.potencia_onu,
-          }
+          fechaInstalacion: contrato.instalacion.fecha_instalacion?.toISOString() || null,
+          instalado: contrato.instalacion.instalado,
+          wifiNombre: contrato.instalacion.wifi_nombre,
+          macOnu: contrato.instalacion.mac_onu,
+          numeroSerieOnu: contrato.instalacion.numero_serie_onu,
+          potenciaOnu: contrato.instalacion.potencia_onu,
+        }
         : null,
       resumen: {
         totalAbonos: Number(abonosAgg._sum.monto || 0),
@@ -984,21 +984,7 @@ export class ContratoPagosService {
     const tipoDte = (factura as any).tipoFactura?.codigo || '01';
     const IVA_RATE = 0.13;
 
-    let totalGravadaBruto = 0;
-    let totalExentaBruto = 0;
-    let totalNoSujBruto = 0;
-
-    for (const d of factura.detalles) {
-      const itemSubtotal = Number(d.cantidad) * Number(d.precio_unitario);
-      switch (d.tipo_detalle) {
-        case 'GRAVADO': totalGravadaBruto += itemSubtotal; break;
-        case 'EXENTA': totalExentaBruto += itemSubtotal; break;
-        case 'NOSUJETO': totalNoSujBruto += itemSubtotal; break;
-      }
-    }
-
-    const subTotalOriginal = totalGravadaBruto + totalExentaBruto + totalNoSujBruto;
-
+    const subTotalOriginal = Number(factura.subTotalVentas);
     // Calcular descuento total
     let descuentoTotal: number;
     if (dto.tipoDescuento === 'PORCENTAJE') {
@@ -1007,88 +993,32 @@ export class ContratoPagosService {
       descuentoTotal = dto.valor;
     }
 
+
     if (descuentoTotal >= subTotalOriginal) {
       throw new BadRequestException('El descuento no puede ser igual o mayor al subtotal de la factura');
     }
 
-    // Distribuir descuento proporcionalmente por tipo (solo a nivel de encabezado, NO por ítem)
-    // Esto sigue la estructura DTE donde descuGravada/descuExenta/descuNoSuj van en el resumen
-    let descuGravada = 0;
-    let descuExenta = 0;
-    let descuNoSuj = 0;
 
-    if (subTotalOriginal > 0) {
-      descuGravada = redondearMonto(descuentoTotal * (totalGravadaBruto / subTotalOriginal));
-      descuExenta = redondearMonto(descuentoTotal * (totalExentaBruto / subTotalOriginal));
-      descuNoSuj = redondearMonto(descuentoTotal * (totalNoSujBruto / subTotalOriginal));
-
-      // Asignar residuo de redondeo al bucket más grande que tenga valor
-      const residuo = redondearMonto(descuentoTotal - descuGravada - descuExenta - descuNoSuj);
-      if (residuo !== 0) {
-        if (totalGravadaBruto >= totalExentaBruto && totalGravadaBruto >= totalNoSujBruto) {
-          descuGravada = redondearMonto(descuGravada + residuo);
-        } else if (totalExentaBruto >= totalNoSujBruto) {
-          descuExenta = redondearMonto(descuExenta + residuo);
-        } else {
-          descuNoSuj = redondearMonto(descuNoSuj + residuo);
-        }
-      }
-    }
-
-    // Totales BRUTOS (antes de descuento) - coinciden con estructura DTE resumen
-    const totalGravada = redondearMonto(totalGravadaBruto);
-    const totalExenta = redondearMonto(totalExentaBruto);
-    const totalNoSuj = redondearMonto(totalNoSujBruto);
-    const subtotalVentas = redondearMonto(totalGravada + totalExenta + totalNoSuj);
-    const subtotal = redondearMonto(subtotalVentas - descuentoTotal);
 
     // Cálculo de IVA según tipo de DTE
     let totalIva: number;
-    const gravadaDescontada = redondearMonto(totalGravada - descuGravada);
+    let totalNuevo: number;
 
-    if (tipoDte === '01' || tipoDte === '14') {
-      // FC/FSE: IVA incluido en precios, extraer del monto gravado descontado
-      totalIva = redondearMonto(gravadaDescontada - gravadaDescontada / (1 + IVA_RATE));
+    const descuGravada = subTotalOriginal - descuentoTotal;
+    if (tipoDte === '01') {
+      totalIva = redondearMonto(descuGravada - (descuGravada / (1 + IVA_RATE)));
+      totalNuevo = descuGravada;
     } else {
-      // CCF: IVA separado, calcular sobre gravada descontada
-      totalIva = redondearMonto(gravadaDescontada * IVA_RATE);
+      totalIva = redondearMonto(descuGravada * IVA_RATE);
+      totalNuevo = redondearMonto(descuGravada + totalIva);
     }
-
-    // Total según tipo de DTE
-    const totalNuevo = (tipoDte === '01' || tipoDte === '14')
-      ? subtotal  // FC/FSE: IVA ya incluido en precios
-      : redondearMonto(subtotal + totalIva);  // CCF: agregar IVA
 
     const totalAnterior = Number(factura.total);
 
     // Actualizar en transacción
     await this.prisma.$transaction(async (tx) => {
       // Resetear descuento a nivel de ítems (el descuento es solo a nivel de encabezado/resumen DTE)
-      for (const det of factura.detalles) {
-        const itemSubtotal = Number(det.cantidad) * Number(det.precio_unitario);
-        let ivaItem = 0;
-        let ventaGravada = 0;
 
-        if (det.tipo_detalle === 'GRAVADO') {
-          ventaGravada = itemSubtotal;
-          if (tipoDte === '01' || tipoDte === '14') {
-            ivaItem = redondearMonto(itemSubtotal - itemSubtotal / (1 + IVA_RATE), 4);
-          } else {
-            ivaItem = redondearMonto(itemSubtotal * IVA_RATE, 4);
-          }
-        }
-
-        await tx.facturaDirectaDetalle.update({
-          where: { id_detalle: det.id_detalle },
-          data: {
-            descuento: 0,  // Sin descuento por ítem - va en el encabezado
-            venta_gravada: redondearMonto(ventaGravada),
-            iva: redondearMonto(ivaItem),
-            subtotal: redondearMonto(itemSubtotal),
-            total: redondearMonto(itemSubtotal),
-          },
-        });
-      }
 
       // Actualizar factura con totales y descuentos a nivel de encabezado
       await tx.facturaDirecta.update({
@@ -1100,16 +1030,8 @@ export class ContratoPagosService {
           descuento_usuario: idUsuario,
           descuento_fecha: new Date(),
           descuGravada,
-          descuExenta,
-          descuNoSuj,
-          totalGravada,
-          totalExenta,
-          totalNoSuj,
           iva: totalIva,
-          subTotalVentas: subtotalVentas,
-          subtotal,
           total: totalNuevo,
-          // Reset DTE para que se regenere al firmar
           dte_json: null,
           dte_firmado: null,
           estado_dte: 'BORRADOR',
@@ -1163,7 +1085,6 @@ export class ContratoPagosService {
     const factura = await this.prisma.facturaDirecta.findUnique({
       where: { id_factura_directa: idFactura },
       include: {
-        detalles: { orderBy: { num_item: 'asc' } },
         cuenta_por_cobrar: true,
         tipoFactura: { select: { codigo: true } },
       },
@@ -1189,70 +1110,23 @@ export class ContratoPagosService {
     const tipoDte = (factura as any).tipoFactura?.codigo || '01';
     const IVA_RATE = 0.13;
 
-    // Recalcular totales sin descuento
-    let totalGravada = 0;
-    let totalExenta = 0;
-    let totalNoSuj = 0;
-    let totalIva = 0;
+    // subTotalVentas no fue modificado por aplicarDescuentoFactura, usarlo para restaurar
+    const subTotalVentas = Number(factura.subTotalVentas);
 
-    for (const det of factura.detalles) {
-      const subtotalItem = Number(det.cantidad) * Number(det.precio_unitario);
+    // Recalcular IVA y total sin descuento (misma lógica que aplicarDescuentoFactura con descuento=0)
+    let totalIva: number;
+    let totalNuevo: number;
 
-      switch (det.tipo_detalle) {
-        case 'GRAVADO':
-          totalGravada += subtotalItem;
-          if (tipoDte === '01' || tipoDte === '14') {
-            totalIva += subtotalItem - subtotalItem / (1 + IVA_RATE);
-          } else {
-            totalIva += subtotalItem * IVA_RATE;
-          }
-          break;
-        case 'EXENTA':
-          totalExenta += subtotalItem;
-          break;
-        case 'NOSUJETO':
-          totalNoSuj += subtotalItem;
-          break;
-      }
+    if (tipoDte === '01') {
+      totalIva = redondearMonto(subTotalVentas - (subTotalVentas / (1 + IVA_RATE)));
+      totalNuevo = subTotalVentas;
+    } else {
+      totalIva = redondearMonto(subTotalVentas * IVA_RATE);
+      totalNuevo = redondearMonto(subTotalVentas + totalIva);
     }
 
-    totalGravada = redondearMonto(totalGravada);
-    totalExenta = redondearMonto(totalExenta);
-    totalNoSuj = redondearMonto(totalNoSuj);
-    totalIva = redondearMonto(totalIva);
-    const subtotalVentas = redondearMonto(totalGravada + totalExenta + totalNoSuj);
-    const totalNuevo = (tipoDte === '01' || tipoDte === '14')
-      ? subtotalVentas
-      : redondearMonto(subtotalVentas + totalIva);
-
     await this.prisma.$transaction(async (tx) => {
-      // Reset descuento en cada detalle
-      for (const det of factura.detalles) {
-        const subtotalItem = Number(det.cantidad) * Number(det.precio_unitario);
-        let ivaItem = 0;
-        let ventaGravada = 0;
-
-        if (det.tipo_detalle === 'GRAVADO') {
-          ventaGravada = subtotalItem;
-          if (tipoDte === '01' || tipoDte === '14') {
-            ivaItem = redondearMonto(subtotalItem - subtotalItem / (1 + IVA_RATE), 4);
-          } else {
-            ivaItem = redondearMonto(subtotalItem * IVA_RATE, 4);
-          }
-        }
-
-        await tx.facturaDirectaDetalle.update({
-          where: { id_detalle: det.id_detalle },
-          data: {
-            descuento: 0,
-            venta_gravada: redondearMonto(ventaGravada),
-            iva: redondearMonto(ivaItem),
-            subtotal: redondearMonto(subtotalItem),
-            total: redondearMonto(subtotalItem),
-          },
-        });
-      }
-
+      // Revertir solo los campos que aplicarDescuentoFactura modificó
       await tx.facturaDirecta.update({
         where: { id_factura_directa: idFactura },
         data: {
@@ -1262,14 +1136,7 @@ export class ContratoPagosService {
           descuento_usuario: null,
           descuento_fecha: null,
           descuGravada: 0,
-          descuExenta: 0,
-          descuNoSuj: 0,
-          totalGravada,
-          totalExenta,
-          totalNoSuj,
           iva: totalIva,
-          subTotalVentas: subtotalVentas,
-          subtotal: subtotalVentas,
           total: totalNuevo,
           dte_json: null,
           dte_firmado: null,
@@ -1277,19 +1144,36 @@ export class ContratoPagosService {
         },
       });
 
-      // Actualizar CxC
+      // Revertir CxC
       if (factura.cuenta_por_cobrar) {
         const cxc = factura.cuenta_por_cobrar;
         const totalAbonado = Number(cxc.total_abonado);
         const nuevoSaldoPendiente = redondearMonto(totalNuevo - totalAbonado);
+
+        // Revertir estado si aplicarDescuentoFactura lo cambió a PAGADO
+        let nuevoEstadoCxc = cxc.estado;
+        let nuevoEstadoPago: any = factura.estado_pago;
+
+        if (nuevoSaldoPendiente > 0) {
+          nuevoEstadoCxc = totalAbonado > 0 ? 'PAGADA_PARCIAL' : 'PENDIENTE';
+          nuevoEstadoPago = totalAbonado > 0 ? 'ABONO' : 'PENDIENTE';
+        }
 
         await tx.cuenta_por_cobrar.update({
           where: { id_cxc: cxc.id_cxc },
           data: {
             monto_total: totalNuevo,
             saldo_pendiente: Math.max(0, nuevoSaldoPendiente),
+            estado: nuevoEstadoCxc,
           },
         });
+
+        if (nuevoEstadoPago !== factura.estado_pago) {
+          await tx.facturaDirecta.update({
+            where: { id_factura_directa: idFactura },
+            data: { estado_pago: nuevoEstadoPago },
+          });
+        }
       }
     });
 

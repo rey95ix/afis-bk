@@ -14,9 +14,36 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { memoryStorage } from 'multer';
+import type { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
 import { OrdenesTrabajoService } from './ordenes-trabajo.service';
+
+const EVIDENCIAS_MULTER_OPTIONS: MulterOptions = {
+  storage: memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = [
+      'image/jpeg',
+      'image/png',
+      'image/jpg',
+      'application/pdf',
+      'image/gif',
+      'video/mp4',
+    ];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(
+        new Error(
+          'Tipo de archivo no permitido. Solo se aceptan imágenes, PDFs y videos.',
+        ),
+        false,
+      );
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+};
 import { CreateOrdenDto } from './dto/create-orden.dto';
 import { UpdateOrdenDto } from './dto/update-orden.dto';
 import { QueryOrdenDto } from './dto/query-orden.dto';
@@ -282,43 +309,7 @@ export class OrdenesTrabajoController {
 
   @RequirePermissions('atencion_cliente.ordenes:ejecutar')
   @Post(':id/cambiar-estado')
-  @UseInterceptors(
-    FilesInterceptor('archivos', 10, {
-      storage: diskStorage({
-        destination: './uploads/evidencias',
-        filename: (req, file, cb) => {
-          const uniqueSuffix =
-            Date.now() + '-' + Math.round(Math.random() * 1e9);
-          const ext = extname(file.originalname);
-          const filename = `evidencia-${uniqueSuffix}${ext}`;
-          cb(null, filename);
-        },
-      }),
-      fileFilter: (req, file, cb) => {
-        const allowedMimes = [
-          'image/jpeg',
-          'image/png',
-          'image/jpg',
-          'application/pdf',
-          'image/gif',
-          'video/mp4',
-        ];
-        if (allowedMimes.includes(file.mimetype)) {
-          cb(null, true);
-        } else {
-          cb(
-            new Error(
-              'Tipo de archivo no permitido. Solo se aceptan imágenes, PDFs y videos.',
-            ),
-            false,
-          );
-        }
-      },
-      limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB
-      },
-    }),
-  )
+  @UseInterceptors(FilesInterceptor('archivos', 10, EVIDENCIAS_MULTER_OPTIONS))
   @ApiOperation({
     summary: 'Cambiar el estado de una orden de trabajo',
     description:
@@ -381,43 +372,7 @@ export class OrdenesTrabajoController {
 
   @RequirePermissions('atencion_cliente.ordenes:cerrar')
   @Post(':id/cerrar')
-  @UseInterceptors(
-    FilesInterceptor('archivos', 10, {
-      storage: diskStorage({
-        destination: './uploads/evidencias',
-        filename: (req, file, cb) => {
-          const uniqueSuffix =
-            Date.now() + '-' + Math.round(Math.random() * 1e9);
-          const ext = extname(file.originalname);
-          const filename = `evidencia-cierre-${uniqueSuffix}${ext}`;
-          cb(null, filename);
-        },
-      }),
-      fileFilter: (req, file, cb) => {
-        const allowedMimes = [
-          'image/jpeg',
-          'image/png',
-          'image/jpg',
-          'application/pdf',
-          'image/gif',
-          'video/mp4',
-        ];
-        if (allowedMimes.includes(file.mimetype)) {
-          cb(null, true);
-        } else {
-          cb(
-            new Error(
-              'Tipo de archivo no permitido. Solo se aceptan imágenes, PDFs y videos.',
-            ),
-            false,
-          );
-        }
-      },
-      limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB
-      },
-    }),
-  )
+  @UseInterceptors(FilesInterceptor('archivos', 10, EVIDENCIAS_MULTER_OPTIONS))
   @ApiOperation({
     summary: 'Cerrar una orden de trabajo',
     description:
