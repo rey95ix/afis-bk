@@ -144,23 +144,12 @@ export class ContratoPagosService {
         { numero_cuota: 'asc' },
       ],
     });
-
-    const ahora = new Date();
-
     return facturas.map((f) => {
       const cxc = f.cuenta_por_cobrar;
       const montoAbonado = cxc ? Number(cxc.total_abonado) : 0;
       const saldoPendiente = cxc ? Number(cxc.saldo_pendiente) : Number(f.total);
-
-      // Compute visual estado_pago
+ 
       let estadoPago: string = f.estado_pago;
-      if (
-        f.estado_pago === 'PENDIENTE' &&
-        f.fecha_vencimiento &&
-        f.fecha_vencimiento < ahora
-      ) {
-        estadoPago = 'VENCIDA';
-      }
 
       return {
         idFactura: f.id_factura_directa,
@@ -361,7 +350,13 @@ export class ContratoPagosService {
     }
 
     const ahora = new Date();
-    const diasGraciaMs = config.dias_gracia * 24 * 60 * 60 * 1000;
+    // Normalizar a inicio del día para evitar que horas/minutos afecten la comparación
+    const hoyInicio = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+    const diasGraciaMs = (config.dias_gracia + 1) * 24 * 60 * 60 * 1000;
+
+    // Fecha de corte: mora aplica a partir del día siguiente al vencimiento + días de gracia
+    // Si vencimiento es 27-mar y dias_gracia=0, la mora aplica desde 28-mar
+    const fechaCorte = new Date(hoyInicio.getTime() - diasGraciaMs);
 
     // Obtener CxCs vencidas (pasó fecha vencimiento + días de gracia, no EN_ACUERDO, no pagadas)
     const cxcs = await this.prisma.cuenta_por_cobrar.findMany({
@@ -369,11 +364,11 @@ export class ContratoPagosService {
         id_contrato: idContrato,
         estado: { notIn: ['PAGADA_TOTAL', 'ANULADA'] },
         mora_exonerada: false,
-        fecha_vencimiento: { lt: new Date(ahora.getTime() - diasGraciaMs) },
+        fecha_vencimiento: { lt: fechaCorte },
         // Excluir las que tienen acuerdo de pago vigente
         OR: [
           { fecha_acuerdo_pago: null },
-          { fecha_acuerdo_pago: { lt: ahora } },
+          { fecha_acuerdo_pago: { lt: hoyInicio } },
         ],
       },
       include: {
@@ -386,8 +381,11 @@ export class ContratoPagosService {
 
     for (const cxc of cxcs) {
       const factura = cxc.facturaDirecta;
+      // Normalizar fecha de vencimiento a inicio del día para cálculo preciso
+      const venc = cxc.fecha_vencimiento;
+      const vencInicio = new Date(venc.getFullYear(), venc.getMonth(), venc.getDate());
       const diasAtraso = Math.floor(
-        (ahora.getTime() - cxc.fecha_vencimiento.getTime()) / (1000 * 60 * 60 * 24),
+        (hoyInicio.getTime() - vencInicio.getTime()) / (1000 * 60 * 60 * 24),
       );
       const montoOriginal = Number(cxc.monto_total);
       const moraAnterior = Number(cxc.monto_mora);
