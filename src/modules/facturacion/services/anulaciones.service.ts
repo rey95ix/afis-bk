@@ -105,7 +105,7 @@ export class AnulacionesService {
       );
 
       // ==================== PASO 5: FIRMAR EVENTO ====================
-      const signResult = await this.signer.firmar(generalData.nit!, evento);
+      const signResult = await this.signer.firmar(generalData.nit!, evento, anulacionCreada.id_anulacion, dteOriginal.fecha_emision);
 
       if (!signResult.success) {
         await this.actualizarEstadoAnulacion(

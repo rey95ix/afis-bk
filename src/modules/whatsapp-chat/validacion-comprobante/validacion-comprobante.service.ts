@@ -617,8 +617,8 @@ export class ValidacionComprobanteService {
       throw new NotFoundException('Validación no encontrada');
     }
 
-    if (validacion.estado !== 'PENDIENTE') {
-      throw new BadRequestException('Solo se puede actualizar el banco de validaciones pendientes');
+    if (validacion.estado !== 'PENDIENTE' && validacion.estado !== 'APROBADO') {
+      throw new BadRequestException('Solo se puede actualizar el banco de validaciones pendientes o aprobadas');
     }
 
     return this.prisma.whatsapp_validacion_comprobante.update({

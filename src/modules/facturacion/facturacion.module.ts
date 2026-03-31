@@ -13,6 +13,7 @@ import { CobrosController, AnulacionesController, ContratoPagosController } from
 
 // Services - Cobros, Anulaciones, Mora y Contrato Pagos
 import { CobrosService, AnulacionesService, MoraService, ContratoPagosService } from './services';
+import { ContratoPagosPdfService } from './services/contrato-pagos-pdf.service';
 
 // DTE Builders
 import { FcBuilderService } from './dte/builders/fc-builder.service';
@@ -81,6 +82,7 @@ import { ComprobanteAnalyzerService } from '../whatsapp-chat/validacion-comproba
     AnulacionesService,
     MoraService,
     ContratoPagosService,
+    ContratoPagosPdfService,
 
     // DTE Builders
     FcBuilderService,

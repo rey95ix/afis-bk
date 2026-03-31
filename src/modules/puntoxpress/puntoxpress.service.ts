@@ -10,6 +10,7 @@ import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { FacturaPuntoXpress } from './interfaces';
 import { AplicarPagoDto, AnularPagoPuntoXpressDto } from './dto';
 import { MailService } from 'src/modules/mail/mail.service';
+import { ContratoPagosService } from 'src/modules/facturacion/services/contrato-pagos.service';
 
 // Estados de CXC que se consideran "pendientes de pago"
 const ESTADOS_CXC_PENDIENTES = ['PENDIENTE', 'PAGADA_PARCIAL', 'VENCIDA'] as const;
@@ -24,6 +25,7 @@ export class PuntoXpressService {
     private prisma: PrismaService,
     private configService: ConfigService,
     private mailService: MailService,
+    private contratoPagosService: ContratoPagosService,
   ) {
     this.portalSystemUserId = Number(
       this.configService.get<string>('PORTAL_SYSTEM_USER_ID', '1'),
@@ -249,7 +251,7 @@ export class PuntoXpressService {
           await this.verificarActivacionAutomatica(idCliente, tx);
         }
 
-        return abono;
+        return { abono, estadoPagoFactura };
       },
       { timeout: 60000 },
     );
@@ -257,11 +259,11 @@ export class PuntoXpressService {
     await this.prisma.logAction(
       'PUNTOXPRESS_PAGO',
       this.portalSystemUserId,
-      `Pago PuntoXpress: Abono #${resultado.id_abono} en CXC #${cxc.id_cxc}. Monto: $${montoPago}. Colector: ${dto.colector}. Integrador ID: ${idIntegrador}`,
+      `Pago PuntoXpress: Abono #${resultado.abono.id_abono} en CXC #${cxc.id_cxc}. Monto: $${montoPago}. Colector: ${dto.colector}. Integrador ID: ${idIntegrador}`,
     );
 
     this.logger.log(
-      `Pago aplicado: Abono #${resultado.id_abono}, CXC #${cxc.id_cxc}, $${montoPago}`,
+      `Pago aplicado: Abono #${resultado.abono.id_abono}, CXC #${cxc.id_cxc}, $${montoPago}`,
     );
 
     // Enviar comprobante de pago por correo (fire-and-forget)
@@ -273,7 +275,7 @@ export class PuntoXpressService {
           cxc.facturaDirecta.cliente?.titular || '',
           cxc.contrato?.codigo || '',
           Number(montoPago),
-          dto.referencia || `ABN-${resultado.id_abono}`,
+          dto.referencia || `ABN-${resultado.abono.id_abono}`,
           dto.colector,
           new Date().toLocaleString('es-SV'),
           dto.id_factura_directa,
@@ -284,10 +286,26 @@ export class PuntoXpressService {
         );
     }
 
+    // Post-pago: firmar DTE y generar siguiente factura si aplica
+    if (cxc.id_contrato && resultado.estadoPagoFactura === 'PAGADO') {
+      try {
+        await this.contratoPagosService.procesarPostPagoFacturaContrato(
+          dto.id_factura_directa,
+          cxc.id_contrato,
+          this.portalSystemUserId,
+          resultado.estadoPagoFactura,
+        );
+      } catch (error) {
+        this.logger.error(
+          `Error en post-pago (firma/generación) para factura #${dto.id_factura_directa}: ${error.message}`,
+        );
+      }
+    }
+
     return {
       estado: 'OK',
       mensaje: 'Pago aplicado con éxito',
-      id_pago: resultado.id_abono,
+      id_pago: resultado.abono.id_abono,
     };
   }
 

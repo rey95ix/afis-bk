@@ -6,17 +6,20 @@ import {
   Param,
   Body,
   Query,
+  Res,
   ParseIntPipe,
   Request,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { Auth } from 'src/modules/auth/decorators';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { ContratoPagosService } from '../services/contrato-pagos.service';
+import { ContratoPagosPdfService } from '../services/contrato-pagos-pdf.service';
 import {
   RegistrarPagoContratoDto,
   RegistrarAcuerdoPagoDto,
@@ -30,7 +33,10 @@ import { FixDuplicatedInvoicesDto } from '../dto/fix-duplicated-invoices.dto';
 @Auth()
 @Controller('facturacion/contrato-pagos')
 export class ContratoPagosController {
-  constructor(private readonly contratoPagosService: ContratoPagosService) {}
+  constructor(
+    private readonly contratoPagosService: ContratoPagosService,
+    private readonly contratoPagosPdfService: ContratoPagosPdfService,
+  ) {}
 
   @Get('abonos')
   @ApiOperation({ summary: 'Listar todos los abonos con filtros y paginación' })
@@ -178,6 +184,21 @@ export class ContratoPagosController {
       req.user.id_usuario,
     );
     return { data: resultado };
+  }
+
+  @Get(':idContrato/estado-cuenta/pdf')
+  @ApiOperation({ summary: 'Descargar PDF del estado de cuenta de un contrato' })
+  async descargarEstadoCuentaPdf(
+    @Param('idContrato', ParseIntPipe) idContrato: number,
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } = await this.contratoPagosPdfService.generateEstadoCuentaPdf(idContrato);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 
   @Get(':idContrato/estado-cuenta')

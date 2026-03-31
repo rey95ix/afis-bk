@@ -47,6 +47,9 @@ import { MovimientosBancariosService } from '../../bancos/movimientos-bancarios/
 
 // Utilidad para convertir números a letras
 import { numeroALetras, redondearMonto, DECIMALES_ITEM } from '../dte/builders/numero-letras.util';
+// Utilidad para NPE y código de barras GS1-128
+import { calculateNpe, buildGs1128Data, generateGs1128BarcodeBase64 } from '../dte/builders/npe-barcode.util';
+import { formatDate } from '../../../common/helpers/dates.helper';
 
 /**
  * Resultado de la creación de una factura directa
@@ -234,6 +237,8 @@ export class FacturaDirectaService {
       const signResult = await this.signer.firmar(
         datos.generalData.nit!,
         documento,
+        facturaCreada.id_factura_directa,
+        facturaCreada.fecha_vencimiento,
       );
 
       if (!signResult.success) {
@@ -458,7 +463,7 @@ export class FacturaDirectaService {
       );
 
       // ==================== PASO 8: FIRMAR NC ====================
-      const signResult = await this.signer.firmar(generalData.nit!, documento);
+      const signResult = await this.signer.firmar(generalData.nit!, documento, ncCreada.id_factura_directa, ncCreada.fecha_vencimiento);
 
       if (!signResult.success) {
         await this.actualizarEstadoDte(ncCreada.id_factura_directa, 'BORRADOR', signResult.error);
@@ -1337,18 +1342,32 @@ export class FacturaDirectaService {
     this.logger.log(`Iniciando reenvío de DTE para factura ${id}`);
 
     // ==================== PASO 1: VALIDACIONES ====================
-    const facturaBasica = await this.findOne(id);
+    let facturaBasica = await this.findOne(id);
 
     if (facturaBasica.estado_dte === 'PROCESADO') {
-      throw new BadRequestException('La factura ya fue procesada exitosamente');
+      this.logger.warn(`Factura #${facturaBasica.numero_control} ya fue procesada y sellada por MH`);
+      return {
+        success: true,
+        idFactura: id,
+        codigoGeneracion: facturaBasica.codigo_generacion || undefined,
+        numeroControl: facturaBasica.numero_control || undefined,
+        estado: 'PROCESADO',
+        selloRecibido: facturaBasica.sello_recepcion || undefined,
+      };
     }
 
     if (facturaBasica.estado === 'ANULADO') {
       throw new BadRequestException('No se puede reenviar una factura anulada');
     }
 
-    if (!facturaBasica.codigo_generacion || !facturaBasica.numero_control) {
-      throw new BadRequestException('La factura no tiene código de generación o número de control');
+    if (!facturaBasica.codigo_generacion) {
+      await this.prisma.facturaDirecta.update({
+        where: { id_factura_directa: id },
+        data: {
+          codigo_generacion: uuidv4().toUpperCase()
+        },
+      });
+      facturaBasica = await this.findOne(id);
     }
 
     // ==================== PASO 2: OBTENER DATOS ACTUALIZADOS ====================
@@ -1362,6 +1381,57 @@ export class FacturaDirectaService {
 
     this.logger.log(`Regenerando DTE tipo ${tipoDte} con datos actualizados`);
 
+    // ==================== PASO 2.5: AUTO-ASIGNAR NUMERO_CONTROL SI ES NULL ====================
+    let numeroControl = factura.numero_control;
+
+    if (!numeroControl) {
+      this.logger.log('numero_control es null, asignando automáticamente desde bloque');
+
+      const tipoFactura = await this.prisma.facturasTipos.findFirst({
+        where: { codigo: tipoDte },
+      });
+      if (!tipoFactura) {
+        throw new BadRequestException(`Tipo de factura ${tipoDte} no encontrado`);
+      }
+
+      const bloque = await this.prisma.facturasBloques.findFirst({
+        where: {
+          id_sucursal: factura.sucursal.id_sucursal,
+          estado: 'ACTIVO',
+          Tipo: { codigo: tipoDte },
+        },
+        include: { Tipo: true },
+      });
+
+      if (!bloque) {
+        throw new BadRequestException(`No hay bloques de facturas para tipo ${tipoDte} en la sucursal`);
+      }
+
+      if (bloque.actual >= bloque.hasta) {
+        throw new BadRequestException(`El bloque de facturas ${bloque.serie} está agotado`);
+      }
+
+      numeroControl = this.generarNumeroControl(tipoDte, factura.sucursal, bloque);
+      const numeroFactura = (bloque.actual + 1).toString().padStart(10, '0');
+
+      await this.prisma.facturaDirecta.update({
+        where: { id_factura_directa: id },
+        data: {
+          numero_control: numeroControl,
+          numero_factura: numeroFactura,
+          id_bloque: bloque.id_bloque,
+          id_tipo_factura: tipoFactura.id_tipo_factura,
+        },
+      });
+
+      await this.prisma.facturasBloques.update({
+        where: { id_bloque: bloque.id_bloque },
+        data: { actual: bloque.actual + 1 },
+      });
+
+      this.logger.log(`numero_control asignado: ${numeroControl}, numero_factura: ${numeroFactura}`);
+    }
+
     // ==================== PASO 3: CONSTRUIR DTE ACTUALIZADO ====================
     const emisor = this.construirEmisorActualizado(generalData, factura.sucursal);
     const receptor = this.construirReceptorActualizado(factura, tipoDte);
@@ -1369,7 +1439,7 @@ export class FacturaDirectaService {
     const buildParams: BuildDteParams = {
       ambiente: (generalData.ambiente || '00') as Ambiente,
       version: factura.tipoFactura?.version || 1,
-      numeroControl: factura.numero_control!, // Mantener el mismo
+      numeroControl, // Usar el existente o el recién generado
       codigoGeneracion: factura.codigo_generacion!, // Mantener el mismo
       emisor,
       receptor,
@@ -1405,7 +1475,7 @@ export class FacturaDirectaService {
     });
 
     // ==================== PASO 5: FIRMAR DTE ====================
-    const signResult = await this.signer.firmar(generalData.nit!, documento);
+    const signResult = await this.signer.firmar(generalData.nit!, documento, id, factura.fecha_vencimiento);
 
     if (!signResult.success) {
       await this.actualizarEstadoDte(id, 'BORRADOR', signResult.error);
@@ -1413,7 +1483,7 @@ export class FacturaDirectaService {
         success: false,
         idFactura: id,
         codigoGeneracion: factura.codigo_generacion!,
-        numeroControl: factura.numero_control!,
+        numeroControl: numeroControl!,
         error: `Error al firmar: ${signResult.error}`,
       };
     }
@@ -1455,7 +1525,7 @@ export class FacturaDirectaService {
         success: true,
         idFactura: id,
         codigoGeneracion: factura.codigo_generacion!,
-        numeroControl: factura.numero_control!,
+        numeroControl: numeroControl!,
         estado: 'PROCESADO',
         selloRecibido: transmitResult.selloRecibido,
         totalPagar: totales.totalPagar,
@@ -1465,7 +1535,7 @@ export class FacturaDirectaService {
         success: false,
         idFactura: id,
         codigoGeneracion: factura.codigo_generacion!,
-        numeroControl: factura.numero_control!,
+        numeroControl: numeroControl!,
         estado: 'RECHAZADO',
         totalPagar: totales.totalPagar,
         error: transmitResult.error,
@@ -1517,7 +1587,7 @@ export class FacturaDirectaService {
       // ==================== PASO 4: FIRMAR EVENTO ====================
       console.log('Firmando evento de anulación...');
       console.log(evento);
-      const signResult = await this.signer.firmar(generalData.nit!, evento);
+      const signResult = await this.signer.firmar(generalData.nit!, evento, id, factura.fecha_vencimiento);
 
       if (!signResult.success) {
         return {
@@ -2208,6 +2278,8 @@ export class FacturaDirectaService {
       };
     });
 
+
+
     return {
       ambiente: (generalData.ambiente || '00') as Ambiente,
       version: datos.tipoFactura?.version || 1,
@@ -2217,6 +2289,7 @@ export class FacturaDirectaService {
       receptor,
       items: itemsData,
       condicionOperacion: dto.condicion_operacion || 1,
+      numPagoElectronico: undefined,
       // pagos: dto.pagos?.map((p) => ({
       //   codigo: p.codigo,
       //   monto: redondearMonto(p.monto || 0),
@@ -2648,6 +2721,8 @@ export class FacturaDirectaService {
     let dteDocument: any;
     try {
       dteDocument = JSON.parse(factura.dte_json as string);
+      dteDocument.id_factura_directa = factura.id_factura_directa;
+      dteDocument.codigoCliente = factura.id_cliente ? String(factura.id_cliente).padStart(6, '0') : '000000';
     } catch {
       throw new BadRequestException('El JSON del DTE está corrupto.');
     }
@@ -2668,7 +2743,43 @@ export class FacturaDirectaService {
     // 5. Obtener datos generales (branding, redes sociales)
     const generalData = await this.prisma.generalData.findFirst();
 
-    // 6. Preparar datos según el tipo de DTE
+    // 5.1 Si no existe NPE y el GLN está configurado, calcularlo y persistirlo
+    if (
+      generalData?.gln &&
+      !dteDocument.resumen?.numPagoElectronico &&
+      tipoDte !== '14' && tipoDte !== '05' // No aplica para FSE ni NC
+    ) {
+      try {
+        let reference: string = String(factura.id_factura_directa).padStart(10, '0');
+
+        const condicion = factura.condicion_operacion || 1;
+        const maxPaymentDate = condicion === 2
+          ? (factura.fecha_vencimiento || factura.fecha_pago_estimada || null)
+          : null;
+
+        const npeCalculado = calculateNpe({
+          gln: generalData.gln,
+          amount: Number(factura.total) || dteDocument.resumen?.totalPagar || 0,
+          maxPaymentDate: maxPaymentDate ? new Date(maxPaymentDate) : null,
+          reference,
+        });
+
+        // Actualizar el DTE JSON en memoria y en base de datos
+        if (!dteDocument.resumen) dteDocument.resumen = {};
+        dteDocument.resumen.numPagoElectronico = npeCalculado;
+
+        await this.prisma.facturaDirecta.update({
+          where: { id_factura_directa: id },
+          data: { dte_json: JSON.stringify(dteDocument) },
+        });
+
+        this.logger.log(`NPE generado retroactivamente para factura ${id}: ${npeCalculado}`);
+      } catch (err) {
+        this.logger.warn(`No se pudo generar NPE para factura ${id}: ${err.message}`);
+      }
+    }
+
+    // 6. Preparar datos según el tipo de DTE 
     const templateData = await this.prepareTemplateData(dteDocument, factura, tipoDte, generalData);
 
     // 7. Enviar a jsReport
@@ -2772,7 +2883,7 @@ export class FacturaDirectaService {
     // URL QR para verificación MH
     const qrUrl = await this.buildQrUrl(dteDocument, factura);
     dteDocument.emisor.tipoEstablecimiento = 'Casa Matriz'; // Forzar etiqueta en el template
-    return {
+    const result: Record<string, any> = {
       // Tipo de documento
       tipoDte,
       esFC,
@@ -2837,11 +2948,13 @@ export class FacturaDirectaService {
       // Observaciones
       nota: dteDocument.extension?.observaciones || factura.observaciones || '',
 
-      // Código cliente (usa el ID del cliente directo)
-      codigoCliente: factura.id_cliente_directo?.toString() || '',
+      // Código cliente (usa el ID del cliente directo) 
 
       // Correlativo formateado
       correlativo: factura.numero_factura || '',
+
+      // Logo empresa
+      logo: this.getLogoBase64(),
 
       // Branding e iconos
       iconInvoice: (factura as any).sucursal?.icono_factura || generalData?.icono_factura || '',
@@ -2860,7 +2973,57 @@ export class FacturaDirectaService {
       whatsapp_icon: SOCIAL_ICONS.whatsapp,
       telefono_icon: SOCIAL_ICONS.telefono,
       web_icon: SOCIAL_ICONS.web,
+
+      // Código de barras GS1-128 y NPE
+      barcodeImage: '',
+      npeFormatted: '',
+      barcodeImageText: '',
+      id_factura_directa: dteDocument.id_factura_directa,
+      codigoCliente: dteDocument.codigoCliente,
+      veciminento: formatDate(factura.fecha_vencimiento || factura.fecha_pago_estimada),
+      periodo: formatDate(factura.periodo_inicio) + ' - ' + formatDate(factura.periodo_fin),
     };
+    // Generar código de barras GS1-128 si hay NPE y GLN configurado
+    const npe = dteDocument.resumen?.numPagoElectronico;
+    if (npe && generalData?.gln && !esNota && !esFSE) {
+      try {
+        // Usar la misma lógica de referencia que en la generación del NPE:
+        // cobros de contrato → id_contrato, factura directa → id_cliente_directo, fallback → UUID dígitos
+        let barcodeRef: string;
+        if (factura.id_contrato) {
+          barcodeRef = String(factura.id_contrato).padStart(10, '0');
+        } else if (factura.id_cliente_directo) {
+          barcodeRef = String(factura.id_cliente_directo).padStart(10, '0');
+        } else {
+          const uuidDigits = (factura.codigo_generacion || '').replace(/\D/g, '');
+          barcodeRef = (uuidDigits.length >= 2 ? uuidDigits : uuidDigits.padStart(2, '0')).slice(0, 24);
+        }
+
+        const barcodeData = buildGs1128Data({
+          gln: generalData.gln,
+          amount: dteDocument.resumen.totalPagar,
+          maxPaymentDate: factura.fecha_vencimiento || factura.fecha_pago_estimada || null,
+          reference: barcodeRef,
+        });
+        result.barcodeImage = await generateGs1128BarcodeBase64(barcodeData);
+        result.npeFormatted = npe;
+        result.barcodeImageText = barcodeData;
+      } catch (err) {
+        this.logger.warn(`Error generando código de barras: ${err.message}`);
+      }
+    }
+
+    return result;
+  }
+
+  private getLogoBase64(): string {
+    try {
+      const logoPath = path.join(process.cwd(), 'templates/logo-newtel.png');
+      const logoBuffer = fs.readFileSync(logoPath);
+      return `data:image/png;base64,${logoBuffer.toString('base64')}`;
+    } catch {
+      return '';
+    }
   }
 
   /**
@@ -3210,7 +3373,7 @@ export class FacturaDirectaService {
     });
 
     // 8. Firmar DTE
-    const signResult = await this.signer.firmar(generalData.nit!, documento);
+    const signResult = await this.signer.firmar(generalData.nit!, documento, idFactura, factura.fecha_vencimiento);
     if (!signResult.success) {
       await this.actualizarEstadoDte(idFactura, 'BORRADOR', signResult.error);
       return {
@@ -3521,13 +3684,13 @@ export class FacturaDirectaService {
 
       const esProrrateo = precioEfectivo !== precioBase;
       const nombreCuota = esProrrateo
-        ? `${contrato.plan.nombre} - Cuota ${cuota}/${mesesContrato} (Prorrateo)`
-        : `${contrato.plan.nombre} - Cuota ${cuota}/${mesesContrato}`;
+        ? `${contrato.plan.nombre} (Prorrateo)`
+        : `${contrato.plan.nombre}`;
 
       detalles.push({
         num_item: numItem++,
-        nombre: nombreCuota,
-        descripcion: `Servicio ${contrato.plan.nombre} - Período ${periodoInicioFinal.toLocaleDateString('es-SV')} al ${periodoFin.toLocaleDateString('es-SV')}`,
+        nombre: nombreCuota + ` - Período ${formatDate(periodoInicioFinal)} al ${formatDate(periodoFin)}`,
+        descripcion: `Servicio ${contrato.plan.nombre}`,
         cantidad: 1,
         uni_medida: 99,
         precio_unitario: preciosServicio.precioUnitario,

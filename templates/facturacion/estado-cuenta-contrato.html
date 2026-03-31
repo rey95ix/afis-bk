@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Estado de Cuenta - Contrato {{:contrato.codigo}}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 9pt;
+      color: #333;
+      padding: 20px 25px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #1565C0;
+      padding-bottom: 10px;
+    }
+    .header h1 {
+      font-size: 16pt;
+      color: #1565C0;
+      margin-bottom: 3px;
+    }
+    .header h2 {
+      font-size: 10pt;
+      color: #666;
+      font-weight: normal;
+    }
+    .empresa-info {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 15px;
+      font-size: 9pt;
+    }
+    .empresa-info div {
+      flex: 1;
+    }
+    .empresa-info .label {
+      color: #888;
+      font-size: 8pt;
+    }
+    .cliente-box {
+      background: #E3F2FD;
+      border: 1px solid #BBDEFB;
+      border-radius: 4px;
+      padding: 10px 15px;
+      margin-bottom: 15px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .cliente-box .col {
+      flex: 1;
+    }
+    .cliente-box .nombre {
+      font-size: 12pt;
+      font-weight: bold;
+      color: #1565C0;
+      margin-bottom: 4px;
+    }
+    .cliente-box .detail {
+      font-size: 8.5pt;
+      color: #555;
+      margin-top: 1px;
+    }
+    .cliente-box .detail .label {
+      color: #888;
+      font-size: 7.5pt;
+    }
+    .info-grid {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 15px;
+    }
+    .info-card {
+      flex: 1;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      padding: 8px 12px;
+    }
+    .info-card .card-title {
+      font-size: 8pt;
+      font-weight: bold;
+      color: #1565C0;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      border-bottom: 1px solid #e0e0e0;
+      padding-bottom: 3px;
+    }
+    .info-card .detail {
+      font-size: 8.5pt;
+      margin-top: 2px;
+    }
+    .info-card .detail .label {
+      color: #888;
+      font-size: 7.5pt;
+    }
+    .resumen-grid {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .resumen-card {
+      flex: 1;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .resumen-card .label {
+      font-size: 8pt;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .resumen-card .value {
+      font-size: 13pt;
+      font-weight: bold;
+    }
+    .resumen-card.facturado .value { color: #1565C0; }
+    .resumen-card.abonado .value { color: #2E7D32; }
+    .resumen-card.pendiente .value { color: #C62828; }
+    .resumen-card.cantidad .value { color: #E65100; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+      margin-bottom: 10px;
+    }
+    th {
+      background: #1565C0;
+      color: white;
+      padding: 6px 8px;
+      text-align: center;
+      font-weight: bold;
+      font-size: 8pt;
+    }
+    td {
+      padding: 5px 8px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    .text-right {
+      text-align: right;
+    }
+    .text-center {
+      text-align: center;
+    }
+    .fw-bold {
+      font-weight: bold;
+    }
+    .text-danger {
+      color: #C62828;
+    }
+    .text-success {
+      color: #2E7D32;
+    }
+    .totals-row td {
+      font-weight: bold;
+      background: #E3F2FD;
+      border-top: 2px solid #1565C0;
+      padding: 7px 8px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 7pt;
+      font-weight: bold;
+      color: white;
+    }
+    .badge-pendiente { background: #FFA726; }
+    .badge-parcial { background: #42A5F5; }
+    .badge-pagado { background: #66BB6A; }
+    .badge-vencida { background: #EF5350; }
+    .badge-acuerdo { background: #AB47BC; }
+    .section-title {
+      font-size: 10pt;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 8px;
+      padding-bottom: 3px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .footer {
+      margin-top: 20px;
+      padding-top: 8px;
+      border-top: 1px solid #ddd;
+      font-size: 8pt;
+      color: #999;
+      display: flex;
+      justify-content: space-between;
+    }
+    .estado-contrato {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 8pt;
+      font-weight: bold;
+      color: white;
+      background: #66BB6A;
+    }
+    .estado-contrato.suspendido { background: #FFA726; }
+    .estado-contrato.inactivo { background: #EF5350; }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <h1>Estado de Cuenta - Contrato</h1>
+    <h2>{{:empresa.nombre}}</h2>
+  </div>
+
+  <!-- Empresa Info -->
+  <div class="empresa-info">
+    <div>
+      <span class="label">NIT:</span> {{:empresa.nit}}<br>
+      <span class="label">NRC:</span> {{:empresa.nrc}}
+    </div>
+    <div style="text-align: center;">
+      <span class="label">Contrato:</span> <strong>{{:contrato.codigo}}</strong>
+      <!-- <span class="estado-contrato {{:contrato.estadoClass}}">{{:contrato.estado}}</span> -->
+    </div>
+    <div style="text-align: right;">
+      <span class="label">Fecha de Generacion:</span> <br> {{:fechaGeneracion}}
+    </div>
+  </div>
+
+  <!-- Cliente -->
+  <div class="cliente-box">
+    <div class="col">
+      <div class="nombre">{{:cliente.nombre}}</div>
+      {{if cliente.dui}}
+      <div class="detail"><span class="label">DUI:</span> {{:cliente.dui}}</div>
+      {{/if}}
+      {{if cliente.nit}}
+      <div class="detail"><span class="label">NIT:</span> {{:cliente.nit}}</div>
+      {{/if}}
+      {{if cliente.nrc}}
+      <div class="detail"><span class="label">NRC:</span> {{:cliente.nrc}}</div>
+      {{/if}}
+    </div>
+    <div class="col">
+      {{if cliente.correo}}
+      <div class="detail"><span class="label">Correo:</span> {{:cliente.correo}}</div>
+      {{/if}}
+      {{if cliente.telefono1}}
+      <div class="detail"><span class="label">Tel:</span> {{:cliente.telefono1}}</div>
+      {{/if}}
+      {{if cliente.direccionFacturacion}}
+      <div class="detail"><span class="label">Dir. Facturacion:</span> {{:cliente.direccionFacturacion}}</div>
+      {{/if}}
+    </div>
+  </div>
+
+  <!-- Info Contrato + Plan -->
+  <div class="info-grid">
+    <div class="info-card">
+      <div class="card-title">Contrato</div>
+      {{if contrato.direccionServicio}}
+      <div class="detail"><span class="label">Dir. Servicio:</span> {{:contrato.direccionServicio}}</div>
+      {{/if}}
+      {{if contrato.fechaInicio}}
+      <div class="detail"><span class="label">Inicio:</span> {{:contrato.fechaInicio}}</div>
+      {{/if}}
+      {{if contrato.fechaFin}}
+      <div class="detail"><span class="label">Fin:</span> {{:contrato.fechaFin}}</div>
+      {{/if}}
+      <!-- {{if contrato.mesesContrato}}
+      <div class="detail"><span class="label">Plazo:</span> {{:contrato.mesesContrato}} meses</div>
+      {{/if}} -->
+    </div>
+    <div class="info-card">
+      <div class="card-title">Plan de Servicio</div>
+      <div class="detail"><span class="label">Plan:</span> <strong>{{:plan.nombre}}</strong></div>
+      <div class="detail"><span class="label">Precio:</span> ${{:plan.precio}}</div>
+      {{if plan.velocidad}}
+      <div class="detail"><span class="label">Velocidad:</span> {{:plan.velocidad}}</div>
+      {{/if}}
+      <div class="detail"><span class="label">Corte:</span> Dia {{:ciclo.diaVencimiento}} de cada mes</div>
+    </div>
+  </div>
+
+  <!-- Resumen -->
+  <div class="resumen-grid">
+    <div class="resumen-card facturado">
+      <div class="label">Total Facturado</div>
+      <div class="value">${{:totales.totalFacturado}}</div>
+    </div>
+    <div class="resumen-card abonado">
+      <div class="label">Total Abonado</div>
+      <div class="value">${{:totales.totalAbonado}}</div>
+    </div>
+    <div class="resumen-card pendiente">
+      <div class="label">Saldo Pendiente</div>
+      <div class="value">${{:totales.saldoPendiente}}</div>
+    </div>
+    <div class="resumen-card cantidad">
+      <div class="label">Facturas Pendientes</div>
+      <div class="value">{{:totales.facturasPendientes}}</div>
+    </div>
+  </div>
+
+  <!-- Tabla de Facturas -->
+  <div class="section-title">Detalle de Facturas</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Cuota</th>
+        <th>Periodo</th>
+        <th>Vencimiento</th>
+        <th>Total</th>
+        <th>Descuento</th>
+        <th>Mora</th>
+        <th>Abonado</th>
+        <th>Saldo</th>
+        <th>Estado</th>
+        <th>N&deg; Factura</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{if facturas.length == 0}}
+      <tr>
+        <td colspan="10" class="text-center" style="padding: 20px; color: #999;">No hay facturas registradas</td>
+      </tr>
+      {{/if}}
+      {{for facturas}}
+      <tr>
+        <td class="text-center fw-bold">{{:cuota}}</td>
+        <td class="text-center">{{:periodo}}</td>
+        <td class="text-center">{{:fechaVencimiento}}</td>
+        <td class="text-right">${{:total}}</td>
+        <td class="text-right">{{if descuentoNum > 0}}${{:descuento}}{{else}}-{{/if}}</td>
+        <td class="text-right">{{if moraNum > 0}}<span class="text-danger">${{:mora}}</span>{{else}}-{{/if}}</td>
+        <td class="text-right text-success">${{:abonado}}</td>
+        <td class="text-right {{if esVencida}}text-danger{{/if}} fw-bold">${{:saldo}}</td>
+        <td class="text-center">
+          <span class="badge {{:badgeClass}}">{{:estadoLabel}}</span>
+        </td>
+        <td class="text-center">{{:numeroFactura}}</td>
+      </tr>
+      {{/for}}
+      {{if facturas.length > 0}}
+      <tr class="totals-row">
+        <td colspan="3">TOTALES</td>
+        <td class="text-right">${{:totales.totalFacturado}}</td>
+        <td class="text-right">${{:totales.totalDescuento}}</td>
+        <td class="text-right">${{:totales.totalMora}}</td>
+        <td class="text-right">${{:totales.totalAbonado}}</td>
+        <td class="text-right">${{:totales.saldoPendiente}}</td>
+        <td colspan="2"></td>
+      </tr>
+      {{/if}}
+    </tbody>
+  </table>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>Documento generado automaticamente - {{:empresa.nombre}}</span>
+    <span>{{:fechaGeneracion}}</span>
+  </div>
+</body>
+</html>

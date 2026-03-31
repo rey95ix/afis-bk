@@ -100,11 +100,11 @@ export class ValidacionComprobanteController {
   @Patch(':id/banco')
   @ApiOperation({
     summary: 'Actualizar banco destino',
-    description: 'Actualiza el banco destino de una validación pendiente. Útil cuando la IA no pudo detectar el banco destino en transferencias 365.',
+    description: 'Actualiza el banco destino de una validación pendiente o aprobada. Útil cuando la IA no pudo detectar el banco destino en transferencias 365.',
   })
   @ApiParam({ name: 'id', description: 'ID de la validación' })
   @ApiResponse({ status: 200, description: 'Banco actualizado exitosamente' })
-  @ApiResponse({ status: 400, description: 'La validación no está pendiente' })
+  @ApiResponse({ status: 400, description: 'La validación no está pendiente o aprobada' })
   @ApiResponse({ status: 404, description: 'Validación no encontrada' })
   actualizarBanco(
     @Param('id', ParseIntPipe) id: number,

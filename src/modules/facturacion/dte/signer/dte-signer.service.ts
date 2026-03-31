@@ -2,6 +2,7 @@ import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
+import { calculateNpe } from '../builders/npe-barcode.util';
 
 /**
  * Request para el API Firmador
@@ -51,11 +52,11 @@ export class DteSignerService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService
   ) {
-    this.apiUrl = this.configService.get<string>('API_FIRMADOR', 'http://localhost:8113');  
+    this.apiUrl = this.configService.get<string>('API_FIRMADOR', 'http://localhost:8113');
     if (!this.password) {
       this.logger.warn('FIRMADOR_PASSWORD no está configurado en las variables de entorno');
     }
-  } 
+  }
 
   /**
    * Firma un documento DTE o evento de anulación
@@ -64,8 +65,44 @@ export class DteSignerService {
    * @param documento JSON del DTE o evento a firmar
    * @returns Documento firmado en formato JWS
    */
-  async firmar(nit: string, documento: object): Promise<SignResult> {
+  async firmar(nit: string, documento: any, id_factura_directa: number, fecha_vencimiento: any): Promise<SignResult> {
     const endpoint = `${this.apiUrl}/firmardocumento/`;
+    const generalD = await this.prisma.generalData.findFirst();
+    const tipoDte = documento?.identificacion.tipoDte;
+    if (
+      generalD?.gln &&
+      !documento.resumen?.numPagoElectronico &&
+      (tipoDte == '01' || tipoDte == '03') // No aplica para FSE ni NC
+    ) {
+      try {
+        let reference: string = String(id_factura_directa).padStart(10, '0');
+
+        const condicion = documento.resumen.condicionOperacion || 1;
+        const maxPaymentDate = condicion === 2
+          ? (fecha_vencimiento || null)
+          : null;
+
+        const npeCalculado = calculateNpe({
+          gln: generalD.gln,
+          amount: Number(documento.resumen.total) || documento.resumen.resumen?.totalPagar || 0,
+          maxPaymentDate: maxPaymentDate ? new Date(maxPaymentDate) : null,
+          reference,
+        });
+
+        // Actualizar el DTE JSON en memoria y en base de datos
+        if (!documento.resumen) documento.resumen = {};
+        documento.resumen.numPagoElectronico = npeCalculado;
+
+        await this.prisma.facturaDirecta.update({
+          where: { id_factura_directa: id_factura_directa },
+          data: { dte_json: JSON.stringify(documento) },
+        });
+
+        this.logger.log(`NPE generado retroactivamente para factura ${id_factura_directa}: ${npeCalculado}`);
+      } catch (err) {
+        this.logger.warn(`No se pudo generar NPE para factura ${id_factura_directa}: ${err.message}`);
+      }
+    }
 
     this.logger.log(`Firmando documento para NIT: ${nit}`);
     this.logger.debug(`Endpoint: ${endpoint}`);

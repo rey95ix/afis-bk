@@ -207,7 +207,6 @@ export class ContratoPagosService {
     if (cxcs.length === 0) {
       throw new BadRequestException('No hay facturas pendientes de pago para este contrato');
     }
-    console.log(cxcs[0])
 
     const montoTotal = dto.monto;
     let montoRestante = montoTotal;
@@ -291,34 +290,16 @@ export class ContratoPagosService {
       { timeout: 60000 },
     );
 
-    // Firma diferida: para facturas que quedaron 100% pagadas, firmar y enviar (fuera de tx)
+    // Post-pago: firmar DTE y generar siguiente factura para cada factura pagada completamente
     for (const item of resultado) {
-      if (item.estadoResultante === 'PAGADO') {
-        try {
-          const firmaResult = await this.facturaDirectaService.firmarYEnviarFactura(
-            item.idFactura,
-            idUsuario,
-          );
-          item.firmadaEnMh = firmaResult.success;
-        } catch (error) {
-          this.logger.error(
-            `Error al firmar factura #${item.idFactura}: ${error.message}`,
-          );
-          // No bloquear el flujo si falla la firma
-        }
-      }
-    }
-
-    // Generar siguiente factura si la última fue pagada completamente
-    for (const item of resultado) {
-      if (item.estadoResultante === 'PAGADO') {
-        try {
-          await this.generarSiguienteFacturaSiUltima(item.idFactura, idContrato, idUsuario);
-        } catch (error) {
-          this.logger.error(
-            `Error al generar siguiente factura tras pago de #${item.idFactura}: ${error.message}`,
-          );
-        }
+      const firmada = await this.procesarPostPagoFacturaContrato(
+        item.idFactura,
+        idContrato,
+        idUsuario,
+        item.estadoResultante,
+      );
+      if (firmada !== undefined) {
+        item.firmadaEnMh = firmada;
       }
     }
 
@@ -1410,6 +1391,47 @@ export class ContratoPagosService {
 
     // Primera firma: asignar bloque, construir DTE, firmar y transmitir
     return this.facturaDirectaService.firmarYEnviarFactura(idFactura, idUsuario);
+  }
+
+  /**
+   * Ejecuta acciones post-pago para una factura de contrato:
+   * 1. Firma y envía DTE al MH si la factura quedó totalmente pagada
+   * 2. Genera la siguiente factura si era la última pendiente del contrato
+   * Retorna el estado de firma (true/false) si se intentó firmar, o undefined si no aplica.
+   */
+  async procesarPostPagoFacturaContrato(
+    idFactura: number,
+    idContrato: number,
+    idUsuario: number,
+    estadoPago: string,
+  ): Promise<boolean | undefined> {
+    if (estadoPago !== 'PAGADO') return undefined;
+
+    let firmada: boolean | undefined;
+
+    // Firma diferida: firmar y enviar DTE al MH
+    try {
+      const firmaResult = await this.facturaDirectaService.firmarYEnviarFactura(
+        idFactura,
+        idUsuario,
+      );
+      firmada = firmaResult.success;
+    } catch (error) {
+      this.logger.error(
+        `Error al firmar factura #${idFactura}: ${error.message}`,
+      );
+    }
+
+    // Generar siguiente factura si era la última pendiente
+    try {
+      await this.generarSiguienteFacturaSiUltima(idFactura, idContrato, idUsuario);
+    } catch (error) {
+      this.logger.error(
+        `Error al generar siguiente factura tras pago de #${idFactura}: ${error.message}`,
+      );
+    }
+
+    return firmada;
   }
 
   /**

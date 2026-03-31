@@ -54,6 +54,9 @@ model GeneralData {
   whatsapp                   String?  @default("")
   color_icono                String?  @default("")
 
+  // === CONFIGURACIÓN DE RECIBO DE PAGO (GS1-128) ===
+  gln                        String?  @db.VarChar(13) // GLN (Global Location Number) asignado por GS1 El Salvador
+
   // === CONFIGURACIÓN DE MORA POR DEFECTO ===
   id_mora_config_default Int?
   moraConfigDefault      mora_configuracion? @relation("mora_default", fields: [id_mora_config_default], references: [id_mora_config], onDelete: NoAction, onUpdate: NoAction, map: "fk_general_data_mora_default")

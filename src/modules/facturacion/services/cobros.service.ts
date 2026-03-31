@@ -164,6 +164,8 @@ export class CobrosService {
       const signResult = await this.signer.firmar(
         datos.generalData.nit,
         documento,
+        dteCreado.id_factura_directa,
+        datos.contrato.ciclo ? new Date(datos.contrato.ciclo.fecha_vencimiento) : null,
       );
 
       if (!signResult.success) {
@@ -466,7 +468,8 @@ export class CobrosService {
         plazo: p.plazo,
         periodo: p.periodo,
       })),
-      numPagoElectronico: dto.numPagoElectronico,
+      // Placeholder: NPE se recalcula después del builder con el totalPagar correcto
+      numPagoElectronico: generalData.gln ? 'PENDING' : (dto.numPagoElectronico || undefined),
       observaciones: dto.observaciones,
     };
   }
