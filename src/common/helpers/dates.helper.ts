@@ -52,7 +52,36 @@ export const convertToUTC = (fecha: string, hora: string = "inicio"): Date => {
     }
 };
 
-export const formatDate = (date: any): string => { 
+/**
+ * Devuelve el instante UTC correspondiente a las 00:00 del día actual
+ * en hora de El Salvador (UTC-6, sin DST).
+ */
+export const getInicioDiaElSalvador = (ref: Date = new Date()): Date => {
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/El_Salvador',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    });
+    const parts = fmt.formatToParts(ref);
+    const y = Number(parts.find(p => p.type === 'year')!.value);
+    const m = Number(parts.find(p => p.type === 'month')!.value);
+    const d = Number(parts.find(p => p.type === 'day')!.value);
+    // 00:00 hora El Salvador = 06:00 UTC
+    return new Date(Date.UTC(y, m - 1, d, 6, 0, 0));
+};
+
+/**
+ * Diferencia en días completos entre dos instantes, calculada sobre
+ * la fecha calendario de El Salvador (ignora horas).
+ */
+export const diasEntreFechasElSalvador = (desde: Date, hasta: Date): number => {
+    const inicioDesde = getInicioDiaElSalvador(desde);
+    const inicioHasta = getInicioDiaElSalvador(hasta);
+    return Math.floor((inicioHasta.getTime() - inicioDesde.getTime()) / 86_400_000);
+};
+
+export const formatDate = (date: any): string => {
     if (!date) return '-';
     const d = new Date(date);
     if (isNaN(d.getTime())) return '-';

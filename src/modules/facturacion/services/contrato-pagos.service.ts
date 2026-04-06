@@ -14,7 +14,11 @@ import { Prisma } from '@prisma/client';
 import { RegistrarPagoContratoDto, AplicarDescuentoFacturaDto } from '../dto/contrato-pagos.dto';
 import { AbonosListadoDto } from '../dto/abonos-listado.dto';
 import { redondearMonto } from '../dte/builders/numero-letras.util';
-import { convertToUTC } from 'src/common/helpers/dates.helper';
+import {
+  convertToUTC,
+  getInicioDiaElSalvador,
+  diasEntreFechasElSalvador,
+} from 'src/common/helpers/dates.helper';
 import { v4 as uuidv4 } from 'uuid';
 
 // ============================================
@@ -37,6 +41,8 @@ export interface FacturaContratoItem {
   estadoDte: string;
   esInstalacion: boolean;
   fechaAcuerdoPago: string | null;
+  fechaPago: string | null;
+  metodoPago: string | null;
   tipoDte: string | null;
   numeroFactura: string | null;
   estado: string;
@@ -148,6 +154,7 @@ export class ContratoPagosService {
       const cxc = f.cuenta_por_cobrar;
       const montoAbonado = cxc ? Number(cxc.total_abonado) : 0;
       const saldoPendiente = cxc ? Number(cxc.saldo_pendiente) : Number(f.total);
+      const ultimoAbono = cxc?.abonos?.[0] ?? null;
 
       let estadoPago: string = f.estado_pago;
 
@@ -162,11 +169,13 @@ export class ContratoPagosService {
         descuento: Number(f.descuento),
         montoMora: Number(f.monto_mora),
         montoAbonado,
-        saldoPendiente,
+        saldoPendiente: saldoPendiente + Number(f.descuento),
         estadoPago,
         estadoDte: f.estado_dte,
         esInstalacion: f.es_instalacion,
         fechaAcuerdoPago: cxc?.fecha_acuerdo_pago?.toISOString() || null,
+        fechaPago: ultimoAbono?.fecha_pago?.toISOString() ?? null,
+        metodoPago: ultimoAbono?.metodo_pago ?? null,
         tipoDte: (f as any).tipoFactura?.codigo || null,
         numeroFactura: f.numero_factura || null,
         estado: f.estado,
@@ -327,29 +336,50 @@ export class ContratoPagosService {
     const config = await this.moraService.obtenerConfiguracionMora(idContrato);
 
     if (!config) {
+      this.logger.warn(
+        `[aplicarMoraContrato] contrato #${idContrato}: sin configuración de mora activa`,
+      );
       return { facturasAfectadas: 0, totalMoraAplicada: 0, detalle: [] };
     }
 
-    const ahora = new Date();
-    // Normalizar a inicio del día para evitar que horas/minutos afecten la comparación
-    const hoyInicio = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+    // Inicio del día actual en hora El Salvador (instante UTC equivalente).
+    // No usar new Date() local del servidor: el proceso puede correr en UTC.
+    const hoyInicio = getInicioDiaElSalvador();
     const diasGraciaMs = config.dias_gracia * 24 * 60 * 60 * 1000;
 
-    // Fecha de corte: mora aplica a partir del día siguiente al vencimiento + días de gracia
-    // Si vencimiento es 27-mar y dias_gracia=0, la mora aplica desde 28-mar
+    // Fecha de corte: la mora aplica a las facturas cuyo vencimiento + días
+    // de gracia ya quedó en el pasado respecto a hoy (00:00 SV).
     const fechaCorte = new Date(hoyInicio.getTime() - diasGraciaMs);
 
-    // Obtener CxCs vencidas (pasó fecha vencimiento + días de gracia, no EN_ACUERDO, no pagadas)
+    this.logger.log(
+      `[aplicarMoraContrato] contrato #${idContrato} | config=${config.codigo} (${config.tipo_calculo}, valor=${config.valor}, frecuencia=${config.frecuencia}, dias_gracia=${config.dias_gracia}) | hoyInicio=${hoyInicio.toISOString()} fechaCorte=${fechaCorte.toISOString()}`,
+    );
+
+    // Obtener CxCs candidatas a mora.
+    //
+    // Importante: la fecha "real" de vencimiento vive en `facturaDirecta.fecha_vencimiento`
+    // (es la que ve el usuario y la fuente de verdad). El campo `cuenta_por_cobrar.fecha_vencimiento`
+    // solo es relevante cuando hay un acuerdo de pago vigente: `registrarAcuerdoPago` lo
+    // sobreescribe con la fecha del acuerdo. Por eso filtramos en dos ramas según si la
+    // CxC tiene acuerdo o no.
     const cxcs = await this.prisma.cuenta_por_cobrar.findMany({
       where: {
         id_contrato: idContrato,
         estado: { notIn: ['PAGADA_TOTAL', 'ANULADA'] },
         mora_exonerada: false,
-        fecha_vencimiento: { lt: fechaCorte },
-        // Excluir las que tienen acuerdo de pago vigente
         OR: [
-          { fecha_acuerdo_pago: null },
-          { fecha_acuerdo_pago: { lt: hoyInicio } },
+          // Sin acuerdo de pago: usa fecha_vencimiento de la factura
+          {
+            fecha_acuerdo_pago: null,
+            facturaDirecta: {
+              fecha_vencimiento: { lt: fechaCorte },
+            },
+          },
+          // Con acuerdo de pago vencido: la fecha del acuerdo está copiada en cxc.fecha_vencimiento
+          {
+            fecha_acuerdo_pago: { not: null, lt: hoyInicio },
+            fecha_vencimiento: { lt: fechaCorte },
+          },
         ],
       },
       include: {
@@ -357,16 +387,24 @@ export class ContratoPagosService {
       },
     });
 
+    this.logger.log(
+      `[aplicarMoraContrato] contrato #${idContrato}: ${cxcs.length} CxCs vencidas encontradas`,
+    );
+
     const detalle: MoraAplicadaResult['detalle'] = [];
     let totalMoraAplicada = 0;
 
     for (const cxc of cxcs) {
       const factura = cxc.facturaDirecta;
-      // Normalizar fecha de vencimiento a inicio del día para cálculo preciso
-      const venc = cxc.fecha_vencimiento;
-      const vencInicio = new Date(venc.getFullYear(), venc.getMonth(), venc.getDate());
-      const diasAtraso = Math.floor(
-        (hoyInicio.getTime() - vencInicio.getTime()) / (1000 * 60 * 60 * 24),
+      // Vencimiento efectivo: si hay acuerdo de pago vencido, usa la fecha del acuerdo
+      // (que vive en cxc.fecha_vencimiento). Si no, usa la fecha de la factura.
+      const vencEfectivo = cxc.fecha_acuerdo_pago
+        ? cxc.fecha_vencimiento
+        : factura.fecha_vencimiento ?? cxc.fecha_vencimiento;
+      // Días de atraso calculados sobre el calendario de El Salvador
+      const diasAtraso = Math.max(
+        0,
+        diasEntreFechasElSalvador(vencEfectivo, hoyInicio),
       );
       const montoOriginal = Number(cxc.monto_total);
       const moraAnterior = Number(cxc.monto_mora);
@@ -1003,7 +1041,7 @@ export class ContratoPagosService {
 
     // Cálculo de IVA según tipo de DTE
     let totalIva: number;
-    let totalNuevo: number ;
+    let totalNuevo: number;
 
     const descuGravada = subTotalOriginal - descuentoTotal;
     if (tipoDte === '01') {

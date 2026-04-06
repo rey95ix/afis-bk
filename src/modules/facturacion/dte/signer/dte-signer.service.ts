@@ -2,7 +2,18 @@ import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
-import { calculateNpe } from '../builders/npe-barcode.util';
+import { calculateNpe, resolveNpeReference } from '../builders/npe-barcode.util';
+
+/**
+ * Datos mínimos de la factura necesarios para resolver la referencia
+ * de pago del NPE/barcode (IA 8020).
+ */
+export interface FirmarFacturaInfo {
+  id_factura_directa: number;
+  id_contrato?: number | null;
+  id_cliente_directo?: number | null;
+  codigo_generacion?: string | null;
+}
 
 /**
  * Request para el API Firmador
@@ -65,17 +76,16 @@ export class DteSignerService {
    * @param documento JSON del DTE o evento a firmar
    * @returns Documento firmado en formato JWS
    */
-  async firmar(nit: string, documento: any, id_factura_directa: number, fecha_vencimiento: any): Promise<SignResult> {
+  async firmar(nit: string, documento: any, factura: FirmarFacturaInfo, fecha_vencimiento: any): Promise<SignResult> {
     const endpoint = `${this.apiUrl}/firmardocumento/`;
     const generalD = await this.prisma.generalData.findFirst();
     const tipoDte = documento?.identificacion.tipoDte;
     if (
-      generalD?.gln &&
-      !documento.resumen?.numPagoElectronico &&
+      generalD?.gln && 
       (tipoDte == '01' || tipoDte == '03') // No aplica para FSE ni NC
     ) {
       try {
-        let reference: string = String(id_factura_directa).padStart(10, '0');
+        const reference = resolveNpeReference(factura);
 
         const condicion = documento.resumen.condicionOperacion || 1;
         const maxPaymentDate = condicion === 2
@@ -94,13 +104,13 @@ export class DteSignerService {
         documento.resumen.numPagoElectronico = npeCalculado;
 
         await this.prisma.facturaDirecta.update({
-          where: { id_factura_directa: id_factura_directa },
+          where: { id_factura_directa: factura.id_factura_directa },
           data: { dte_json: JSON.stringify(documento) },
         });
 
-        this.logger.log(`NPE generado retroactivamente para factura ${id_factura_directa}: ${npeCalculado}`);
+        this.logger.log(`NPE generado retroactivamente para factura ${factura.id_factura_directa}: ${npeCalculado}`);
       } catch (err) {
-        this.logger.warn(`No se pudo generar NPE para factura ${id_factura_directa}: ${err.message}`);
+        this.logger.warn(`No se pudo generar NPE para factura ${factura.id_factura_directa}: ${err.message}`);
       }
     }
 

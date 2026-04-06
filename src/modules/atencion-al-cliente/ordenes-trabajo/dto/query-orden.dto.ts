@@ -105,10 +105,12 @@ export class QueryOrdenDto {
   @IsBoolean()
   con_ticket?: boolean;
 
-  // Búsqueda parcial case-insensitive por código (OT-YYYYMM-#####)
+  // Búsqueda parcial por código de OT (OT-YYYYMM-#####) o por nombre del cliente (titular).
+  // Insensible a mayúsculas y a tildes/acentos (usa unaccent en el backend).
   @ApiPropertyOptional({
-    description: 'Búsqueda parcial por código de la orden',
-    example: 'OT-202604',
+    description:
+      'Búsqueda parcial por código de la orden o por nombre del cliente. Insensible a tildes y mayúsculas.',
+    example: 'Garcia',
   })
   @IsString()
   @IsOptional()

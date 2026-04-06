@@ -15,6 +15,31 @@ export interface NpeParams {
   reference: string;
 }
 
+export interface NpeReferenceSource {
+  id_contrato?: number | null;
+  id_cliente_directo?: number | null;
+  codigo_generacion?: string | null;
+}
+
+/**
+ * Resuelve la referencia de pago (IA 8020) según §8.2 de la guía NPE/GS1-128.
+ * Prioridad: contrato → cliente directo → dígitos del UUID codigo_generacion.
+ *
+ * Esta función debe ser la única fuente de verdad para la referencia, así
+ * el NPE almacenado en dte_json y el barcode renderizado en el PDF siempre
+ * coinciden.
+ */
+export function resolveNpeReference(source: NpeReferenceSource): string {
+  if (source.id_contrato) {
+    return String(source.id_contrato).padStart(10, '0');
+  }
+  if (source.id_cliente_directo) {
+    return String(source.id_cliente_directo).padStart(10, '0');
+  }
+  const uuidDigits = (source.codigo_generacion || '').replace(/\D/g, '');
+  return (uuidDigits.length >= 2 ? uuidDigits : uuidDigits.padStart(2, '0')).slice(0, 24);
+}
+
 /**
  * Valida los parámetros de entrada para NPE/barcode.
  * Lanza error si los datos no cumplen con el estándar GS1.

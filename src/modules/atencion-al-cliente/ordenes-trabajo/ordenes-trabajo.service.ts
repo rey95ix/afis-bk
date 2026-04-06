@@ -315,9 +315,35 @@ export class OrdenesTrabajoService {
       where.id_ticket = con_ticket ? { not: null } : null;
     }
 
-    // Búsqueda parcial case-insensitive por código (OT-YYYYMM-#####)
-    if (codigo) {
-      where.codigo = { contains: codigo, mode: 'insensitive' };
+    // Búsqueda parcial por código de OT o por nombre del cliente (titular).
+    // Se hace con SQL crudo + unaccent() para que sea insensible a tildes/acentos.
+    // Devuelve los ids de orden coincidentes y los aplica al where Prisma normal,
+    // de modo que el resto de filtros (estado, tipo, fechas, paginación) siguen funcionando.
+    if (codigo && codigo.trim()) {
+      const term = `%${codigo.trim()}%`;
+      const matches = await this.prisma.$queryRaw<{ id_orden: number }[]>(
+        Prisma.sql`
+          SELECT ot.id_orden
+          FROM orden_trabajo ot
+          INNER JOIN cliente c ON c.id_cliente = ot.id_cliente
+          WHERE unaccent(ot.codigo) ILIKE unaccent(${term})
+             OR unaccent(c.titular) ILIKE unaccent(${term})
+        `,
+      );
+      const ids = matches.map((r) => r.id_orden);
+      if (ids.length === 0) {
+        // Sin coincidencias: cortocircuito para no ejecutar el findMany completo
+        return {
+          data: [],
+          meta: {
+            total: 0,
+            page: page || 1,
+            limit: limit || 10,
+            totalPages: 0,
+          },
+        };
+      }
+      where.id_orden = { in: ids };
     }
 
     if (fecha_desde || fecha_hasta) {

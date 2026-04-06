@@ -105,7 +105,7 @@ export class OrdenesTrabajoController {
   @ApiOperation({
     summary: 'Listar órdenes de trabajo con filtros',
     description:
-      'Obtiene una lista paginada de órdenes de trabajo. Filtros soportados: estado, técnico (id_tecnico), sin_tecnico (OTs sin asignar), tipo, cliente, resultado de cierre, contrato (id_contrato), con_ticket (origen desde ticket), código (búsqueda parcial) y rango de fechas de creación.',
+      'Obtiene una lista paginada de órdenes de trabajo. Filtros soportados: estado, técnico (id_tecnico), sin_tecnico (OTs sin asignar), tipo, cliente, resultado de cierre, contrato (id_contrato), con_ticket (origen desde ticket), código (búsqueda parcial por código de OT o nombre del cliente, insensible a tildes) y rango de fechas de creación.',
   })
   @ApiResponse({
     status: 200,

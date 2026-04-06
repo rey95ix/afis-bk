@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Decimal } from '@prisma/client/runtime/library';
+import {
+  getInicioDiaElSalvador,
+  diasEntreFechasElSalvador,
+} from '../../../common/helpers/dates.helper';
 
 /**
  * Configuración de mora obtenida de la BD
@@ -110,12 +114,12 @@ export class MoraService {
     idContrato: number,
     config: MoraConfig,
   ): Promise<FacturaVencida[]> {
-    const ahora = new Date();
-    // Normalizar a inicio del día para comparación solo por fecha
-    const hoyInicio = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
-    // Mora aplica a partir del día siguiente al vencimiento + días de gracia
-    const diasGraciaMs = (config.dias_gracia + 1) * 24 * 60 * 60 * 1000;
-    const fechaCorte = new Date(hoyInicio.getTime() - diasGraciaMs);
+    // Inicio del día actual en hora El Salvador (instante UTC equivalente).
+    // No usar new Date() local del servidor: el proceso puede correr en UTC.
+    const hoyInicioSV = getInicioDiaElSalvador();
+    // Mora aplica cuando ya pasó el día de vencimiento + los días de gracia.
+    const diasGraciaMs = config.dias_gracia * 24 * 60 * 60 * 1000;
+    const fechaCorte = new Date(hoyInicioSV.getTime() - diasGraciaMs);
 
     // Buscar facturas del contrato que estén vencidas y pendientes de pago
     // Usa facturaDirecta con fecha_vencimiento y estado_pago
@@ -177,8 +181,7 @@ export class MoraService {
       };
     }
 
-    const ahora2 = new Date();
-    const hoy = new Date(ahora2.getFullYear(), ahora2.getMonth(), ahora2.getDate());
+    const hoy = getInicioDiaElSalvador();
     let moraTotal = 0;
     let maxDiasAtraso = 0;
     const facturasAfectadas: CalculoMoraResult['facturasAfectadas'] = [];
@@ -340,15 +343,10 @@ export class MoraService {
   }
 
   /**
-   * Calcula los días de atraso
+   * Calcula los días de atraso usando el calendario de El Salvador
    */
   private calcularDiasAtraso(fechaVencimiento: Date, fechaActual: Date): number {
-    // Normalizar ambas fechas a inicio del día para comparación precisa
-    const venc = new Date(fechaVencimiento.getFullYear(), fechaVencimiento.getMonth(), fechaVencimiento.getDate());
-    const actual = new Date(fechaActual.getFullYear(), fechaActual.getMonth(), fechaActual.getDate());
-    const diffTime = actual.getTime() - venc.getTime();
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    return Math.max(0, diffDays);
+    return Math.max(0, diasEntreFechasElSalvador(fechaVencimiento, fechaActual));
   }
 
   /**

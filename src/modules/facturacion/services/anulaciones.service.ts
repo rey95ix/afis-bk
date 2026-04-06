@@ -105,7 +105,14 @@ export class AnulacionesService {
       );
 
       // ==================== PASO 5: FIRMAR EVENTO ====================
-      const signResult = await this.signer.firmar(generalData.nit!, evento, anulacionCreada.id_anulacion, dteOriginal.fecha_emision);
+      // Evento de anulación: tipoDte distinto de 01/03 → el bloque de cálculo de NPE no se ejecuta.
+      // Pasamos id_anulacion como id_factura_directa solo para satisfacer el contrato del método.
+      const signResult = await this.signer.firmar(
+        generalData.nit!,
+        evento,
+        { id_factura_directa: anulacionCreada.id_anulacion },
+        dteOriginal.fecha_emision,
+      );
 
       if (!signResult.success) {
         await this.actualizarEstadoAnulacion(

@@ -161,10 +161,16 @@ export class CobrosService {
       );
 
       // ==================== PASO 7: FIRMAR DTE ====================
+      // Caso cobro de contrato: id_contrato es la referencia correcta del NPE/barcode (IA 8020).
       const signResult = await this.signer.firmar(
         datos.generalData.nit,
         documento,
-        dteCreado.id_factura_directa,
+        {
+          id_factura_directa: dteCreado.id_factura_directa,
+          id_contrato: (dteCreado as any).id_contrato ?? datos.contrato?.id_contrato,
+          id_cliente_directo: (dteCreado as any).id_cliente_directo,
+          codigo_generacion: (dteCreado as any).codigo_generacion,
+        },
         datos.contrato.ciclo ? new Date(datos.contrato.ciclo.fecha_vencimiento) : null,
       );
 
@@ -695,11 +701,11 @@ export class CobrosService {
     const skip = (page - 1) * limit;
 
     // Estados de contrato que pueden facturarse
-    const estadosFacturables = ['INSTALADO_ACTIVO', 'EN_MORA', 'VELOCIDAD_REDUCIDA'];
+    const estadosFacturables = ['INSTALADO_ACTIVO', 'EN_MORA', 'VELOCIDAD_REDUCIDA','SUSPENDIDO','SUSPENDIDO_TEMPORAL'];
 
     // Construir where clause
     const whereClause: any = {
-      // estado: { in: estadosFacturables },
+      estado: { in: estadosFacturables },
       ...(estado && { cliente: { estado } }),
       ...(soloEnMora && {
         facturasDirectas: {
