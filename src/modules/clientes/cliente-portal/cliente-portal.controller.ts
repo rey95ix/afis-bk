@@ -32,8 +32,7 @@ export class ClientePortalController {
     const data = await this.portalService.obtenerContratoDetalle(
       cliente.id_cliente,
       id,
-    );
-    console.log('Detalle contrato:', data);
+    ); 
     return { data };
   }
 

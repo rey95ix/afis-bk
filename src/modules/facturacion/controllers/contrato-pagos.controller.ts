@@ -111,8 +111,7 @@ export class ContratoPagosController {
   @ApiOperation({ summary: 'Obtener facturas de un contrato con estado de pago' })
   async obtenerFacturas(@Param('idContrato', ParseIntPipe) idContrato: number) {
     // Revertir acuerdos vencidos al cargar
-    await this.contratoPagosService.revertirAcuerdosVencidos(idContrato);
-
+    await this.contratoPagosService.revertirAcuerdosVencidos(idContrato); 
     const facturas = await this.contratoPagosService.obtenerFacturasContrato(idContrato);
     return { data: facturas };
   }
@@ -196,6 +195,19 @@ export class ContratoPagosController {
     @Request() req: any,
   ) {
     const resultado = await this.contratoPagosService.eliminarMoraFactura(
+      idFactura,
+      req.user.id_usuario,
+    );
+    return { data: resultado };
+  }
+
+  @Delete('facturas/:idFactura')
+  @ApiOperation({ summary: 'Eliminar factura en BORRADOR o RECHAZADO sin abonos' })
+  async eliminarFactura(
+    @Param('idFactura', ParseIntPipe) idFactura: number,
+    @Request() req: any,
+  ) {
+    const resultado = await this.contratoPagosService.eliminarFactura(
       idFactura,
       req.user.id_usuario,
     );

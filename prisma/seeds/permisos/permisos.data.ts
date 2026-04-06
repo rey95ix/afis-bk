@@ -1333,6 +1333,10 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
   crearPermisoCustom('facturacion', 'cobros', 'eliminar_mora', 'Eliminar Mora', 'Eliminar mora aplicada a una factura', {
     requiere_auditoria: true,
   }),
+  crearPermisoCustom('facturacion', 'cobros', 'eliminar', 'Eliminar Factura', 'Eliminar físicamente facturas en BORRADOR/RECHAZADO sin abonos', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
 
   // Factura Directa
   crearPermiso('facturacion', 'factura_directa', 'VER', 'Ver Facturas Directas', 'Ver listado y detalles de facturas directas'),

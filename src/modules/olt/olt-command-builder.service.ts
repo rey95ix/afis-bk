@@ -8,6 +8,7 @@ import {
 
 @Injectable()
 export class OltCommandBuilderService {
+  
   buildResetCommand(params: OltSlotPortOnt): string {
     const lines = [
       'enable',

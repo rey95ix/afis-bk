@@ -1310,6 +1310,85 @@ export class ContratoPagosService {
   }
 
   /**
+   * Eliminar físicamente una factura (BORRADOR o RECHAZADO sin abonos)
+   * Elimina en cascada: detalle de factura (auto), cuenta por cobrar y la factura.
+   */
+  async eliminarFactura(idFactura: number, idUsuario: number) {
+    const factura = await this.prisma.facturaDirecta.findUnique({
+      where: { id_factura_directa: idFactura },
+      include: {
+        cuenta_por_cobrar: {
+          include: { abonos: true },
+        },
+      },
+    });
+
+    if (!factura) {
+      throw new NotFoundException(`Factura #${idFactura} no encontrada`);
+    }
+
+    if (factura.estado !== 'ACTIVO') {
+      throw new BadRequestException('Solo se pueden eliminar facturas activas');
+    }
+
+    if (factura.estado_dte !== 'BORRADOR' && factura.estado_dte !== 'RECHAZADO') {
+      throw new BadRequestException(
+        'Solo se pueden eliminar facturas en estado BORRADOR o RECHAZADO',
+      );
+    }
+
+    if (factura.estado_pago !== 'PENDIENTE' && factura.estado_pago !== 'VENCIDA') {
+      throw new BadRequestException(
+        'Solo se pueden eliminar facturas con estado de pago PENDIENTE o VENCIDA',
+      );
+    }
+
+    const cxc = factura.cuenta_por_cobrar;
+    if (cxc) {
+      if (cxc.estado !== 'PENDIENTE' && cxc.estado !== 'VENCIDA') {
+        throw new BadRequestException(
+          'Solo se pueden eliminar facturas cuya cuenta por cobrar esté PENDIENTE o VENCIDA',
+        );
+      }
+      if (cxc.abonos && cxc.abonos.length > 0) {
+        throw new BadRequestException(
+          'No se puede eliminar una factura con abonos registrados',
+        );
+      }
+    }
+
+    const numeroFactura = factura.numero_factura || factura.numero_control || `#${idFactura}`;
+    const estadoDteAnterior = factura.estado_dte;
+
+    await this.prisma.$transaction(async (tx) => {
+      // Eliminar cuenta por cobrar (no tiene cascada)
+      if (cxc) {
+        await tx.cuenta_por_cobrar.delete({
+          where: { id_cxc: cxc.id_cxc },
+        });
+      }
+
+      // Eliminar factura (cascadea facturaDirectaDetalle automáticamente)
+      await tx.facturaDirecta.delete({
+        where: { id_factura_directa: idFactura },
+      });
+    });
+
+    await this.prisma.logAction(
+      'ELIMINAR_FACTURA',
+      idUsuario,
+      `Factura ${numeroFactura} (id #${idFactura}, estado_dte: ${estadoDteAnterior}) eliminada junto con su detalle y cuenta por cobrar`,
+    );
+
+    return {
+      success: true,
+      message: 'Factura eliminada correctamente',
+      idFactura,
+      numeroFactura,
+    };
+  }
+
+  /**
    * Distribuir descuento proporcionalmente entre ítems
    */
   private distribuirDescuento(
