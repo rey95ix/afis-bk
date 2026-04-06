@@ -333,7 +333,7 @@ export class ContratoPagosService {
     const ahora = new Date();
     // Normalizar a inicio del día para evitar que horas/minutos afecten la comparación
     const hoyInicio = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
-    const diasGraciaMs = (config.dias_gracia + 1) * 24 * 60 * 60 * 1000;
+    const diasGraciaMs = config.dias_gracia * 24 * 60 * 60 * 1000;
 
     // Fecha de corte: mora aplica a partir del día siguiente al vencimiento + días de gracia
     // Si vencimiento es 27-mar y dias_gracia=0, la mora aplica desde 28-mar
