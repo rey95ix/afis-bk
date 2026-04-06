@@ -40,4 +40,10 @@ export class AbonosListadoDto {
   @IsOptional()
   @IsString()
   metodoPago?: string;
+
+  @ApiPropertyOptional({ description: 'Filtrar por ID de usuario que registró el abono' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  idUsuario?: number;
 }

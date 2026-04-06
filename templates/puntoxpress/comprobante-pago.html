@@ -23,20 +23,27 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.07);
         }
         .email-header {
-            background-color: #16a34a;
-            padding: 30px;
+            background-color: #ffffff;
+            padding: 30px 30px 20px;
             text-align: center;
+            border-bottom: 3px solid #16a34a;
+        }
+        .email-header img {
+            max-width: 180px;
+            height: auto;
+            margin-bottom: 12px;
         }
         .email-header h1 {
             margin: 0;
-            color: #ffffff;
+            color: #1a2e44;
             font-size: 24px;
             font-weight: 600;
         }
         .email-header p {
             margin: 10px 0 0;
-            color: #bbf7d0;
+            color: #16a34a;
             font-size: 14px;
+            font-weight: 600;
         }
         .email-body {
             padding: 40px 30px;
@@ -132,6 +139,7 @@
 <body>
     <div class="email-container">
         <div class="email-header">
+            <img src="{{logoBase64}}" alt="Newtel">
             <h1>Comprobante de Pago</h1>
             <p>Pago PuntoXpress procesado exitosamente</p>
         </div>
@@ -158,8 +166,8 @@
         </div>
         <div class="email-footer">
             <p>Este es un correo automatico, por favor no responda a este mensaje.</p>
-            <p>&copy; 2025 AFIS. Todos los derechos reservados.</p>
-            <p>Si tienes preguntas, contacta a nuestro <a href="mailto:soporte@ixcnet.com">equipo de soporte</a>.</p>
+            <p>&copy; 2026 Newtel. Todos los derechos reservados.</p>
+            <p>Si tienes preguntas, contacta a nuestro <a href="mailto:soporte@newtel.com.sv">equipo de soporte</a>.</p>
         </div>
     </div>
 </body>

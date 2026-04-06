@@ -270,6 +270,11 @@ export class OrdenesTrabajoService {
       id_cliente,
       fecha_desde,
       fecha_hasta,
+      sin_tecnico,
+      resultado,
+      id_contrato,
+      con_ticket,
+      codigo,
       page,
       limit,
     } = queryDto;
@@ -280,7 +285,10 @@ export class OrdenesTrabajoService {
       where.estado = estado;
     }
 
-    if (id_tecnico) {
+    // sin_tecnico tiene precedencia sobre id_tecnico (la UI los expone como opciones excluyentes)
+    if (sin_tecnico) {
+      where.id_tecnico_asignado = null;
+    } else if (id_tecnico) {
       where.id_tecnico_asignado = id_tecnico;
     }
 
@@ -290,6 +298,26 @@ export class OrdenesTrabajoService {
 
     if (id_cliente) {
       where.id_cliente = id_cliente;
+    }
+
+    // Filtro por resultado de cierre (solo devuelve OTs cerradas con ese resultado)
+    if (resultado) {
+      where.resultado = resultado;
+    }
+
+    // Filtro por contrato asociado
+    if (id_contrato) {
+      where.id_contrato = id_contrato;
+    }
+
+    // Filtro por OTs originadas desde ticket (true) o creadas manualmente (false)
+    if (typeof con_ticket === 'boolean') {
+      where.id_ticket = con_ticket ? { not: null } : null;
+    }
+
+    // Búsqueda parcial case-insensitive por código (OT-YYYYMM-#####)
+    if (codigo) {
+      where.codigo = { contains: codigo, mode: 'insensitive' };
     }
 
     if (fecha_desde || fecha_hasta) {

@@ -1,7 +1,16 @@
-import { IsEnum, IsInt, IsOptional, IsDateString } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsDateString, IsBoolean, IsString } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { TipoOrden } from './create-orden.dto';
+
+export enum ResultadoOrden {
+  RESUELTO = 'RESUELTO',
+  NO_RESUELTO = 'NO_RESUELTO',
+  REQUIERE_SEGUNDA_VISITA = 'REQUIERE_SEGUNDA_VISITA',
+  CLIENTE_AUSENTE = 'CLIENTE_AUSENTE',
+  ACCESO_DENEGADO = 'ACCESO_DENEGADO',
+  FALLO_EQUIPO = 'FALLO_EQUIPO',
+}
 
 export enum EstadoOrden {
   PENDIENTE_ASIGNACION = 'PENDIENTE_ASIGNACION',
@@ -51,6 +60,59 @@ export class QueryOrdenDto {
   @Type(() => Number)
   @IsOptional()
   id_cliente?: number;
+
+  // Filtra OTs que NO tienen técnico asignado (id_tecnico_asignado IS NULL)
+  @ApiPropertyOptional({
+    description: 'Solo órdenes sin técnico asignado',
+    example: true,
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  sin_tecnico?: boolean;
+
+  // Filtra por resultado de cierre (solo OTs ya cerradas tendrán valor)
+  @ApiPropertyOptional({
+    description: 'Filtrar por resultado de cierre',
+    enum: ResultadoOrden,
+    example: ResultadoOrden.RESUELTO,
+  })
+  @IsEnum(ResultadoOrden)
+  @IsOptional()
+  resultado?: ResultadoOrden;
+
+  // Filtra por contrato relacionado
+  @ApiPropertyOptional({
+    description: 'Filtrar por ID de contrato asociado',
+    example: 12,
+  })
+  @IsInt()
+  @Type(() => Number)
+  @IsOptional()
+  id_contrato?: number;
+
+  // true: solo OTs originadas desde un ticket; false: solo OTs creadas manualmente
+  @ApiPropertyOptional({
+    description: 'Filtrar OTs según si tienen ticket de origen (true/false)',
+    example: true,
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return undefined;
+  })
+  @IsBoolean()
+  con_ticket?: boolean;
+
+  // Búsqueda parcial case-insensitive por código (OT-YYYYMM-#####)
+  @ApiPropertyOptional({
+    description: 'Búsqueda parcial por código de la orden',
+    example: 'OT-202604',
+  })
+  @IsString()
+  @IsOptional()
+  codigo?: string;
 
   @ApiPropertyOptional({
     description: 'Filtrar desde fecha de creación (formato ISO 8601)',

@@ -14,6 +14,7 @@ import { CobrosController, AnulacionesController, ContratoPagosController } from
 // Services - Cobros, Anulaciones, Mora y Contrato Pagos
 import { CobrosService, AnulacionesService, MoraService, ContratoPagosService } from './services';
 import { ContratoPagosPdfService } from './services/contrato-pagos-pdf.service';
+import { AbonosReportService } from './services/abonos-report.service';
 
 // DTE Builders
 import { FcBuilderService } from './dte/builders/fc-builder.service';
@@ -83,6 +84,7 @@ import { ComprobanteAnalyzerService } from '../whatsapp-chat/validacion-comproba
     MoraService,
     ContratoPagosService,
     ContratoPagosPdfService,
+    AbonosReportService,
 
     // DTE Builders
     FcBuilderService,
@@ -120,6 +122,8 @@ import { ComprobanteAnalyzerService } from '../whatsapp-chat/validacion-comproba
     // Nuevos exports
     ClientesDirectosService,
     FacturaDirectaService,
+    // Caja (exportado para scheduled-tasks)
+    CajaService,
   ],
 })
 export class FacturacionModule {}

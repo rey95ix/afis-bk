@@ -29,6 +29,7 @@ import { ContratosController } from './contratos/contratos.controller';
 import { ContratosService } from './contratos/contratos.service';
 import { ContratoInstalacionController } from './contratos/contrato-instalacion.controller';
 import { ContratoInstalacionService } from './contratos/contrato-instalacion.service';
+import { ContratosExcelService } from './contratos/contratos-excel.service';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { ContratoInstalacionService } from './contratos/contrato-instalacion.ser
     ReportesService,
     TicketsService,
     ContratosService,
+    ContratosExcelService,
     ContratoInstalacionService,
   ],
   exports: [ContratosService, OrdenesTrabajoService],

@@ -12,6 +12,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  HttpStatus,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -20,6 +21,7 @@ import { Auth } from 'src/modules/auth/decorators';
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { ContratoPagosService } from '../services/contrato-pagos.service';
 import { ContratoPagosPdfService } from '../services/contrato-pagos-pdf.service';
+import { AbonosReportService } from '../services/abonos-report.service';
 import {
   RegistrarPagoContratoDto,
   RegistrarAcuerdoPagoDto,
@@ -36,7 +38,47 @@ export class ContratoPagosController {
   constructor(
     private readonly contratoPagosService: ContratoPagosService,
     private readonly contratoPagosPdfService: ContratoPagosPdfService,
+    private readonly abonosReportService: AbonosReportService,
   ) {}
+
+  @Get('abonos/usuarios')
+  @ApiOperation({ summary: 'Obtener usuarios que han registrado abonos' })
+  async obtenerUsuariosAbonos() {
+    const data = await this.contratoPagosService.obtenerUsuariosConAbonos();
+    return { data };
+  }
+
+  @Get('abonos/excel')
+  @ApiOperation({ summary: 'Descargar Excel del historial de abonos' })
+  async descargarAbonosExcel(
+    @Query() dto: AbonosListadoDto,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.abonosReportService.generateExcel(dto);
+    const filename = this.abonosReportService.getExcelFilename(dto);
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': buffer.length,
+    });
+    res.status(HttpStatus.OK).send(buffer);
+  }
+
+  @Get('abonos/pdf')
+  @ApiOperation({ summary: 'Descargar PDF del historial de abonos' })
+  async descargarAbonosPdf(
+    @Query() dto: AbonosListadoDto,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.abonosReportService.generatePdf(dto);
+    const filename = this.abonosReportService.getFilename(dto);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
 
   @Get('abonos')
   @ApiOperation({ summary: 'Listar todos los abonos con filtros y paginación' })

@@ -17,6 +17,7 @@ export interface EmailAttachment {
 @Injectable()
 export class MailService {
   private transporter: nodemailer.Transporter;
+  private readonly logoBase64Cache: string;
 
   constructor(private configService: ConfigService) {
     this.transporter = nodemailer.createTransport({
@@ -31,6 +32,14 @@ export class MailService {
         rejectUnauthorized: false,
       },
     });
+
+    try {
+      const logoPath = path.join(process.cwd(), 'templates/logo-newtel.png');
+      const logoBuffer = fs.readFileSync(logoPath);
+      this.logoBase64Cache = `data:image/png;base64,${logoBuffer.toString('base64')}`;
+    } catch {
+      this.logoBase64Cache = '';
+    }
   }
 
   async sendPasswordResetEmail(user: { nombres: string; correo_electronico: string }, token: string) {
@@ -241,6 +250,7 @@ export class MailService {
 
     try {
       html = fs.readFileSync(templatePath, 'utf-8');
+      html = html.replace(/{{logoBase64}}/g, this.getLogoBase64());
       html = html.replace(/{{nombreCliente}}/g, nombreCliente);
       html = html.replace(/{{monto}}/g, montoFormateado);
       html = html.replace(/{{numeroAutorizacion}}/g, numeroAutorizacion || '');
@@ -284,6 +294,7 @@ export class MailService {
 
     try {
       html = fs.readFileSync(templatePath, 'utf-8');
+      html = html.replace(/{{logoBase64}}/g, this.getLogoBase64());
       html = html.replace(/{{nombreCliente}}/g, nombreCliente);
       html = html.replace(/{{monto}}/g, montoFormateado);
       html = html.replace(/{{referencia}}/g, referencia || 'N/A');
@@ -325,7 +336,9 @@ export class MailService {
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #16a34a; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .header { background: #ffffff; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; border-bottom: 3px solid #16a34a; }
+          .header img { max-width: 180px; height: auto; margin-bottom: 10px; }
+          .header h1 { color: #1a2e44; margin: 0; }
           .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
           .amount { text-align: center; font-size: 28px; font-weight: bold; color: #16a34a; margin: 20px 0; }
           .info-box { background: #ffffff; border-left: 4px solid #16a34a; padding: 15px; margin: 20px 0; border-radius: 4px; }
@@ -336,6 +349,7 @@ export class MailService {
       <body>
         <div class="container">
           <div class="header">
+            <img src="${this.getLogoBase64()}" alt="Newtel">
             <h1>Comprobante de Pago</h1>
           </div>
           <div class="content">
@@ -380,7 +394,9 @@ export class MailService {
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: #16a34a; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .header { background: #ffffff; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; border-bottom: 3px solid #16a34a; }
+          .header img { max-width: 180px; height: auto; margin-bottom: 10px; }
+          .header h1 { color: #1a2e44; margin: 0; }
           .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
           .amount { text-align: center; font-size: 28px; font-weight: bold; color: #16a34a; margin: 20px 0; }
           .info-box { background: #ffffff; border-left: 4px solid #16a34a; padding: 15px; margin: 20px 0; border-radius: 4px; }
@@ -391,6 +407,7 @@ export class MailService {
       <body>
         <div class="container">
           <div class="header">
+            <img src="${this.getLogoBase64()}" alt="Newtel">
             <h1>Comprobante de Pago</h1>
           </div>
           <div class="content">
@@ -470,6 +487,10 @@ export class MailService {
       `La orden de compra ${codigoOC} ha sido aprobada y requiere su seguimiento.${observaciones ? ` Observaciones: ${observaciones}` : ''}`,
       html,
     );
+  }
+
+  private getLogoBase64(): string {
+    return this.logoBase64Cache;
   }
 
   private async sendMail(

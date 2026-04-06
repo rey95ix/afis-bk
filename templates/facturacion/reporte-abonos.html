@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>{{:titulo}}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 8pt;
+      color: #333;
+      padding: 15px 20px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 12px;
+      border-bottom: 2px solid #1B5E20;
+      padding-bottom: 8px;
+    }
+    .header h1 {
+      font-size: 15pt;
+      color: #1B5E20;
+      margin-bottom: 3px;
+    }
+    .header .periodo {
+      font-size: 9pt;
+      color: #666;
+    }
+    .resumen-box {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .resumen-item {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 6px 10px;
+      text-align: center;
+      flex: 1;
+      min-width: 100px;
+    }
+    .resumen-item .label {
+      font-size: 7pt;
+      color: #888;
+      text-transform: uppercase;
+    }
+    .resumen-item .value {
+      font-size: 11pt;
+      font-weight: bold;
+      color: #333;
+    }
+    .resumen-item .count {
+      font-size: 7pt;
+      color: #999;
+    }
+    .resumen-item.total {
+      border-color: #1B5E20;
+      background: #E8F5E9;
+    }
+    .resumen-item.total .value {
+      color: #1B5E20;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+    }
+    th {
+      background: #1B5E20;
+      color: #fff;
+      padding: 5px 6px;
+      text-align: left;
+      font-size: 7.5pt;
+      font-weight: bold;
+    }
+    th.text-end {
+      text-align: right;
+    }
+    td {
+      padding: 4px 6px;
+      border-bottom: 1px solid #e0e0e0;
+      font-size: 7.5pt;
+    }
+    td.text-end {
+      text-align: right;
+    }
+    td.text-success {
+      color: #2E7D32;
+      font-weight: bold;
+    }
+    tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    .badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 7pt;
+      font-weight: bold;
+    }
+    .badge-efectivo { background: #E8F5E9; color: #2E7D32; }
+    .badge-transferencia { background: #E3F2FD; color: #1565C0; }
+    .badge-cheque { background: #FFF8E1; color: #F57F17; }
+    .badge-deposito { background: #E8EAF6; color: #283593; }
+    .badge-tarjeta { background: #F5F5F5; color: #616161; }
+    .badge-puntoxpress { background: #FFEBEE; color: #C62828; }
+    .badge-otro { background: #F5F5F5; color: #757575; }
+    .footer {
+      margin-top: 10px;
+      text-align: right;
+      font-size: 7pt;
+      color: #999;
+    }
+    .totals-row td {
+      font-weight: bold;
+      border-top: 2px solid #1B5E20;
+      border-bottom: 2px solid #1B5E20;
+      background: #E8F5E9;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>{{:titulo}}</h1>
+    <div class="periodo">Periodo: {{:periodo.desde}} al {{:periodo.hasta}}</div>
+  </div>
+
+  <!-- Resumen por método -->
+  <div class="resumen-box">
+    {{for resumen}}
+    <div class="resumen-item">
+      <div class="label">{{:metodoPago}}</div>
+      <div class="value">${{:total}}</div>
+      <div class="count">{{:cantidad}} pago{{if cantidad !== 1}}s{{/if}}</div>
+    </div>
+    {{/for}}
+    <div class="resumen-item total">
+      <div class="label">Total General</div>
+      <div class="value">${{:totalGeneral}}</div>
+      <div class="count">{{:totalAbonos}} pago{{if totalAbonos !== 1}}s{{/if}}</div>
+    </div>
+  </div>
+
+  <!-- Tabla de abonos -->
+  <table>
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Cliente</th>
+        <th>Contrato</th>
+        <th>Cuota / Periodo</th>
+        <th>Metodo</th>
+        <th>Referencia</th>
+        <th class="text-end">Monto</th>
+        <th>Usuario</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{for abonos}}
+      <tr>
+        <td>{{:fechaPagoFmt}}</td>
+        <td>{{:cliente}}</td>
+        <td style="font-weight:600;">{{:contrato}}</td>
+        <td>{{:cuota}}</td>
+        <td>
+          <span class="badge badge-{{:metodoPago.toLowerCase()}}">{{:metodoPagoLabel}}</span>
+        </td>
+        <td>{{:referencia || '-'}}</td>
+        <td class="text-end text-success">${{:montoFmt}}</td>
+        <td>{{:usuario || '-'}}</td>
+      </tr>
+      {{/for}}
+      <tr class="totals-row">
+        <td colspan="6" style="text-align:right;">TOTAL</td>
+        <td class="text-end">${{:totalGeneral}}</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    Generado: {{:fechaGeneracion}} | AFIS - Sistema ERP
+  </div>
+</body>
+</html>

@@ -237,11 +237,7 @@ export class CcfBuilderService implements IDteBuilder {
     const subTotal = redondearMonto(subTotalVentas - totales.totalDescuento - headerDescuento);
 
     // Recalcular IVA sobre gravada descontada si hay descuento de encabezado
-    let totalIvaFinal = totales.totalIva;
-    if (params.descuGravada && params.descuGravada > 0) {
-      const gravadaDescontada = totales.totalGravada - params.descuGravada;
-      totalIvaFinal = redondearMonto(gravadaDescontada * this.IVA_RATE);
-    }
+    let totalIvaFinal = totales.totalIva; 
 
     // Construir tributos del resumen (IVA)
     const tributos: Tributo[] | null =

@@ -393,6 +393,21 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     'Gestionar datos de instalacion de contratos',
     { requiere_auditoria: true },
   ),
+  crearPermisoCustom(
+    'atencion_cliente',
+    'contratos',
+    'migrar',
+    'Migrar Contratos',
+    'Migrar contratos a otro cliente',
+    { es_critico: true, requiere_auditoria: true },
+  ),
+  crearPermisoCustom(
+    'atencion_cliente',
+    'contratos',
+    'exportar',
+    'Exportar Reportes Contratos',
+    'Descargar reportes Excel de ventas y renovaciones de contratos',
+  ),
 
   // Tickets
   crearPermiso('atencion_cliente', 'tickets', 'VER', 'Ver Tickets', 'Ver listado y detalles de tickets de soporte'),

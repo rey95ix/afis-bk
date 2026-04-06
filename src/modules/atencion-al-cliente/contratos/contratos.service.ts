@@ -11,6 +11,7 @@ import { CreateContratoDto } from './dto/create-contrato.dto';
 import { UpdateContratoDto } from './dto/update-contrato.dto';
 import { CambiarEstadoContratoDto } from './dto/cambiar-estado-contrato.dto';
 import { RenovarContratoDto } from './dto/renovar-contrato.dto';
+import { MigrarContratoDto } from './dto/migrar-contrato.dto';
 import { atcContrato } from '@prisma/client';
 import { PaginationDto, PaginatedResult } from 'src/common/dto';
 import { OrdenesTrabajoService } from '../ordenes-trabajo/ordenes-trabajo.service';
@@ -519,6 +520,174 @@ export class ContratosService {
       'RENOVAR_CONTRATO',
       id_usuario,
       `Contrato renovado: ${contratoAnterior.codigo} → ${nuevoContrato.codigo}${dto.comentario ? ` - ${dto.comentario}` : ''}`,
+    );
+
+    return nuevoContrato;
+  }
+
+  // ==================== MIGRACIÓN DE CONTRATO ====================
+
+  /**
+   * Migra un contrato a otro cliente.
+   * Similar a renovarContrato pero permite cambiar el cliente destino.
+   * - Anula el contrato anterior (BAJA_DEFINITIVA)
+   * - Elimina facturas pendientes en BORRADOR
+   * - Cancela OTs no finalizadas
+   * - Crea un nuevo contrato para el cliente destino en PENDIENTE_FIRMA
+   */
+  async migrarContrato(
+    id: number,
+    dto: MigrarContratoDto,
+    id_usuario: number,
+  ): Promise<atcContrato> {
+    const contratoAnterior = await this.findOne(id);
+
+    // Validar que el contrato esté en un estado migrable (mismos que renovable)
+    const estadosMigrables = [
+      'INSTALADO_ACTIVO',
+      'SUSPENDIDO',
+      'SUSPENDIDO_TEMPORAL',
+      'VELOCIDAD_REDUCIDA',
+      'EN_MORA',
+      'PENDIENTE_FIRMA',
+      'PENDIENTE_INSTALACION', 
+    ];
+    if (!estadosMigrables.includes(contratoAnterior.estado)) {
+      throw new BadRequestException(
+        `No se puede migrar un contrato en estado ${contratoAnterior.estado}. Estados válidos: ${estadosMigrables.join(', ')}`,
+      );
+    }
+
+    // Validar que el cliente destino exista y esté activo
+    const clienteDestino = await this.prisma.cliente.findUnique({
+      where: { id_cliente: dto.id_cliente },
+    });
+    if (!clienteDestino) {
+      throw new NotFoundException(
+        `Cliente destino con ID ${dto.id_cliente} no encontrado`,
+      );
+    }
+    if (clienteDestino.estado !== 'ACTIVO') {
+      throw new BadRequestException(
+        `El cliente destino no está activo (estado: ${clienteDestino.estado})`,
+      );
+    }
+
+    // Validar que el plan exista
+    const plan = await this.prisma.atcPlan.findUnique({
+      where: { id_plan: dto.id_plan },
+    });
+    if (!plan) {
+      throw new NotFoundException(`Plan con ID ${dto.id_plan} no encontrado`);
+    }
+
+    // Validar que el ciclo exista
+    const ciclo = await this.prisma.atcCicloFacturacion.findUnique({
+      where: { id_ciclo: dto.id_ciclo },
+    });
+    if (!ciclo) {
+      throw new NotFoundException(
+        `Ciclo de facturación con ID ${dto.id_ciclo} no encontrado`,
+      );
+    }
+
+    // Validar que la dirección pertenezca al cliente DESTINO y esté activa
+    const direccion = await this.prisma.clienteDirecciones.findFirst({
+      where: {
+        id_cliente_direccion: dto.id_direccion_servicio,
+        id_cliente: dto.id_cliente,
+        estado: 'ACTIVO',
+      },
+    });
+    if (!direccion) {
+      throw new BadRequestException(
+        `La dirección con ID ${dto.id_direccion_servicio} no pertenece al cliente destino o no está activa`,
+      );
+    }
+
+    // Cancelar OTs no finalizadas del contrato anterior
+    const ordenesAsociadas = await this.prisma.orden_trabajo.findMany({
+      where: {
+        id_contrato: id,
+        estado: { notIn: ['COMPLETADA', 'CANCELADA'] },
+      },
+    });
+    for (const orden of ordenesAsociadas) {
+      try {
+        await this.ordenesTrabajoService.cancelarOrden(
+          orden.id_orden,
+          id_usuario,
+        );
+      } catch (error) {
+        console.error(`Error al cancelar OT ${orden.codigo}:`, error);
+      }
+    }
+
+    // Ejecutar en transacción: eliminar facturas, dar de baja contrato anterior, crear nuevo
+    const nuevoContrato = await this.prisma.$transaction(async (tx) => {
+      // 1. Eliminar facturas pendientes del contrato anterior
+      const facturasPendientes = await tx.facturaDirecta.findMany({
+        where: {
+          id_contrato: id,
+          estado_pago: 'PENDIENTE',
+          estado_dte: 'BORRADOR',
+        },
+        select: { id_factura_directa: true },
+      });
+      const facturaIds = facturasPendientes.map((f) => f.id_factura_directa);
+
+      if (facturaIds.length > 0) {
+        // Eliminar CxC asociadas
+        await tx.cuenta_por_cobrar.deleteMany({
+          where: { id_factura_directa: { in: facturaIds } },
+        });
+        // Eliminar facturas (detalle se elimina por cascade)
+        await tx.facturaDirecta.deleteMany({
+          where: { id_factura_directa: { in: facturaIds } },
+        });
+      }
+
+      // 2. Dar de baja el contrato anterior
+      await tx.atcContrato.update({
+        where: { id_contrato: id },
+        data: { estado: 'BAJA_DEFINITIVA' },
+      });
+
+      // 3. Generar código y crear el nuevo contrato para el cliente destino
+      const codigo = await this.generateCodigoContrato();
+      const contrato = await tx.atcContrato.create({
+        data: {
+          codigo,
+          id_cliente: dto.id_cliente,
+          id_plan: dto.id_plan,
+          id_ciclo: dto.id_ciclo,
+          id_direccion_servicio: dto.id_direccion_servicio,
+          fecha_venta: new Date(),
+          meses_contrato: dto.meses_contrato || 12,
+          costo_instalacion: dto.costo_instalacion ?? 0,
+          facturar_instalacion_separada:
+            dto.facturar_instalacion_separada ?? true,
+          id_usuario_creador: id_usuario,
+          estado: 'PENDIENTE_FIRMA',
+          id_contrato_anterior: id,
+        },
+        include: this.getIncludeRelations(),
+      });
+
+      return contrato;
+    });
+
+    // Obtener nombre del cliente anterior para el log
+    const clienteAnterior = await this.prisma.cliente.findUnique({
+      where: { id_cliente: contratoAnterior.id_cliente },
+      select: { titular: true },
+    });
+
+    // Registrar en el log
+    await this.prisma.logAction(
+      'MIGRAR_CONTRATO',
+      id_usuario,
+      `Contrato migrado: ${contratoAnterior.codigo} → ${nuevoContrato.codigo} (Cliente: ${clienteAnterior?.titular || 'N/A'} → ${clienteDestino.titular})${dto.comentario ? ` - ${dto.comentario}` : ''}`,
     );
 
     return nuevoContrato;

@@ -22,6 +22,7 @@ import { CxpModule } from './modules/cxp/cxp.module';
 import { PuntoXpressModule } from './modules/puntoxpress/puntoxpress.module';
 import { OltModule } from './modules/olt/olt.module';
 import { LogsModule } from './modules/logs-sistema/logs.module';
+import { ScheduledTasksModule } from './modules/scheduled-tasks/scheduled-tasks.module';
 
 
 @Module({
@@ -51,6 +52,7 @@ import { LogsModule } from './modules/logs-sistema/logs.module';
     PuntoXpressModule, // Módulo PuntoXpress (integradores externos)
     OltModule, // Módulo de gestión OLT/ONT
     LogsModule, // Módulo de logs del sistema
+    ScheduledTasksModule, // Tareas programadas (cron jobs)
     // UtilidadesModule, //TODO Habilitar módulo de utilidades
   ],
   controllers: [],

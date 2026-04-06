@@ -1,0 +1,15 @@
+import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
+import { ConfigModule } from '@nestjs/config';
+import { FacturacionModule } from '../facturacion/facturacion.module';
+import { CajaCronService } from './caja-cron.service';
+
+@Module({
+  imports: [
+    ScheduleModule.forRoot(),
+    ConfigModule,
+    FacturacionModule,
+  ],
+  providers: [CajaCronService],
+})
+export class ScheduledTasksModule {}

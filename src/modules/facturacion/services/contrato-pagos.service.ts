@@ -148,7 +148,7 @@ export class ContratoPagosService {
       const cxc = f.cuenta_por_cobrar;
       const montoAbonado = cxc ? Number(cxc.total_abonado) : 0;
       const saldoPendiente = cxc ? Number(cxc.saldo_pendiente) : Number(f.total);
- 
+
       let estadoPago: string = f.estado_pago;
 
       return {
@@ -704,13 +704,34 @@ export class ContratoPagosService {
   /**
    * Obtener historial de abonos de un contrato
    */
+  async obtenerUsuariosConAbonos() {
+    const usuarios = await this.prisma.abono_cxc.findMany({
+      where: { activo: true },
+      select: {
+        usuario: {
+          select: { id_usuario: true, nombres: true, apellidos: true },
+        },
+      },
+      distinct: ['id_usuario'],
+      orderBy: { id_usuario: 'asc' },
+    });
+
+    return usuarios
+      .filter((a) => a.usuario)
+      .map((a) => ({
+        id: a.usuario.id_usuario,
+        nombre: `${a.usuario.nombres} ${a.usuario.apellidos}`.trim(),
+      }));
+  }
+
   async listarAbonos(dto: AbonosListadoDto) {
-    const { page = 1, limit = 20, search, fechaDesde, fechaHasta, metodoPago } = dto;
+    const { page = 1, limit = 20, search, fechaDesde, fechaHasta, metodoPago, idUsuario } = dto;
     const skip = (page - 1) * limit;
 
     const whereClause: any = {
       activo: true,
       ...(metodoPago && { metodo_pago: metodoPago }),
+      ...(idUsuario && { id_usuario: idUsuario }),
     };
 
     if (fechaDesde || fechaHasta) {
@@ -982,7 +1003,7 @@ export class ContratoPagosService {
 
     // Cálculo de IVA según tipo de DTE
     let totalIva: number;
-    let totalNuevo: number;
+    let totalNuevo: number ;
 
     const descuGravada = subTotalOriginal - descuentoTotal;
     if (tipoDte === '01') {
@@ -1009,7 +1030,7 @@ export class ContratoPagosService {
           descuento_motivo: dto.motivo || null,
           descuento_usuario: idUsuario,
           descuento_fecha: new Date(),
-          descuGravada,
+          descuGravada: descuentoTotal,
           iva: totalIva,
           total: totalNuevo,
           dte_json: null,

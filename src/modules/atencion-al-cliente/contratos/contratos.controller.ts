@@ -10,18 +10,22 @@ import {
   ParseIntPipe,
   Query,
   Res,
+  HttpStatus,
   UseInterceptors,
   UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { ContratosService } from './contratos.service';
+import { ContratosExcelService } from './contratos-excel.service';
 import { CreateContratoDto } from './dto/create-contrato.dto';
 import { UpdateContratoDto } from './dto/update-contrato.dto';
 import { MarcarFirmadoDto } from './dto/marcar-firmado.dto';
 import { CambiarEstadoContratoDto } from './dto/cambiar-estado-contrato.dto';
 import { RenovarContratoDto } from './dto/renovar-contrato.dto';
+import { MigrarContratoDto } from './dto/migrar-contrato.dto';
 import { GenerarLinkFirmaDto } from './dto/generar-link-firma.dto';
+import { QueryReporteContratosDto } from './dto/query-reporte-contratos.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -41,7 +45,10 @@ import { PaginationDto } from 'src/common/dto';
 @Controller('atencion-al-cliente/contratos')
 @Auth()
 export class ContratosController {
-  constructor(private readonly contratosService: ContratosService) {}
+  constructor(
+    private readonly contratosService: ContratosService,
+    private readonly contratosExcelService: ContratosExcelService,
+  ) {}
 
   @RequirePermissions('atencion_cliente.contratos:crear')
   @Post()
@@ -104,6 +111,39 @@ export class ContratosController {
   })
   findPendientesFirma(@Query() paginationDto: PaginationDto) {
     return this.contratosService.findPendientesFirma(paginationDto);
+  }
+
+  // ==================== REPORTE EXCEL ====================
+
+  @RequirePermissions('atencion_cliente.contratos:exportar')
+  @Get('excel')
+  @ApiOperation({
+    summary: 'Descargar reporte de contratos en Excel',
+    description:
+      'Genera y descarga un reporte Excel de ventas o renovaciones de contratos.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Archivo Excel generado exitosamente.',
+  })
+  async downloadExcel(
+    @Query() queryDto: QueryReporteContratosDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const buffer = await this.contratosExcelService.generateExcel(queryDto);
+    const filename = this.contratosExcelService.getFilename(
+      queryDto.tipo_reporte,
+      queryDto.fecha_inicio,
+      queryDto.fecha_fin,
+    );
+
+    res.set({
+      'Content-Type':
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': buffer.length.toString(),
+    });
+    res.status(HttpStatus.OK).send(buffer);
   }
 
   @RequirePermissions('atencion_cliente.contratos:ver')
@@ -199,6 +239,32 @@ export class ContratosController {
     return this.contratosService.renovarContrato(
       id,
       renovarContratoDto,
+      usuario.id_usuario,
+    );
+  }
+
+  @RequirePermissions('atencion_cliente.contratos:migrar')
+  @Post(':id/migrar')
+  @ApiOperation({
+    summary: 'Migrar un contrato a otro cliente',
+    description:
+      'Crea un nuevo contrato para un cliente diferente basado en uno existente. El contrato anterior se da de baja y sus facturas pendientes se eliminan.',
+  })
+  @ApiParam({ name: 'id', description: 'ID del contrato a migrar', type: Number })
+  @ApiResponse({
+    status: 201,
+    description: 'Contrato migrado exitosamente. Retorna el nuevo contrato.',
+  })
+  @ApiResponse({ status: 400, description: 'Contrato en estado no migrable.' })
+  @ApiResponse({ status: 404, description: 'Contrato o cliente destino no encontrado.' })
+  migrarContrato(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() migrarContratoDto: MigrarContratoDto,
+    @GetUser() usuario,
+  ) {
+    return this.contratosService.migrarContrato(
+      id,
+      migrarContratoDto,
       usuario.id_usuario,
     );
   }
