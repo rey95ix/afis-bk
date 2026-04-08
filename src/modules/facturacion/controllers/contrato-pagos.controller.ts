@@ -22,6 +22,7 @@ import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { ContratoPagosService } from '../services/contrato-pagos.service';
 import { ContratoPagosPdfService } from '../services/contrato-pagos-pdf.service';
 import { AbonosReportService } from '../services/abonos-report.service';
+import { FacturaDirectaService } from '../factura-directa/factura-directa.service';
 import {
   RegistrarPagoContratoDto,
   RegistrarAcuerdoPagoDto,
@@ -29,6 +30,7 @@ import {
 } from '../dto/contrato-pagos.dto';
 import { AbonosListadoDto } from '../dto/abonos-listado.dto';
 import { FixDuplicatedInvoicesDto } from '../dto/fix-duplicated-invoices.dto';
+import { CrearCuotaManualDto } from '../dto/crear-cuota-manual.dto';
 
 @ApiTags('Facturación - Contrato Pagos')
 @ApiBearerAuth(HEADER_API_BEARER_AUTH)
@@ -39,6 +41,7 @@ export class ContratoPagosController {
     private readonly contratoPagosService: ContratoPagosService,
     private readonly contratoPagosPdfService: ContratoPagosPdfService,
     private readonly abonosReportService: AbonosReportService,
+    private readonly facturaDirectaService: FacturaDirectaService,
   ) {}
 
   @Get('abonos/usuarios')
@@ -126,6 +129,33 @@ export class ContratoPagosController {
     const resultado = await this.contratoPagosService.registrarPagoContrato(
       idContrato,
       dto,
+      req.user.id_usuario,
+    );
+    return { data: resultado };
+  }
+
+  @Post(':idContrato/cuota-manual')
+  @ApiOperation({ summary: 'Generar manualmente una cuota adicional para un contrato' })
+  async crearCuotaManual(
+    @Param('idContrato', ParseIntPipe) idContrato: number,
+    @Body() dto: CrearCuotaManualDto,
+    @Request() req: any,
+  ) {
+    // Las fechas llegan como 'YYYY-MM-DD' (date-only). Se anclan a mediodía UTC
+    // para que cualquier zona horaria del servidor/BD conserve el mismo día calendario.
+    const parseDateOnly = (iso: string): Date => {
+      const soloFecha = iso.substring(0, 10); // ignora tiempo si viene
+      const [y, m, d] = soloFecha.split('-').map(Number);
+      return new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+    };
+
+    const resultado = await this.facturaDirectaService.generarFacturaManual(
+      idContrato,
+      {
+        fecha_vencimiento: parseDateOnly(dto.fecha_vencimiento),
+        periodo_inicio: parseDateOnly(dto.periodo_inicio),
+        periodo_fin: parseDateOnly(dto.periodo_fin),
+      },
       req.user.id_usuario,
     );
     return { data: resultado };

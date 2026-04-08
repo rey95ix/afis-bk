@@ -1337,6 +1337,9 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     es_critico: true,
     requiere_auditoria: true,
   }),
+  crearPermisoCustom('facturacion', 'cobros', 'crear_cuota_manual', 'Crear Cuota Manual', 'Generar manualmente una cuota adicional para un contrato', {
+    requiere_auditoria: true,
+  }),
 
   // Factura Directa
   crearPermiso('facturacion', 'factura_directa', 'VER', 'Ver Facturas Directas', 'Ver listado y detalles de facturas directas'),
@@ -1356,6 +1359,14 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     es_critico: true,
     requiere_auditoria: true,
   }),
+
+  // Cobranza (gestión de mora)
+  crearPermiso('facturacion', 'cobranza', 'VER', 'Ver Gestión de Cobranza', 'Ver dashboard, resumen de mora y facturas vencidas por ciclo'),
+  crearPermisoCustom('facturacion', 'cobranza', 'ver_propias', 'Ver Mis Gestiones', 'Ver únicamente las asignaciones de cobranza del gestor logueado'),
+  crearPermisoCustom('facturacion', 'cobranza', 'asignar', 'Asignar/Reasignar Morosos', 'Distribuir facturas vencidas entre gestores y reasignar', {
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom('facturacion', 'cobranza', 'gestionar', 'Registrar Notas de Seguimiento', 'Crear notas de cobranza (WhatsApp, llamada, visita, promesa de pago)'),
 
   // Anulaciones
   crearPermiso('facturacion', 'anulaciones', 'VER', 'Ver Anulaciones', 'Ver listado de anulaciones de documentos tributarios'),

@@ -8,6 +8,10 @@ import { AuthModule } from '../auth/auth.module';
 import { CiclosController } from './ciclos/ciclos.controller';
 import { CiclosService } from './ciclos/ciclos.service';
 
+// Cobranza (gestión de mora)
+import { CobranzaController } from './cobranza/cobranza.controller';
+import { CobranzaService } from './cobranza/cobranza.service';
+
 // Controllers - Cobros, Anulaciones y Contrato Pagos
 import { CobrosController, AnulacionesController, ContratoPagosController } from './controllers';
 
@@ -65,6 +69,7 @@ import { ComprobanteAnalyzerService } from '../whatsapp-chat/validacion-comproba
   imports: [PrismaModule, AuthModule, ConfigModule, LibrosIvaModule, MailModule, CxcModule, BancosModule, OpenaiModule],
   controllers: [
     CiclosController,
+    CobranzaController,
     CobrosController,
     AnulacionesController,
     ContratoPagosController,
@@ -77,6 +82,9 @@ import { ComprobanteAnalyzerService } from '../whatsapp-chat/validacion-comproba
   providers: [
     // Ciclos (existente)
     CiclosService,
+
+    // Cobranza
+    CobranzaService,
 
     // Main Services - Cobros, Anulaciones, Mora y Contrato Pagos
     CobrosService,

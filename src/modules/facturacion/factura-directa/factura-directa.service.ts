@@ -1650,30 +1650,33 @@ export class FacturaDirectaService {
 
       // ==================== PASO 6: ACTUALIZAR ESTADOS ====================
       if (transmitResult.success) {
-        // Actualizar factura con datos de anulación
-        await this.prisma.facturaDirecta.update({
-          where: { id_factura_directa: id },
-          data: {
-            estado_dte: 'INVALIDADO',
-            estado: 'ANULADO',
-            anulacion_codigo_generacion: codigoGeneracion,
-            anulacion_sello_recepcion: transmitResult.selloRecibido,
-            anulacion_json: JSON.stringify(evento),
-            anulacion_firmada: signResult.documentoFirmado,
-            fecha_anulacion: new Date(),
-            anulacion_motivo:
-              dto.motivoAnulacion || this.obtenerMotivoAnulacionTexto(dto.tipoAnulacion),
-            anulacion_codigo_msg: transmitResult.codigoMsg || null,
-            anulacion_descripcion_msg: transmitResult.descripcionMsg || null,
-          },
+        // Envolver en una sola transacción la actualización de la factura y la
+        // anulación de la CxC asociada. Si alguno falla, se revierten ambos.
+        await this.prisma.$transaction(async (tx) => {
+          await tx.facturaDirecta.update({
+            where: { id_factura_directa: id },
+            data: {
+              estado_dte: 'INVALIDADO',
+              estado: 'ANULADO',
+              anulacion_codigo_generacion: codigoGeneracion,
+              anulacion_sello_recepcion: transmitResult.selloRecibido,
+              anulacion_json: JSON.stringify(evento),
+              anulacion_firmada: signResult.documentoFirmado,
+              fecha_anulacion: new Date(),
+              anulacion_motivo:
+                dto.motivoAnulacion || this.obtenerMotivoAnulacionTexto(dto.tipoAnulacion),
+              anulacion_codigo_msg: transmitResult.codigoMsg || null,
+              anulacion_descripcion_msg: transmitResult.descripcionMsg || null,
+            },
+          });
+
+          // Anular CxC asociada si existe (bloquea si tiene abonos registrados)
+          await this.cxcService.anularCxcPorFactura(id, tx);
         });
 
         this.logger.log(
           `Factura directa anulada exitosamente. Sello: ${transmitResult.selloRecibido}`,
         );
-
-        // Anular CxC asociada si existe
-        await this.cxcService.anularCxcPorFactura(id);
 
         return {
           success: true,
@@ -1694,7 +1697,6 @@ export class FacturaDirectaService {
       }
     } catch (error) {
       this.logger.error(`Error al anular factura directa: ${error.message}`, error.stack);
-
       if (
         error instanceof NotFoundException ||
         error instanceof BadRequestException ||
@@ -3619,55 +3621,6 @@ export class FacturaDirectaService {
     const facturaIds: number[] = [];
     let instalacionId: number | undefined;
 
-    // Helper: calcula precios de detalle según tipo de factura (FC vs CCF)
-    const calcularPreciosDetalle = (montoConIva: number) => {
-      if (!aplicaIva) {
-        const monto = redondearMonto(montoConIva);
-        return {
-          precioUnitario: redondearMonto(montoConIva, DECIMALES_ITEM),
-          precioSinIva: redondearMonto(montoConIva, DECIMALES_ITEM),
-          precioConIva: redondearMonto(montoConIva, DECIMALES_ITEM),
-          ventaGravada: 0,
-          ventaExenta: monto,
-          iva: 0,
-          subtotal: monto,
-          total: monto,
-          tipoDetalle: 'EXENTA' as const,
-        };
-      }
-
-      const sinIva = redondearMonto(montoConIva / (1 + porcentajeIva / 100));
-      const iva = redondearMonto(montoConIva - sinIva);
-
-      if (esFC) {
-        // FC: precio_unitario CON IVA, ventaGravada CON IVA
-        return {
-          precioUnitario: redondearMonto(montoConIva, DECIMALES_ITEM),
-          precioSinIva: redondearMonto(sinIva, DECIMALES_ITEM),
-          precioConIva: redondearMonto(montoConIva, DECIMALES_ITEM),
-          ventaGravada: redondearMonto(montoConIva),
-          ventaExenta: 0,
-          iva: redondearMonto(iva),
-          subtotal: redondearMonto(montoConIva),
-          total: redondearMonto(montoConIva),
-          tipoDetalle: 'GRAVADO' as const,
-        };
-      } else {
-        // CCF: precio_unitario SIN IVA, ventaGravada SIN IVA
-        return {
-          precioUnitario: redondearMonto(sinIva, DECIMALES_ITEM),
-          precioSinIva: redondearMonto(sinIva, DECIMALES_ITEM),
-          precioConIva: redondearMonto(montoConIva, DECIMALES_ITEM),
-          ventaGravada: redondearMonto(sinIva),
-          ventaExenta: 0,
-          iva: redondearMonto(iva),
-          subtotal: redondearMonto(sinIva),
-          total: redondearMonto(sinIva),
-          tipoDetalle: 'GRAVADO' as const,
-        };
-      }
-    };
-
     // 7. Generar facturas de cuotas mensuales
     const primeraCuota = cuotaInicial || 1;
     const ultimaCuota = cuotaFinal ?? mesesContrato;
@@ -3734,7 +3687,7 @@ export class FacturaDirectaService {
       let numItem = 1;
 
       // Línea de servicio mensual (usa precioEfectivo que puede estar prorrateado en cuota 1)
-      const preciosServicio = calcularPreciosDetalle(precioEfectivo);
+      const preciosServicio = this.calcularPreciosDetalle(precioEfectivo, aplicaIva, porcentajeIva, esFC);
 
       const esProrrateo = precioEfectivo !== precioBase;
       const nombreCuota = esProrrateo
@@ -3760,7 +3713,7 @@ export class FacturaDirectaService {
 
       // Si cuota 1 y NO facturar_instalacion_separada, incluir instalación
       if (cuota === 1 && !facturarInstalacionSeparada && costoInstalacion > 0) {
-        const preciosInstalacion = calcularPreciosDetalle(costoInstalacion);
+        const preciosInstalacion = this.calcularPreciosDetalle(costoInstalacion, aplicaIva, porcentajeIva, esFC);
 
         detalles.push({
           num_item: numItem++,
@@ -3891,7 +3844,7 @@ export class FacturaDirectaService {
 
     // 8. Si facturar_instalacion_separada y hay costo, crear factura aparte (solo si empezamos desde cuota 1)
     if (facturarInstalacionSeparada && costoInstalacion > 0 && primeraCuota <= 1) {
-      const preciosInstSep = calcularPreciosDetalle(costoInstalacion);
+      const preciosInstSep = this.calcularPreciosDetalle(costoInstalacion, aplicaIva, porcentajeIva, esFC);
 
       const totalGravada = preciosInstSep.ventaGravada;
       const totalExenta = preciosInstSep.ventaExenta;
@@ -3989,6 +3942,465 @@ export class FacturaDirectaService {
     );
 
     return { facturaIds, instalacionId };
+  }
+
+  /**
+   * Regenera una factura + CxC para una cuota de contrato que fue anulada.
+   *
+   * Se usa desde el cron `regenerar-cuotas-anuladas` cuando una factura de
+   * contrato fue anulada (ej. error del operador, aplicó al cliente equivocado)
+   * y necesitamos que la deuda vuelva a estar disponible para cobro.
+   *
+   * Copia los datos de la factura original anulada (mismo periodo, monto,
+   * detalles, cliente) y crea una nueva factura en estado BORRADOR/ACTIVO
+   * lista para ser firmada y transmitida a MH por el flujo normal, junto
+   * con su correspondiente CxC en estado PENDIENTE.
+   *
+   * Debe ser llamada dentro de una transacción existente.
+   *
+   * @param idFacturaAnulada ID de la factura original ANULADA a regenerar
+   * @param userId Usuario que ejecuta la regeneración (cron system user)
+   * @param tx Cliente de transacción Prisma
+   * @returns ID de la nueva factura creada
+   */
+  async regenerarCuotaContratoAnulada(
+    idFacturaAnulada: number,
+    userId: number,
+    tx: Prisma.TransactionClient,
+  ): Promise<number> {
+    // 1. Cargar factura original con detalles
+    const original = await tx.facturaDirecta.findUnique({
+      where: { id_factura_directa: idFacturaAnulada },
+      include: { detalles: true },
+    });
+
+    if (!original) {
+      throw new NotFoundException(`Factura anulada ${idFacturaAnulada} no encontrada`);
+    }
+
+    if (original.estado !== 'ANULADO') {
+      throw new BadRequestException(
+        `La factura ${idFacturaAnulada} no está anulada (estado actual: ${original.estado})`,
+      );
+    }
+
+    if (!original.id_contrato || !original.id_cliente || original.numero_cuota == null) {
+      throw new BadRequestException(
+        `La factura ${idFacturaAnulada} no es una factura de contrato (falta id_contrato/id_cliente/numero_cuota)`,
+      );
+    }
+
+    // 2. Validar que el contrato sigue activo
+    const contrato = await tx.atcContrato.findUnique({
+      where: { id_contrato: original.id_contrato },
+    });
+
+    if (!contrato) {
+      throw new NotFoundException(`Contrato ${original.id_contrato} no encontrado`);
+    }
+
+    // Estados de contrato donde el cliente todavía tiene obligación de pago.
+    // Excluye BAJA_DEFINITIVA y SUSPENDIDO (permanentes).
+    const estadosContratoVigentes: string[] = [
+      'INSTALADO_ACTIVO',
+      'SUSPENDIDO_TEMPORAL',
+      'VELOCIDAD_REDUCIDA',
+      'EN_MORA',
+    ];
+    if (!estadosContratoVigentes.includes(contrato.estado)) {
+      throw new BadRequestException(
+        `Contrato ${original.id_contrato} no está vigente (estado: ${contrato.estado}). No se regenera la cuota.`,
+      );
+    }
+
+    // 3. Verificar que no exista ya otra factura viva para la misma cuota
+    //    (protección contra duplicados si el cron corrió dos veces o si un
+    //    pago posterior ya generó la siguiente cuota)
+    const yaExiste = await tx.facturaDirecta.count({
+      where: {
+        id_contrato: original.id_contrato,
+        numero_cuota: original.numero_cuota,
+        estado: 'ACTIVO',
+      },
+    });
+
+    if (yaExiste > 0) {
+      throw new BadRequestException(
+        `Ya existe una factura ACTIVA para contrato ${original.id_contrato} cuota ${original.numero_cuota}`,
+      );
+    }
+
+    // 4. Crear la nueva factura copiando los datos relevantes de la original,
+    //    pero reseteando todo lo relacionado con numeración / DTE / MH / pagos.
+    const nueva = await tx.facturaDirecta.create({
+      data: {
+        // Numeración y DTE se re-asignan al firmar
+        numero_factura: null,
+        id_bloque: original.id_bloque,
+        id_tipo_factura: original.id_tipo_factura,
+        codigo_generacion: uuidv4().toUpperCase(),
+
+        // Snapshot del cliente (copiado de la original)
+        cliente_nombre: original.cliente_nombre,
+        cliente_nrc: original.cliente_nrc,
+        cliente_nit: original.cliente_nit,
+        cliente_direccion: original.cliente_direccion,
+        cliente_giro: original.cliente_giro,
+        cliente_telefono: original.cliente_telefono,
+        cliente_correo: original.cliente_correo,
+
+        // Contrato y cliente
+        id_contrato: original.id_contrato,
+        id_cliente: original.id_cliente,
+        id_cliente_facturacion: original.id_cliente_facturacion,
+
+        // Periodo y cuota (mismos que la anulada)
+        fecha_vencimiento: original.fecha_vencimiento,
+        periodo_inicio: original.periodo_inicio,
+        periodo_fin: original.periodo_fin,
+        numero_cuota: original.numero_cuota,
+        total_cuotas: original.total_cuotas,
+        es_instalacion: original.es_instalacion,
+
+        // Montos (copiados)
+        subtotal: original.subtotal,
+        subTotalVentas: original.subTotalVentas,
+        totalNoSuj: original.totalNoSuj,
+        totalExenta: original.totalExenta,
+        totalGravada: original.totalGravada,
+        totalNoGravado: original.totalNoGravado,
+        iva: original.iva,
+        total: original.total,
+
+        // Condición de operación (crédito proyectado)
+        condicion_operacion: original.condicion_operacion,
+
+        // Estado: BORRADOR para que el flujo normal la firme/transmita
+        estado_dte: 'BORRADOR',
+        estado: 'ACTIVO',
+        estado_pago: 'PENDIENTE',
+
+        // Observación de trazabilidad
+        observaciones:
+          `Regenerada automáticamente por anulación de factura #${idFacturaAnulada}` +
+          (original.observaciones ? ` | ${original.observaciones}` : ''),
+
+        // Sucursal y usuario (cron usa el userId del sistema)
+        id_sucursal: original.id_sucursal,
+        id_usuario: userId,
+
+        // Detalle: copiar línea por línea
+        detalles: {
+          create: original.detalles.map((d) => ({
+            num_item: d.num_item,
+            codigo: d.codigo,
+            nombre: d.nombre,
+            descripcion: d.descripcion,
+            nota: d.nota,
+            cantidad: d.cantidad,
+            uni_medida: d.uni_medida,
+            precio_unitario: d.precio_unitario,
+            precio_sin_iva: d.precio_sin_iva,
+            precio_con_iva: d.precio_con_iva,
+            tipo_detalle: d.tipo_detalle,
+            venta_gravada: d.venta_gravada,
+            venta_exenta: d.venta_exenta,
+            subtotal: d.subtotal,
+            iva: d.iva,
+            total: d.total,
+          })),
+        },
+      },
+    });
+
+    // 5. Crear CxC PENDIENTE para la nueva factura
+    await this.cxcService.crearCxcParaFacturaContrato(
+      {
+        id_factura_directa: nueva.id_factura_directa,
+        id_cliente: original.id_cliente,
+        id_contrato: original.id_contrato,
+        total: nueva.total,
+        fecha_vencimiento: original.fecha_vencimiento!,
+      },
+      original.id_sucursal,
+      userId,
+      tx,
+    );
+
+    this.logger.log(
+      `Regenerada factura #${nueva.id_factura_directa} desde anulada #${idFacturaAnulada} ` +
+        `(contrato ${original.id_contrato}, cuota ${original.numero_cuota})`,
+    );
+
+    return nueva.id_factura_directa;
+  }
+
+  /**
+   * Calcula precios de un detalle de factura según tipo (FC vs CCF) y si aplica IVA.
+   * Extraído como método privado para reutilizar entre generación automática y manual.
+   */
+  private calcularPreciosDetalle(
+    montoConIva: number,
+    aplicaIva: boolean,
+    porcentajeIva: number,
+    esFC: boolean,
+  ) {
+    if (!aplicaIva) {
+      const monto = redondearMonto(montoConIva);
+      return {
+        precioUnitario: redondearMonto(montoConIva, DECIMALES_ITEM),
+        precioSinIva: redondearMonto(montoConIva, DECIMALES_ITEM),
+        precioConIva: redondearMonto(montoConIva, DECIMALES_ITEM),
+        ventaGravada: 0,
+        ventaExenta: monto,
+        iva: 0,
+        subtotal: monto,
+        total: monto,
+        tipoDetalle: 'EXENTA' as const,
+      };
+    }
+
+    const sinIva = redondearMonto(montoConIva / (1 + porcentajeIva / 100));
+    const iva = redondearMonto(montoConIva - sinIva);
+
+    if (esFC) {
+      // FC: precio_unitario CON IVA, ventaGravada CON IVA
+      return {
+        precioUnitario: redondearMonto(montoConIva, DECIMALES_ITEM),
+        precioSinIva: redondearMonto(sinIva, DECIMALES_ITEM),
+        precioConIva: redondearMonto(montoConIva, DECIMALES_ITEM),
+        ventaGravada: redondearMonto(montoConIva),
+        ventaExenta: 0,
+        iva: redondearMonto(iva),
+        subtotal: redondearMonto(montoConIva),
+        total: redondearMonto(montoConIva),
+        tipoDetalle: 'GRAVADO' as const,
+      };
+    } else {
+      // CCF: precio_unitario SIN IVA, ventaGravada SIN IVA
+      return {
+        precioUnitario: redondearMonto(sinIva, DECIMALES_ITEM),
+        precioSinIva: redondearMonto(sinIva, DECIMALES_ITEM),
+        precioConIva: redondearMonto(montoConIva, DECIMALES_ITEM),
+        ventaGravada: redondearMonto(sinIva),
+        ventaExenta: 0,
+        iva: redondearMonto(iva),
+        subtotal: redondearMonto(sinIva),
+        total: redondearMonto(sinIva),
+        tipoDetalle: 'GRAVADO' as const,
+      };
+    }
+  }
+
+  /**
+   * Genera manualmente UNA cuota adicional para un contrato, con fechas
+   * provistas por el usuario. Reutiliza precios e IVA del plan vigente.
+   * Bloquea la creación si el rango [periodo_inicio, periodo_fin] solapa con
+   * cualquier factura existente del contrato (excepto ANULADA).
+   */
+  async generarFacturaManual(
+    idContrato: number,
+    dto: { fecha_vencimiento: Date; periodo_inicio: Date; periodo_fin: Date },
+    userId: number,
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ idFacturaDirecta: number; numeroCuota: number }> {
+    const run = async (db: Prisma.TransactionClient | PrismaService) => {
+      // 1. Validar fechas
+      if (dto.periodo_inicio.getTime() > dto.periodo_fin.getTime()) {
+        throw new BadRequestException('periodo_inicio debe ser menor o igual a periodo_fin');
+      }
+      if (dto.fecha_vencimiento.getTime() < dto.periodo_inicio.getTime()) {
+        throw new BadRequestException('fecha_vencimiento debe ser igual o posterior a periodo_inicio');
+      }
+
+      // 2. Cargar contrato con relaciones necesarias
+      const contrato = await db.atcContrato.findUnique({
+        where: { id_contrato: idContrato },
+        include: {
+          cliente: {
+            include: {
+              datosfacturacion: {
+                where: { estado: 'ACTIVO' },
+                take: 1,
+              },
+            },
+          },
+          plan: true,
+          ciclo: true,
+        },
+      });
+
+      if (!contrato) {
+        throw new NotFoundException(`Contrato ${idContrato} no encontrado`);
+      }
+      if (contrato.estado !== 'INSTALADO_ACTIVO') {
+        throw new BadRequestException(
+          `Contrato ${idContrato} no está en estado INSTALADO_ACTIVO (estado: ${contrato.estado})`,
+        );
+      }
+      if (!contrato.plan) {
+        throw new BadRequestException(`Contrato ${idContrato} no tiene plan asignado`);
+      }
+      const datosFacturacion = contrato.cliente?.datosfacturacion?.[0];
+      if (!datosFacturacion) {
+        throw new BadRequestException(
+          `Cliente del contrato ${idContrato} no tiene datos de facturación activos`,
+        );
+      }
+
+      // 3. Validar solape contra facturas existentes
+      const solape = await db.facturaDirecta.count({
+        where: {
+          id_contrato: idContrato,
+          estado: { not: 'ANULADO' },
+          periodo_inicio: { lte: dto.periodo_fin },
+          periodo_fin: { gte: dto.periodo_inicio },
+        },
+      });
+      if (solape > 0) {
+        throw new BadRequestException(
+          'Ya existe una factura cuyo período se solapa con el rango indicado.',
+        );
+      }
+
+      // 4. Tipo de factura y bloque (FC vs CCF)
+      const tipoFacturaCodigo = datosFacturacion.tipo == 'PERSONA' ? '01' : '03';
+      const esFC = tipoFacturaCodigo === '01';
+      const tipoFactura = await db.facturasBloques.findFirst({
+        where: {
+          estado: 'ACTIVO',
+          Tipo: { codigo: tipoFacturaCodigo },
+        },
+      });
+      const id_bloque = tipoFactura?.id_bloque;
+      const id_tipo_factura = tipoFactura?.id_tipo_factura;
+
+      // 5. Sucursal activa
+      const sucursal = await db.sucursales.findFirst({ where: { estado: 'ACTIVO' } });
+      if (!sucursal) {
+        throw new BadRequestException('No hay sucursal disponible para generar la factura');
+      }
+
+      // 6. Calcular numero_cuota = max(numero_cuota) + 1
+      const ultimo = await db.facturaDirecta.aggregate({
+        where: {
+          id_contrato: idContrato,
+          es_instalacion: false,
+          numero_cuota: { not: null },
+        },
+        _max: { numero_cuota: true },
+      });
+      const numeroCuota = (ultimo._max.numero_cuota ?? 0) + 1;
+      const totalCuotas = contrato.meses_contrato || contrato.plan.meses_contrato || 12;
+
+      // 7. Snapshot del cliente
+      const clienteSnapshot = {
+        cliente_nombre: datosFacturacion.nombre_empresa,
+        cliente_nit: datosFacturacion.nit,
+        cliente_nrc: datosFacturacion.nrc,
+        cliente_direccion: datosFacturacion.direccion_facturacion,
+        cliente_telefono: datosFacturacion.telefono,
+        cliente_correo: datosFacturacion.correo_electronico,
+      };
+
+      // 8. Calcular precios desde el plan vigente (sin prorrateo)
+      const precioBase = Number(contrato.plan.precio);
+      const aplicaIva = contrato.plan.aplica_iva;
+      const porcentajeIva = Number(contrato.plan.porcentaje_iva || 13);
+      const precios = this.calcularPreciosDetalle(precioBase, aplicaIva, porcentajeIva, esFC);
+
+      const detalle = {
+        num_item: 1,
+        nombre: `${contrato.plan.nombre} - Período ${formatDate(dto.periodo_inicio)} al ${formatDate(dto.periodo_fin)}`,
+        descripcion: `Servicio ${contrato.plan.nombre}`,
+        cantidad: 1,
+        uni_medida: 99,
+        precio_unitario: precios.precioUnitario,
+        precio_sin_iva: precios.precioSinIva,
+        precio_con_iva: precios.precioConIva,
+        tipo_detalle: precios.tipoDetalle,
+        venta_gravada: precios.ventaGravada,
+        venta_exenta: precios.ventaExenta,
+        subtotal: precios.subtotal,
+        iva: precios.iva,
+        total: precios.total,
+      };
+
+      const totalGravada = redondearMonto(detalle.venta_gravada);
+      const totalExenta = redondearMonto(detalle.venta_exenta);
+      const subtotal = redondearMonto(totalGravada + totalExenta);
+      const ivaTotal = redondearMonto(detalle.iva);
+      const total = esFC ? redondearMonto(subtotal) : redondearMonto(subtotal + ivaTotal);
+
+      // 9. Crear factura
+      const factura = await db.facturaDirecta.create({
+        data: {
+          numero_factura: null,
+          id_bloque,
+          id_tipo_factura,
+          codigo_generacion: uuidv4().toUpperCase(),
+
+          id_contrato: idContrato,
+          id_cliente: contrato.id_cliente,
+          id_cliente_facturacion: datosFacturacion.id_cliente_datos_facturacion,
+          ...clienteSnapshot,
+
+          periodo_inicio: dto.periodo_inicio,
+          periodo_fin: dto.periodo_fin,
+          fecha_vencimiento: dto.fecha_vencimiento,
+          numero_cuota: numeroCuota,
+          total_cuotas: totalCuotas,
+          es_instalacion: false,
+
+          subtotal: subtotal,
+          subTotalVentas: subtotal,
+          totalGravada: totalGravada,
+          totalExenta: totalExenta,
+          iva: ivaTotal,
+          total: total,
+
+          condicion_operacion: 2,
+
+          estado_dte: 'BORRADOR',
+          estado_pago: 'PENDIENTE',
+
+          id_sucursal: sucursal.id_sucursal,
+          id_usuario: userId,
+
+          detalles: {
+            create: [detalle],
+          },
+        },
+      });
+
+      // 10. Crear CxC
+      await this.cxcService.crearCxcParaFacturaContrato(
+        {
+          id_factura_directa: factura.id_factura_directa,
+          id_cliente: contrato.id_cliente,
+          id_contrato: idContrato,
+          total: factura.total,
+          fecha_vencimiento: dto.fecha_vencimiento,
+        },
+        sucursal.id_sucursal,
+        userId,
+        db as any,
+      );
+
+      this.logger.log(
+        `Contrato ${idContrato}: cuota manual #${numeroCuota} generada (factura ${factura.id_factura_directa})`,
+      );
+
+      return {
+        idFacturaDirecta: factura.id_factura_directa,
+        numeroCuota,
+      };
+    };
+
+    if (tx) {
+      return run(tx);
+    }
+    return this.prisma.$transaction((trx) => run(trx));
   }
 
   /**

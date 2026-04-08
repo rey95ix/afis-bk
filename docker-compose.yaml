@@ -9,8 +9,10 @@ services:
     ports:
       - "5470:${PORT}"
     env_file: .env
+    environment:
+      TZ: 'America/El_Salvador'
     networks:
-      - network-system 
+      - network-system
     command: >
       sh -c "
         echo 'Esperando DB en ${DB_HOST:-fac-db}:${DB_PORT:-5432}...' &&

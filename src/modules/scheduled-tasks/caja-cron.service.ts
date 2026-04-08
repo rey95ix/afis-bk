@@ -10,13 +10,19 @@ export class CajaCronService {
   constructor(
     private readonly cajaService: CajaService,
     private readonly configService: ConfigService,
-  ) {}
+  ) {
+    this.logger.log(
+      `TZ diagnóstico — process.env.TZ=${process.env.TZ ?? '(unset)'}, ` +
+      `Intl=${Intl.DateTimeFormat().resolvedOptions().timeZone}, ` +
+      `now=${new Date().toString()}`,
+    );
+  }
 
   /**
-   * Cierre de caja automático diario a las 23:59:50.
+   * Cierre de caja automático diario a las 23:59:50 hora El Salvador.
    * Usa el usuario del sistema (PORTAL_SYSTEM_USER_ID) para generar el cierre.
    */
-  @Cron('50 59 23 * * *')
+  @Cron('50 59 23 * * *', { timeZone: 'America/El_Salvador' })
   async ejecutarCierreUsuarioDiario(): Promise<void> {
     const raw = this.configService.get<string>('PORTAL_SYSTEM_USER_ID');
     if (!raw) {

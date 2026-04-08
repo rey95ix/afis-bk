@@ -3,6 +3,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule } from '@nestjs/config';
 import { FacturacionModule } from '../facturacion/facturacion.module';
 import { CajaCronService } from './caja-cron.service';
+import { RegenerarCuotasAnuladasCronService } from './regenerar-cuotas-anuladas.cron.service';
 
 @Module({
   imports: [
@@ -10,6 +11,6 @@ import { CajaCronService } from './caja-cron.service';
     ConfigModule,
     FacturacionModule,
   ],
-  providers: [CajaCronService],
+  providers: [CajaCronService, RegenerarCuotasAnuladasCronService],
 })
 export class ScheduledTasksModule {}

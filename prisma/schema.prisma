@@ -14,48 +14,48 @@ datasource db {
 }
 
 model GeneralData {
-  id_general                 Int      @id @default(autoincrement())
-  nombre_sistema             String
-  direccion                  String?
-  razon                      String?
-  nit                        String?
-  nrc                        String?
-  cod_actividad              String?
-  desc_actividad             String?
-  nombre_comercial           String?
-  contactos                  String?
-  correo                     String?
-  cod_estable_MH             String?
-  cod_estable                String?
-  cod_punto_venta_MH         String?
-  cod_punto_venta            String?
-  ambiente                   String?  @default("00") //00=pruebas, 01=produccion
-  api_facturacion_dev        String?  @default("https://apitest.dtes.mh.gob.sv/") //00=pruebas, 01=produccion
-  api_facturacion_prod       String?  @default("https://api.dtes.mh.gob.sv/") //00=pruebas, 01=produccion
-  public_key                 String?  @default("")
-  private_key                String?  @default("")
-  api_key                    String?  @default("")
-  token_api_fac              String?  @default("")
-  version_email              String?  @default("1")
-  token_email                String?  @default("")
-  sender_email               String?  @default("")
-  text_email                 String?  @default("Gracias por su preferencia!")
-  domain_email               String?  @default("")
-  impuesto                   Float?   @default(0.13)
-  icono_sistema              String?  @default("") @db.Text
-  icono_factura              String?  @default("") @db.Text
-  url_facebook               String?  @default("")
-  perfil_facebook            String?  @default("")
-  url_instagram              String?  @default("")
-  perfil_instagram           String?  @default("")
-  url_pagina_web             String?  @default("")
-  url_correo_atencio         String?  @default("")
-  url_maps                   String?  @default("")
-  whatsapp                   String?  @default("")
-  color_icono                String?  @default("")
+  id_general           Int     @id @default(autoincrement())
+  nombre_sistema       String
+  direccion            String?
+  razon                String?
+  nit                  String?
+  nrc                  String?
+  cod_actividad        String?
+  desc_actividad       String?
+  nombre_comercial     String?
+  contactos            String?
+  correo               String?
+  cod_estable_MH       String?
+  cod_estable          String?
+  cod_punto_venta_MH   String?
+  cod_punto_venta      String?
+  ambiente             String? @default("00") //00=pruebas, 01=produccion
+  api_facturacion_dev  String? @default("https://apitest.dtes.mh.gob.sv/") //00=pruebas, 01=produccion
+  api_facturacion_prod String? @default("https://api.dtes.mh.gob.sv/") //00=pruebas, 01=produccion
+  public_key           String? @default("")
+  private_key          String? @default("")
+  api_key              String? @default("")
+  token_api_fac        String? @default("")
+  version_email        String? @default("1")
+  token_email          String? @default("")
+  sender_email         String? @default("")
+  text_email           String? @default("Gracias por su preferencia!")
+  domain_email         String? @default("")
+  impuesto             Float?  @default(0.13)
+  icono_sistema        String? @default("") @db.Text
+  icono_factura        String? @default("") @db.Text
+  url_facebook         String? @default("")
+  perfil_facebook      String? @default("")
+  url_instagram        String? @default("")
+  perfil_instagram     String? @default("")
+  url_pagina_web       String? @default("")
+  url_correo_atencio   String? @default("")
+  url_maps             String? @default("")
+  whatsapp             String? @default("")
+  color_icono          String? @default("")
 
   // === CONFIGURACIÓN DE RECIBO DE PAGO (GS1-128) ===
-  gln                        String?  @db.VarChar(13) // GLN (Global Location Number) asignado por GS1 El Salvador
+  gln String? @db.VarChar(13) // GLN (Global Location Number) asignado por GS1 El Salvador
 
   // === CONFIGURACIÓN DE MORA POR DEFECTO ===
   id_mora_config_default Int?
@@ -66,113 +66,117 @@ model GeneralData {
 }
 
 model usuarios {
-  id_usuario                     Int                             @id @default(autoincrement())
-  usuario                        String
-  password                       String
-  reset_password_token           String?                         @unique
-  reset_password_expires         DateTime?
-  nombres                        String
-  apellidos                      String
-  telefono                       String                          @default("+50300000000")
-  id_sucursal                    Int?
-  dui                            String?
-  foto                           String?                         @db.Text()
-  fcm_token                      String?
-  estado                         estado                          @default(ACTIVO)
-  id_rol                         Int
-  roles                          roles                           @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_rol")
-  id_tipo_documento              Int?
-  dTETipoDocumentoIdentificacion dTETipoDocumentoIdentificacion? @relation(fields: [id_tipo_documento], references: [id_tipo_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_tipo_documento")
-  log                            log[]
-  fecha_creacion                 DateTime                        @default(now())
-  fecha_ultima_actualizacion     DateTime                        @default(now()) @updatedAt
-  Cliente                        cliente[]
-  proveedores                    proveedores[]
-  compras                        compras[]
-  orden_trabajo                  orden_trabajo[]
-  agenda_visitas                 agenda_visitas[]
-  ot_historial_estado            ot_historial_estado[]
-  ot_evidencias                  ot_evidencias[]
-  bodegas_responsable            bodegas[]                       @relation("bodega_responsable")
-  bodegas_despachador            bodegas[]                       @relation("bodega_despachador")
-  importaciones_solicita         importaciones[]                 @relation("usuario_solicita_importacion")
-  movimientos_inventario         movimientos_inventario[]
-  reservas_inventario            reservas_inventario[]
-  historial_series               historial_series[]
-  retaceo_importacion            retaceo_importacion[]
-  requisiciones_solicita         requisiciones_inventario[]      @relation("usuario_solicita_requisicion")
-  requisiciones_autoriza         requisiciones_inventario[]      @relation("usuario_autoriza_requisicion")
-  requisiciones_procesa          requisiciones_inventario[]      @relation("usuario_procesa_requisicion")
-  ordenes_salida_solicita        ordenes_salida[]                @relation("usuario_solicita_orden_salida")
-  ordenes_salida_autoriza        ordenes_salida[]                @relation("usuario_autoriza_orden_salida")
-  ordenes_salida_procesa         ordenes_salida[]                @relation("usuario_procesa_orden_salida")
-  sms_historial                  sms_historial[]
-  auditorias_planifica           auditorias_inventario[]         @relation("usuario_planifica_auditoria")
-  auditorias_ejecuta             auditorias_inventario[]         @relation("usuario_ejecuta_auditoria")
-  auditorias_detalle_conteo      auditorias_detalle[]
-  auditorias_evidencias          auditorias_evidencias[]
-  ajustes_solicita               ajustes_inventario[]            @relation("usuario_solicita_ajuste")
-  ajustes_autoriza               ajustes_inventario[]            @relation("usuario_autoriza_ajuste")
-  snapshots_creados              snapshots_inventario[]
-  metricas_calculadas            metricas_inventario[]
-  usuario_permisos               usuario_permisos[]
-  salidas_temporales_ot          salidas_temporales_ot[]         @relation("salida_temporal_usuario")
-  contratos_creados              atcContrato[]
-  dte_emitidos_creados           dte_emitidos[]                  @relation("dte_usuario_crea")
-  dte_anulaciones_creadas        dte_anulaciones[]               @relation("anulacion_usuario_crea")
+  id_usuario                      Int                               @id @default(autoincrement())
+  usuario                         String
+  password                        String
+  reset_password_token            String?                           @unique
+  reset_password_expires          DateTime?
+  nombres                         String
+  apellidos                       String
+  telefono                        String                            @default("+50300000000")
+  id_sucursal                     Int?
+  dui                             String?
+  foto                            String?                           @db.Text()
+  fcm_token                       String?
+  estado                          estado                            @default(ACTIVO)
+  id_rol                          Int
+  roles                           roles                             @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_rol")
+  id_tipo_documento               Int?
+  dTETipoDocumentoIdentificacion  dTETipoDocumentoIdentificacion?   @relation(fields: [id_tipo_documento], references: [id_tipo_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_usuario_tipo_documento")
+  log                             log[]
+  fecha_creacion                  DateTime                          @default(now())
+  fecha_ultima_actualizacion      DateTime                          @default(now()) @updatedAt
+  Cliente                         cliente[]
+  proveedores                     proveedores[]
+  compras                         compras[]
+  orden_trabajo                   orden_trabajo[]
+  agenda_visitas                  agenda_visitas[]
+  ot_historial_estado             ot_historial_estado[]
+  ot_evidencias                   ot_evidencias[]
+  bodegas_responsable             bodegas[]                         @relation("bodega_responsable")
+  bodegas_despachador             bodegas[]                         @relation("bodega_despachador")
+  importaciones_solicita          importaciones[]                   @relation("usuario_solicita_importacion")
+  movimientos_inventario          movimientos_inventario[]
+  reservas_inventario             reservas_inventario[]
+  historial_series                historial_series[]
+  retaceo_importacion             retaceo_importacion[]
+  requisiciones_solicita          requisiciones_inventario[]        @relation("usuario_solicita_requisicion")
+  requisiciones_autoriza          requisiciones_inventario[]        @relation("usuario_autoriza_requisicion")
+  requisiciones_procesa           requisiciones_inventario[]        @relation("usuario_procesa_requisicion")
+  ordenes_salida_solicita         ordenes_salida[]                  @relation("usuario_solicita_orden_salida")
+  ordenes_salida_autoriza         ordenes_salida[]                  @relation("usuario_autoriza_orden_salida")
+  ordenes_salida_procesa          ordenes_salida[]                  @relation("usuario_procesa_orden_salida")
+  sms_historial                   sms_historial[]
+  auditorias_planifica            auditorias_inventario[]           @relation("usuario_planifica_auditoria")
+  auditorias_ejecuta              auditorias_inventario[]           @relation("usuario_ejecuta_auditoria")
+  auditorias_detalle_conteo       auditorias_detalle[]
+  auditorias_evidencias           auditorias_evidencias[]
+  ajustes_solicita                ajustes_inventario[]              @relation("usuario_solicita_ajuste")
+  ajustes_autoriza                ajustes_inventario[]              @relation("usuario_autoriza_ajuste")
+  snapshots_creados               snapshots_inventario[]
+  metricas_calculadas             metricas_inventario[]
+  usuario_permisos                usuario_permisos[]
+  salidas_temporales_ot           salidas_temporales_ot[]           @relation("salida_temporal_usuario")
+  contratos_creados               atcContrato[]
+  dte_emitidos_creados            dte_emitidos[]                    @relation("dte_usuario_crea")
+  dte_anulaciones_creadas         dte_anulaciones[]                 @relation("anulacion_usuario_crea")
   // WhatsApp Chat
-  whatsapp_chats_asignados       whatsapp_chat[]                 @relation("whatsapp_chat_asignado")
-  whatsapp_mensajes_enviados     whatsapp_message[]              @relation("whatsapp_message_usuario")
-  whatsapp_asignaciones_usuario  whatsapp_chat_assignment[]      @relation("whatsapp_assignment_usuario")
-  whatsapp_asignaciones_por      whatsapp_chat_assignment[]      @relation("whatsapp_assignment_asignado_por")
-  whatsapp_etiquetas_creadas     whatsapp_chat_etiqueta[]        @relation("etiqueta_creador")
-  whatsapp_etiquetas_asignadas   whatsapp_chat_etiqueta_chat[]   @relation("etiqueta_asignacion")
+  whatsapp_chats_asignados        whatsapp_chat[]                   @relation("whatsapp_chat_asignado")
+  whatsapp_mensajes_enviados      whatsapp_message[]                @relation("whatsapp_message_usuario")
+  whatsapp_asignaciones_usuario   whatsapp_chat_assignment[]        @relation("whatsapp_assignment_usuario")
+  whatsapp_asignaciones_por       whatsapp_chat_assignment[]        @relation("whatsapp_assignment_asignado_por")
+  whatsapp_etiquetas_creadas      whatsapp_chat_etiqueta[]          @relation("etiqueta_creador")
+  whatsapp_etiquetas_asignadas    whatsapp_chat_etiqueta_chat[]     @relation("etiqueta_asignacion")
   // Validaciones de comprobantes bancarios WhatsApp
-  validaciones_comprobante_envia   whatsapp_validacion_comprobante[] @relation("validacion_comprobante_usuario_envia")
-  validaciones_comprobante_valida  whatsapp_validacion_comprobante[] @relation("validacion_comprobante_usuario_valida")
-  validaciones_comprobante_aplica  whatsapp_validacion_comprobante[] @relation("validacion_comprobante_usuario_aplica")
+  validaciones_comprobante_envia  whatsapp_validacion_comprobante[] @relation("validacion_comprobante_usuario_envia")
+  validaciones_comprobante_valida whatsapp_validacion_comprobante[] @relation("validacion_comprobante_usuario_valida")
+  validaciones_comprobante_aplica whatsapp_validacion_comprobante[] @relation("validacion_comprobante_usuario_aplica")
   // Relación con empleados de RRHH (cuando el empleado es contratado)
-  empleado_vinculado             rh_empleado[]                   @relation("empleado_usuario")
+  empleado_vinculado              rh_empleado[]                     @relation("empleado_usuario")
   // Relación con facturas directas
-  facturasDirectas               facturaDirecta[]
+  facturasDirectas                facturaDirecta[]
   // Relaciones con cuentas por cobrar
-  cxc_creadas                    cuenta_por_cobrar[]              @relation("cxc_usuario_crea")
-  abonos_cxc                     abono_cxc[]                      @relation("abono_cxc_usuario")
+  cxc_creadas                     cuenta_por_cobrar[]               @relation("cxc_usuario_crea")
+  abonos_cxc                      abono_cxc[]                       @relation("abono_cxc_usuario")
   // Relaciones con cuentas por pagar
-  cxp_creadas                    cuenta_por_pagar[]               @relation("cxp_usuario_crea")
-  pagos_cxp                      pago_cxp[]                       @relation("pago_cxp_usuario")
+  cxp_creadas                     cuenta_por_pagar[]                @relation("cxp_usuario_crea")
+  pagos_cxp                       pago_cxp[]                        @relation("pago_cxp_usuario")
   // Relaciones con módulo de bancos
-  cuentas_bancarias_creadas      cuenta_bancaria[]               @relation("cuenta_bancaria_usuario_crea")
-  movimientos_bancarios          movimiento_bancario[]           @relation("movimiento_bancario_usuario")
-  movimientos_bancarios_anulados movimiento_bancario[]           @relation("movimiento_bancario_usuario_anula")
+  cuentas_bancarias_creadas       cuenta_bancaria[]                 @relation("cuenta_bancaria_usuario_crea")
+  movimientos_bancarios           movimiento_bancario[]             @relation("movimiento_bancario_usuario")
+  movimientos_bancarios_anulados  movimiento_bancario[]             @relation("movimiento_bancario_usuario_anula")
   // Órdenes de compra
-  ordenes_compra_crea            ordenes_compra[]                @relation("usuario_crea_orden_compra")
-  ordenes_compra_aprueba         ordenes_compra[]                @relation("usuario_aprueba_orden_compra")
-  ordenes_compra_encargado       ordenes_compra[]                @relation("usuario_encargado_orden_compra")
+  ordenes_compra_crea             ordenes_compra[]                  @relation("usuario_crea_orden_compra")
+  ordenes_compra_aprueba          ordenes_compra[]                  @relation("usuario_aprueba_orden_compra")
+  ordenes_compra_encargado        ordenes_compra[]                  @relation("usuario_encargado_orden_compra")
   // Caja
-  cajaMovimientos                caja_movimiento[]               @relation("caja_movimiento_usuario")
-  cierresUsuario                 cierre_usuario[]                @relation("cierre_usuario_usuario")
-  cierresDiarioCreados           cierre_diario[]                 @relation("cierre_diario_creado_por")
+  cajaMovimientos                 caja_movimiento[]                 @relation("caja_movimiento_usuario")
+  cierresUsuario                  cierre_usuario[]                  @relation("cierre_usuario_usuario")
+  cierresDiarioCreados            cierre_diario[]                   @relation("cierre_diario_creado_por")
   // Solicitudes de compra
-  solicitudes_compra_solicita    solicitudes_compra[]            @relation("usuario_solicita_solicitud_compra")
-  solicitudes_compra_revisa      solicitudes_compra[]            @relation("usuario_revisa_solicitud_compra")
+  solicitudes_compra_solicita     solicitudes_compra[]              @relation("usuario_solicita_solicitud_compra")
+  solicitudes_compra_revisa       solicitudes_compra[]              @relation("usuario_revisa_solicitud_compra")
   // Cotizaciones de compra
-  cotizaciones_compra_registra   cotizaciones_compra[]           @relation("usuario_registra_cotizacion_compra")
-  cotizaciones_compra_selecciona cotizaciones_compra[]           @relation("usuario_selecciona_cotizacion_compra")
+  cotizaciones_compra_registra    cotizaciones_compra[]             @relation("usuario_registra_cotizacion_compra")
+  cotizaciones_compra_selecciona  cotizaciones_compra[]             @relation("usuario_selecciona_cotizacion_compra")
   // Compras anuladas
-  compras_anuladas               compras[]                       @relation("usuario_anula_compra")
+  compras_anuladas                compras[]                         @relation("usuario_anula_compra")
   // OLT
-  olt_comandos                   olt_comando[]
-  olt_cambios_equipo             olt_cambio_equipo[]
+  olt_comandos                    olt_comando[]
+  olt_cambios_equipo              olt_cambio_equipo[]
+  // Cobranza (gestión de mora)
+  cobranza_asignaciones_gestor    cobranza_asignacion[]             @relation("cobranza_gestor")
+  cobranza_asignaciones_creadas   cobranza_asignacion[]             @relation("cobranza_asignador")
+  cobranza_notas                  cobranza_nota[]                   @relation("cobranza_nota_usuario")
 }
 
 model cliente {
-  id_cliente                 Int      @id @default(autoincrement())
+  id_cliente                 Int                  @id @default(autoincrement())
   id_usuario                 Int
-  usuario                    usuarios @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_usuario")
+  usuario                    usuarios             @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_usuario")
   titular                    String
   fecha_nacimiento           DateTime
-  dui                        String   @unique // No. Único de identidad (DUI)
+  dui                        String               @unique // No. Único de identidad (DUI)
   nit                        String? // No. Identificación tributaria (NIT)
   empresa_trabajo            String
   correo_electronico         String
@@ -190,61 +194,61 @@ model cliente {
   nombre_conyuge             String?
   telefono_conyuge           String?
   telefono_oficina_conyuge   String?
-  estado                     estado_cliente   @default(ACTIVO)
-  fecha_creacion             DateTime @default(now())
-  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+  estado                     estado_cliente       @default(ACTIVO)
+  fecha_creacion             DateTime             @default(now())
+  fecha_ultima_actualizacion DateTime             @default(now()) @updatedAt
 
   // === CAMPOS DE AUTENTICACIÓN PORTAL CLIENTES ===
-  password                   String?                  // Hash bcrypt (null hasta que active cuenta)
-  cuenta_activada            Boolean   @default(false) // Si el cliente ha activado su cuenta
-  fecha_activacion           DateTime?                // Cuándo activó la cuenta
+  password         String? // Hash bcrypt (null hasta que active cuenta)
+  cuenta_activada  Boolean   @default(false) // Si el cliente ha activado su cuenta
+  fecha_activacion DateTime? // Cuándo activó la cuenta
 
   // Reset de contraseña
-  reset_password_token       String?   @unique       // Token hasheado SHA256
-  reset_password_expires     DateTime?               // Expiración del token (30 min)
+  reset_password_token   String?   @unique // Token hasheado SHA256
+  reset_password_expires DateTime? // Expiración del token (30 min)
 
   // Activación de cuenta
-  activation_token           String?   @unique       // Token para activar cuenta inicial
-  activation_token_expires   DateTime?               // Expiración token activación (24h)
+  activation_token         String?   @unique // Token para activar cuenta inicial
+  activation_token_expires DateTime? // Expiración token activación (24h)
 
   // Seguridad
-  intentos_fallidos          Int       @default(0)   // Contador de intentos fallidos
-  cuenta_bloqueada           Boolean   @default(false)
-  fecha_bloqueo              DateTime?
-  ultimo_login               DateTime?
+  intentos_fallidos Int       @default(0) // Contador de intentos fallidos
+  cuenta_bloqueada  Boolean   @default(false)
+  fecha_bloqueo     DateTime?
+  ultimo_login      DateTime?
 
   // Dispositivos/Sesiones
-  fcm_token_cliente          String?                 // Para notificaciones push móviles
+  fcm_token_cliente String? // Para notificaciones push móviles
 
   // === RELACIONES ===
-  direcciones       clienteDirecciones[]
-  datosfacturacion  clienteDatosFacturacion[]
-  documentos        clienteDocumentos[]
-  ticket_soporte    ticket_soporte[]
-  orden_trabajo     orden_trabajo[]
-  inventario_series inventario_series[]
-  sms_historial     sms_historial[]
-  contratos         atcContrato[]
-  dte_emitidos      dte_emitidos[]
-  facturasDirectas  facturaDirecta[]
+  direcciones        clienteDirecciones[]
+  datosfacturacion   clienteDatosFacturacion[]
+  documentos         clienteDocumentos[]
+  ticket_soporte     ticket_soporte[]
+  orden_trabajo      orden_trabajo[]
+  inventario_series  inventario_series[]
+  sms_historial      sms_historial[]
+  contratos          atcContrato[]
+  dte_emitidos       dte_emitidos[]
+  facturasDirectas   facturaDirecta[]
   // WhatsApp Chat
-  whatsapp_chats    whatsapp_chat[]
+  whatsapp_chats     whatsapp_chat[]
   // Sesiones y logs de cliente
-  sesiones          cliente_sesiones[]
-  logs              cliente_log[]
+  sesiones           cliente_sesiones[]
+  logs               cliente_log[]
   // Cuentas por cobrar de contratos
-  cuentasPorCobrar  cuenta_por_cobrar[] @relation("cxc_cliente")
+  cuentasPorCobrar   cuenta_por_cobrar[]       @relation("cxc_cliente")
   // Pagos con tarjeta desde portal
   pagosTarjetaPortal pago_tarjeta_portal[]
   intentsPagoTarjeta pago_tarjeta_intent[]
   // Caja
   cajaMovimientos    caja_movimiento[]
   // OLT
-  olt_asignaciones       olt_cliente[]
-  olt_ips                olt_cliente_ip[]
-  olt_telefonos          olt_cliente_telefono[]
-  olt_comandos           olt_comando[]
-  olt_cambios_equipo     olt_cambio_equipo[]
+  olt_asignaciones   olt_cliente[]
+  olt_ips            olt_cliente_ip[]
+  olt_telefonos      olt_cliente_telefono[]
+  olt_comandos       olt_comando[]
+  olt_cambios_equipo olt_cambio_equipo[]
 
   // Índices para búsqueda rápida en auth
   @@index([correo_electronico])
@@ -262,12 +266,12 @@ model clienteDocumentos {
   size                       Int
   estado                     estado   @default(ACTIVO)
   // Campos de validación IA para DUI
-  validacion_ia              String?  // VALIDADO, NO_COINCIDE, NO_DETECTADO, ERROR_IA, null (no aplica)
-  dui_extraido_ia            String?  // DUI extraído por IA (para auditoría)
+  validacion_ia              String? // VALIDADO, NO_COINCIDE, NO_DETECTADO, ERROR_IA, null (no aplica)
+  dui_extraido_ia            String? // DUI extraído por IA (para auditoría)
   // Campos de validación IA para Recibo
-  numero_contrato_extraido   String?  // NC extraído del recibo de servicio
-  direccion_extraida         String?  // Dirección extraída del recibo
-  tipo_servicio_recibo       String?  // ENERGIA, AGUA, DESCONOCIDO
+  numero_contrato_extraido   String? // NC extraído del recibo de servicio
+  direccion_extraida         String? // Dirección extraída del recibo
+  tipo_servicio_recibo       String? // ENERGIA, AGUA, DESCONOCIDO
   fecha_creacion             DateTime @default(now())
   fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 
@@ -517,11 +521,11 @@ model catalogo {
   descripcion                String?
   cantidad_minima            Int?                            @default(0) // stock mínimo
   cantidad_maxima            Int?                            @default(0) // stock máximo
-  lead_time_dias             Int?                            // Días que tarda el proveedor
+  lead_time_dias             Int? // Días que tarda el proveedor
   demanda_promedio_diaria    Decimal?                        @db.Decimal(10, 2) // Consumo promedio/día
-  stock_seguridad            Int?                            // Buffer de seguridad
-  punto_reorden              Int?                            // ROP = (Demanda * Lead Time) + SS
-  vida_util_meses            Int?                            // Vida útil del producto en meses
+  stock_seguridad            Int? // Buffer de seguridad
+  punto_reorden              Int? // ROP = (Demanda * Lead Time) + SS
+  vida_util_meses            Int? // Vida útil del producto en meses
   id_marca                   Int?
   marca                      marcas?                         @relation(fields: [id_marca], references: [id_marca], onDelete: NoAction, onUpdate: NoAction, map: "fk_catalogo_marca")
   id_modelo                  Int?
@@ -595,21 +599,21 @@ model roles {
 }
 
 model facturasBloques {
-  id_bloque                  Int           @id @default(autoincrement())
+  id_bloque                  Int              @id @default(autoincrement())
   tira                       String
-  autorizacion               String        @default("")
-  resolucion                 String?       @default("")
+  autorizacion               String           @default("")
+  resolucion                 String?          @default("")
   desde                      Int
   hasta                      Int
   actual                     Int
   serie                      String
-  id_tipo_factura            Int           @default(0)
-  Tipo                       facturasTipos @relation(fields: [id_tipo_factura], references: [id_tipo_factura], onDelete: NoAction, onUpdate: NoAction, map: "fk_fatura_bloque_tipo")
+  id_tipo_factura            Int              @default(0)
+  Tipo                       facturasTipos    @relation(fields: [id_tipo_factura], references: [id_tipo_factura], onDelete: NoAction, onUpdate: NoAction, map: "fk_fatura_bloque_tipo")
   id_sucursal                Int?
-  Sucursal                   sucursales?   @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_fatura_bloque_sucursal")
-  estado                     estado        @default(ACTIVO)
-  fecha_creacion             DateTime      @default(now())
-  fecha_ultima_actualizacion DateTime      @default(now()) @updatedAt
+  Sucursal                   sucursales?      @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_fatura_bloque_sucursal")
+  estado                     estado           @default(ACTIVO)
+  fecha_creacion             DateTime         @default(now())
+  fecha_ultima_actualizacion DateTime         @default(now()) @updatedAt
   // Relación con facturas directas
   facturasDirectas           facturaDirecta[]
 
@@ -773,21 +777,21 @@ model dTEPlazo {
 }
 
 model dTEFormaPago {
-  id                         Int       @id @default(autoincrement())
+  id                         Int              @id @default(autoincrement())
   codigo                     String
   valor                      String
-  fecha_creacion             DateTime  @default(now())
-  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+  fecha_creacion             DateTime         @default(now())
+  fecha_ultima_actualizacion DateTime         @default(now()) @updatedAt
   compras                    compras[]
   ordenes_compra             ordenes_compra[]
 }
 
 model dTEPais {
-  id_pais                    Int      @id @default(autoincrement())
+  id_pais                    Int              @id @default(autoincrement())
   codigo                     String
   valor                      String
-  fecha_creacion             DateTime @default(now())
-  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
+  fecha_creacion             DateTime         @default(now())
+  fecha_ultima_actualizacion DateTime         @default(now()) @updatedAt
   // cliente Cliente[]
   // Relación con clientes directos
   clientesDirectos           clienteDirecto[]
@@ -953,11 +957,11 @@ model compras {
   codigoGeneracion    String?                  @default("")
 
   // Orden de compra (si la compra fue generada desde una OC)
-  id_orden_compra     Int?
-  orden_compra        ordenes_compra?          @relation(fields: [id_orden_compra], references: [id_orden_compra], onDelete: NoAction, onUpdate: NoAction, map: "fk_compra_orden_compra")
+  id_orden_compra Int?
+  orden_compra    ordenes_compra? @relation(fields: [id_orden_compra], references: [id_orden_compra], onDelete: NoAction, onUpdate: NoAction, map: "fk_compra_orden_compra")
 
   // Cuenta por pagar (si la compra es a crédito)
-  cuentaPorPagar      cuenta_por_pagar?
+  cuentaPorPagar cuenta_por_pagar?
 
   // Pago
   pago_registrado         Boolean   @default(false)
@@ -968,11 +972,11 @@ model compras {
   fecha_pago              DateTime?
 
   // Anulación
-  anulada              Boolean   @default(false)
-  motivo_anulacion     String?   @db.Text
-  fecha_anulacion      DateTime?
-  id_usuario_anula     Int?
-  usuario_anula        usuarios? @relation("usuario_anula_compra", fields: [id_usuario_anula], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_compra_usuario_anula")
+  anulada          Boolean   @default(false)
+  motivo_anulacion String?   @db.Text
+  fecha_anulacion  DateTime?
+  id_usuario_anula Int?
+  usuario_anula    usuarios? @relation("usuario_anula_compra", fields: [id_usuario_anula], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_compra_usuario_anula")
 
   @@index([id_tipo_factura], name: "fk_compras_tipo_factura_id")
   @@index([id_sucursal], name: "fk_compras_sucursal_id")
@@ -992,7 +996,7 @@ model comprasDetalle {
   nombre               String
   descripcion          String?             @db.Text
   tiene_serie          Boolean             @default(false) // indica si el item requiere serie
-  afecta_inventario    Boolean             @default(true)  // false para servicios/gastos que no generan inventario
+  afecta_inventario    Boolean             @default(true) // false para servicios/gastos que no generan inventario
   costo_unitario       Float?              @default(0)
   cantidad             Float               @default(0)
   cantidad_inventario  Float               @default(0)
@@ -1847,10 +1851,10 @@ model ordenes_salida {
   total    Decimal? @default(0) @db.Decimal(12, 2)
 
   // Campos para DESTRUCCION_CERTIFICADA
-  empresa_destructora   String?   // Empresa certificada para destrucción
-  numero_certificado    String?   // Número de certificado de destrucción
-  fecha_destruccion     DateTime? // Fecha efectiva de destrucción
-  url_certificado       String?   @db.Text // URL/ruta del documento escaneado
+  empresa_destructora String? // Empresa certificada para destrucción
+  numero_certificado  String? // Número de certificado de destrucción
+  fecha_destruccion   DateTime? // Fecha efectiva de destrucción
+  url_certificado     String?   @db.Text // URL/ruta del documento escaneado
 
   // Fechas
   fecha_solicitud            DateTime  @default(now())
@@ -1924,7 +1928,7 @@ enum estado_envio_sms {
 
 enum tipo_auditoria {
   COMPLETA
-  PARCIAL   // Auditoría de muestra (no todos los items)
+  PARCIAL // Auditoría de muestra (no todos los items)
   SORPRESA
 }
 
@@ -2555,7 +2559,7 @@ model salidas_temporales_ot_detalle {
 
 // Estados de contrato de cliente
 enum estadoContrato {
-  PENDIENTE_FIRMA       // Nuevo: Estado inicial - contrato creado, pendiente firma del cliente
+  PENDIENTE_FIRMA // Nuevo: Estado inicial - contrato creado, pendiente firma del cliente
   PENDIENTE_INSTALACION // Contrato firmado, pendiente instalacion del servicio
   INSTALADO_ACTIVO
   SUSPENDIDO
@@ -2642,7 +2646,8 @@ model atcCicloFacturacion {
   fecha_creacion  DateTime @default(now())
 
   // Relaciones
-  contratos atcContrato[]
+  contratos            atcContrato[]
+  cobranzaAsignaciones cobranza_asignacion[]
 }
 
 // Modelo Principal: Contrato de Cliente
@@ -2674,12 +2679,12 @@ model atcContrato {
   meses_contrato        Int       @default(12)
 
   // Costo de instalación
-  costo_instalacion             Decimal?  @db.Decimal(10, 2)
+  costo_instalacion             Decimal? @db.Decimal(10, 2)
   // true = factura separada de instalación, false = incluir en primera factura del servicio
-  facturar_instalacion_separada Boolean   @default(true)
+  facturar_instalacion_separada Boolean  @default(true)
 
   // URL del contrato firmado (imagen/PDF almacenado en MinIO)
-  url_contrato_firmado  String?   @db.Text
+  url_contrato_firmado String? @db.Text
 
   // Estado del contrato
   estado estadoContrato @default(PENDIENTE_FIRMA)
@@ -2702,13 +2707,13 @@ model atcContrato {
   fecha_actualizacion DateTime @default(now()) @updatedAt
 
   // Relaciones
-  ordenesTrabajo      orden_trabajo[]
-  instalacion         atcContratoInstalacion?
-  dte_emitidos        dte_emitidos[]
-  facturasDirectas    facturaDirecta[]
-  cuentasPorCobrar    cuenta_por_cobrar[]
-  pagosTarjetaPortal  pago_tarjeta_portal[]
-  intentsPagoTarjeta  pago_tarjeta_intent[]
+  ordenesTrabajo          orden_trabajo[]
+  instalacion             atcContratoInstalacion?
+  dte_emitidos            dte_emitidos[]
+  facturasDirectas        facturaDirecta[]
+  cuentasPorCobrar        cuenta_por_cobrar[]
+  pagosTarjetaPortal      pago_tarjeta_portal[]
+  intentsPagoTarjeta      pago_tarjeta_intent[]
   validacionesComprobante whatsapp_validacion_comprobante[]
   firmaTokens             atcContratoFirmaToken[]
 
@@ -2722,16 +2727,16 @@ model atcContrato {
 
 // Token para firma online de contrato
 model atcContratoFirmaToken {
-  id_token            Int       @id @default(autoincrement())
-  token               String    @unique @db.VarChar(64)
+  id_token            Int         @id @default(autoincrement())
+  token               String      @unique @db.VarChar(64)
   id_contrato         Int
   contrato            atcContrato @relation(fields: [id_contrato], references: [id_contrato], onDelete: Cascade, onUpdate: NoAction, map: "fk_firma_token_contrato")
-  created_at          DateTime  @default(now())
+  created_at          DateTime    @default(now())
   expires_at          DateTime
   used_at             DateTime?
-  is_used             Boolean   @default(false)
+  is_used             Boolean     @default(false)
   ip_firmante         String?
-  user_agent_firmante String?   @db.Text
+  user_agent_firmante String?     @db.Text
 
   @@index([token])
   @@index([id_contrato])
@@ -2800,13 +2805,13 @@ model dte_emitidos {
   id_dte Int @id @default(autoincrement())
 
   // === IDENTIFICACIÓN DEL DOCUMENTO ===
-  codigo_generacion String   @unique @db.Char(36) // UUID v4 único del documento
-  numero_control    String   @unique // DTE-XX-YYYYYYYY-ZZZZZZZZZZZZZZZ (31 chars)
-  tipo_dte          String   @db.Char(2) // "01"=Factura, "03"=CCF, etc.
-  version           Int      @default(1) // Versión del esquema JSON (1, 2, 3...)
-  ambiente          String   @db.Char(2) // "00"=Pruebas, "01"=Producción
-  tipo_modelo       Int      @default(1) // 1=Previo, 2=Diferido
-  tipo_operacion    Int      @default(1) // 1=Normal, 2=Contingencia
+  codigo_generacion String  @unique @db.Char(36) // UUID v4 único del documento
+  numero_control    String  @unique // DTE-XX-YYYYYYYY-ZZZZZZZZZZZZZZZ (31 chars)
+  tipo_dte          String  @db.Char(2) // "01"=Factura, "03"=CCF, etc.
+  version           Int     @default(1) // Versión del esquema JSON (1, 2, 3...)
+  ambiente          String  @db.Char(2) // "00"=Pruebas, "01"=Producción
+  tipo_modelo       Int     @default(1) // 1=Previo, 2=Diferido
+  tipo_operacion    Int     @default(1) // 1=Normal, 2=Contingencia
   tipo_contingencia Int? // null si no es contingencia, código CAT005
   motivo_contin     String? // Motivo de contingencia (texto libre)
 
@@ -2833,10 +2838,10 @@ model dte_emitidos {
   receptor_complemento    String? @db.VarChar(200) // Dirección completa
 
   // === RELACIÓN CON CLIENTE (opcional, para trazabilidad) ===
-  id_cliente               Int?
-  cliente                  cliente?                  @relation(fields: [id_cliente], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_dte_cliente")
-  id_cliente_facturacion   Int?
-  clienteDatosFacturacion  clienteDatosFacturacion?  @relation(fields: [id_cliente_facturacion], references: [id_cliente_datos_facturacion], onDelete: NoAction, onUpdate: NoAction, map: "fk_dte_cliente_facturacion")
+  id_cliente              Int?
+  cliente                 cliente?                 @relation(fields: [id_cliente], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_dte_cliente")
+  id_cliente_facturacion  Int?
+  clienteDatosFacturacion clienteDatosFacturacion? @relation(fields: [id_cliente_facturacion], references: [id_cliente_datos_facturacion], onDelete: NoAction, onUpdate: NoAction, map: "fk_dte_cliente_facturacion")
 
   // === RELACIÓN CON CONTRATO (facturación recurrente) ===
   id_contrato Int?
@@ -2847,32 +2852,32 @@ model dte_emitidos {
   sucursal    sucursales? @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_dte_sucursal")
 
   // === TOTALES DEL RESUMEN ===
-  total_no_sujetas       Decimal @default(0) @db.Decimal(12, 2)
-  total_exentas          Decimal @default(0) @db.Decimal(12, 2)
-  total_gravadas         Decimal @default(0) @db.Decimal(12, 2)
-  subtotal_ventas        Decimal @default(0) @db.Decimal(12, 2) // noSuj + exentas + gravadas
-  descuento_no_sujetas   Decimal @default(0) @db.Decimal(12, 2)
-  descuento_exentas      Decimal @default(0) @db.Decimal(12, 2)
-  descuento_gravadas     Decimal @default(0) @db.Decimal(12, 2)
-  porcentaje_descuento   Decimal @default(0) @db.Decimal(5, 2) // 0.00 a 100.00
-  total_descuentos       Decimal @default(0) @db.Decimal(12, 2)
-  subtotal               Decimal @default(0) @db.Decimal(12, 2) // subtotalVentas - descuentos
+  total_no_sujetas      Decimal @default(0) @db.Decimal(12, 2)
+  total_exentas         Decimal @default(0) @db.Decimal(12, 2)
+  total_gravadas        Decimal @default(0) @db.Decimal(12, 2)
+  subtotal_ventas       Decimal @default(0) @db.Decimal(12, 2) // noSuj + exentas + gravadas
+  descuento_no_sujetas  Decimal @default(0) @db.Decimal(12, 2)
+  descuento_exentas     Decimal @default(0) @db.Decimal(12, 2)
+  descuento_gravadas    Decimal @default(0) @db.Decimal(12, 2)
+  porcentaje_descuento  Decimal @default(0) @db.Decimal(5, 2) // 0.00 a 100.00
+  total_descuentos      Decimal @default(0) @db.Decimal(12, 2)
+  subtotal              Decimal @default(0) @db.Decimal(12, 2) // subtotalVentas - descuentos
   // Campos específicos de CCF
-  iva_perci1             Decimal @default(0) @db.Decimal(12, 2) // IVA percibido
-  iva_rete1              Decimal @default(0) @db.Decimal(12, 2) // IVA retenido
-  rete_renta             Decimal @default(0) @db.Decimal(12, 2) // Retención renta
+  iva_perci1            Decimal @default(0) @db.Decimal(12, 2) // IVA percibido
+  iva_rete1             Decimal @default(0) @db.Decimal(12, 2) // IVA retenido
+  rete_renta            Decimal @default(0) @db.Decimal(12, 2) // Retención renta
   // Campos específicos de Factura (consumidor)
-  total_iva              Decimal @default(0) @db.Decimal(12, 2) // IVA incluido (solo FC)
+  total_iva             Decimal @default(0) @db.Decimal(12, 2) // IVA incluido (solo FC)
   // Totales finales
-  monto_total_operacion  Decimal @default(0) @db.Decimal(12, 2)
-  total_no_gravado       Decimal @default(0) @db.Decimal(12, 2)
-  total_pagar            Decimal @default(0) @db.Decimal(12, 2)
-  total_letras           String  @db.VarChar(300) // "MIL DOSCIENTOS DÓLARES"
-  saldo_favor            Decimal @default(0) @db.Decimal(12, 2)
+  monto_total_operacion Decimal @default(0) @db.Decimal(12, 2)
+  total_no_gravado      Decimal @default(0) @db.Decimal(12, 2)
+  total_pagar           Decimal @default(0) @db.Decimal(12, 2)
+  total_letras          String  @db.VarChar(300) // "MIL DOSCIENTOS DÓLARES"
+  saldo_favor           Decimal @default(0) @db.Decimal(12, 2)
 
   // === CONDICIÓN DE OPERACIÓN Y PAGOS ===
-  condicion_operacion Int     @default(1) // 1=Contado, 2=Crédito, 3=Otro
-  pagos_json          String? @db.Text // JSON array de formas de pago [{codigo, monto, plazo, periodo}]
+  condicion_operacion  Int     @default(1) // 1=Contado, 2=Crédito, 3=Otro
+  pagos_json           String? @db.Text // JSON array de formas de pago [{codigo, monto, plazo, periodo}]
   num_pago_electronico String? @db.VarChar(100) // Número de referencia pago electrónico
 
   // === DOCUMENTOS RELACIONADOS (para NC, ND) ===
@@ -2888,20 +2893,20 @@ model dte_emitidos {
   tributos_json String? @db.Text // JSON array de tributos del resumen
 
   // === JSON COMPLETO DEL DTE ===
-  dte_json     String @db.Text // JSON completo del DTE (para referencia/auditoría)
-  dte_firmado  String? @db.Text // DTE firmado (JWS) listo para transmitir
+  dte_json    String  @db.Text // JSON completo del DTE (para referencia/auditoría)
+  dte_firmado String? @db.Text // DTE firmado (JWS) listo para transmitir
 
   // === RESPUESTA DE HACIENDA ===
-  sello_recepcion   String?   @db.VarChar(50) // Sello de 40 chars que otorga MH
-  fecha_recepcion   DateTime? // fhProcesamiento de MH
-  codigo_msg        String?   @db.VarChar(10) // Código de mensaje de respuesta
-  descripcion_msg   String?   @db.VarChar(500) // Mensaje de MH
-  observaciones_mh  String?   @db.Text // Observaciones adicionales de MH
+  sello_recepcion  String?   @db.VarChar(50) // Sello de 40 chars que otorga MH
+  fecha_recepcion  DateTime? // fhProcesamiento de MH
+  codigo_msg       String?   @db.VarChar(10) // Código de mensaje de respuesta
+  descripcion_msg  String?   @db.VarChar(500) // Mensaje de MH
+  observaciones_mh String?   @db.Text // Observaciones adicionales de MH
 
   // === ESTADO Y WORKFLOW ===
-  estado              estado_dte @default(BORRADOR)
-  intentos_transmision Int       @default(0)
-  ultimo_error        String?    @db.Text // Último error de transmisión
+  estado               estado_dte @default(BORRADOR)
+  intentos_transmision Int        @default(0)
+  ultimo_error         String?    @db.Text // Último error de transmisión
 
   // === AUDITORÍA ===
   id_usuario_crea Int
@@ -2934,16 +2939,16 @@ model dte_emitidos_detalle {
   dte    dte_emitidos @relation(fields: [id_dte], references: [id_dte], onDelete: Cascade, onUpdate: NoAction, map: "fk_dte_detalle_dte")
 
   // === DATOS DEL ÍTEM ===
-  num_item          Int // Número de línea (1, 2, 3...)
-  tipo_item         Int // 1=Bienes, 2=Servicios, 3=Ambos, 4=Tributo
-  numero_documento  String? @db.VarChar(50) // Documento relacionado (para NRE)
-  codigo            String? @db.VarChar(50) // SKU/Código del producto
-  cod_tributo       String? @db.VarChar(10) // Código de tributo (si tipo_item=4)
-  descripcion       String  @db.VarChar(1000)
-  cantidad          Decimal @db.Decimal(12, 4)
-  uni_medida        Int // Código unidad de medida (1=Unidad, 59=Servicio, etc.)
-  precio_unitario   Decimal @db.Decimal(12, 4)
-  monto_descuento   Decimal @default(0) @db.Decimal(12, 2)
+  num_item         Int // Número de línea (1, 2, 3...)
+  tipo_item        Int // 1=Bienes, 2=Servicios, 3=Ambos, 4=Tributo
+  numero_documento String? @db.VarChar(50) // Documento relacionado (para NRE)
+  codigo           String? @db.VarChar(50) // SKU/Código del producto
+  cod_tributo      String? @db.VarChar(10) // Código de tributo (si tipo_item=4)
+  descripcion      String  @db.VarChar(1000)
+  cantidad         Decimal @db.Decimal(12, 4)
+  uni_medida       Int // Código unidad de medida (1=Unidad, 59=Servicio, etc.)
+  precio_unitario  Decimal @db.Decimal(12, 4)
+  monto_descuento  Decimal @default(0) @db.Decimal(12, 2)
 
   // === VENTAS POR TIPO ===
   venta_no_sujeta Decimal @default(0) @db.Decimal(12, 2)
@@ -2984,36 +2989,36 @@ model dte_anulaciones {
   ambiente          String @db.Char(2) // "00" o "01"
 
   // === MOTIVO DE INVALIDACIÓN ===
-  tipo_invalidacion      tipo_invalidacion // ERROR_INFORMACION, RESCINDIR_OPERACION, OTRO
-  motivo_invalidacion    String? @db.VarChar(250) // Descripción del motivo
-  nombre_responsable     String  @db.VarChar(200) // Quien solicita la anulación
-  tipo_doc_responsable   String  @db.VarChar(2) // Tipo doc de quien solicita
-  num_doc_responsable    String  @db.VarChar(25) // Número doc de quien solicita
-  nombre_solicita        String  @db.VarChar(200) // Nombre de quien solicita (puede ser receptor)
-  tipo_doc_solicita      String  @db.VarChar(2) // Tipo doc de quien solicita
-  num_doc_solicita       String  @db.VarChar(25) // Número doc de quien solicita
+  tipo_invalidacion    tipo_invalidacion // ERROR_INFORMACION, RESCINDIR_OPERACION, OTRO
+  motivo_invalidacion  String?           @db.VarChar(250) // Descripción del motivo
+  nombre_responsable   String            @db.VarChar(200) // Quien solicita la anulación
+  tipo_doc_responsable String            @db.VarChar(2) // Tipo doc de quien solicita
+  num_doc_responsable  String            @db.VarChar(25) // Número doc de quien solicita
+  nombre_solicita      String            @db.VarChar(200) // Nombre de quien solicita (puede ser receptor)
+  tipo_doc_solicita    String            @db.VarChar(2) // Tipo doc de quien solicita
+  num_doc_solicita     String            @db.VarChar(25) // Número doc de quien solicita
 
   // === DOCUMENTO ORIGINAL (snapshot) ===
-  tipo_documento_original       String   @db.VarChar(2) // Tipo del DTE que se anula
-  numero_documento_original     String   @db.VarChar(36) // codigoGeneracion del DTE original
-  fecha_emision_original        DateTime @db.Date
-  monto_iva_original            Decimal  @db.Decimal(12, 2)
-  codigo_generacion_reemplazo   String?  @db.Char(36) // UUID del DTE de reemplazo (si aplica)
+  tipo_documento_original     String   @db.VarChar(2) // Tipo del DTE que se anula
+  numero_documento_original   String   @db.VarChar(36) // codigoGeneracion del DTE original
+  fecha_emision_original      DateTime @db.Date
+  monto_iva_original          Decimal  @db.Decimal(12, 2)
+  codigo_generacion_reemplazo String?  @db.Char(36) // UUID del DTE de reemplazo (si aplica)
 
   // === JSON Y FIRMA ===
-  anulacion_json   String  @db.Text // JSON completo del evento de invalidación
+  anulacion_json    String  @db.Text // JSON completo del evento de invalidación
   anulacion_firmada String? @db.Text // Evento firmado (JWS)
 
   // === RESPUESTA DE HACIENDA ===
-  sello_recepcion  String?   @db.VarChar(50)
-  fecha_recepcion  DateTime?
-  codigo_msg       String?   @db.VarChar(10)
-  descripcion_msg  String?   @db.VarChar(500)
+  sello_recepcion String?   @db.VarChar(50)
+  fecha_recepcion DateTime?
+  codigo_msg      String?   @db.VarChar(10)
+  descripcion_msg String?   @db.VarChar(500)
 
   // === ESTADO ===
-  estado              estado_anulacion @default(PENDIENTE)
+  estado               estado_anulacion @default(PENDIENTE)
   intentos_transmision Int              @default(0)
-  ultimo_error        String?          @db.Text
+  ultimo_error         String?          @db.Text
 
   // === AUDITORÍA ===
   id_usuario_crea Int
@@ -3049,8 +3054,8 @@ model mora_configuracion {
   id_mora_config Int @id @default(autoincrement())
 
   // === IDENTIFICACIÓN ===
-  codigo String @unique // "MORA_ESTANDAR", "MORA_CORPORATIVA", "SIN_MORA"
-  nombre String // "Mora Estándar Residencial"
+  codigo      String  @unique // "MORA_ESTANDAR", "MORA_CORPORATIVA", "SIN_MORA"
+  nombre      String // "Mora Estándar Residencial"
   descripcion String? @db.Text
 
   // === PARÁMETROS DE CÁLCULO ===
@@ -3061,12 +3066,12 @@ model mora_configuracion {
   dias_gracia Int @default(0) // Días después de vencimiento antes de aplicar mora
 
   // === LÍMITES Y TOPES ===
-  mora_maxima        Decimal? @db.Decimal(10, 2) // Tope máximo de mora acumulada (null = sin tope)
-  porcentaje_maximo  Decimal? @db.Decimal(5, 2) // % máximo sobre monto original (null = sin tope)
+  mora_maxima       Decimal? @db.Decimal(10, 2) // Tope máximo de mora acumulada (null = sin tope)
+  porcentaje_maximo Decimal? @db.Decimal(5, 2) // % máximo sobre monto original (null = sin tope)
 
   // === FRECUENCIA Y ACUMULACIÓN ===
-  frecuencia       frecuencia_mora @default(UNICA)
-  es_acumulativa   Boolean         @default(false) // true = mora sobre mora, false = solo sobre saldo original
+  frecuencia     frecuencia_mora @default(UNICA)
+  es_acumulativa Boolean         @default(false) // true = mora sobre mora, false = solo sobre saldo original
 
   // === CONTROL ===
   activo                     Boolean  @default(true)
@@ -3085,12 +3090,12 @@ model mora_configuracion {
 // ============= CATÁLOGOS DE CLIENTE =============
 
 model cat_estado_civil {
-  id_estado_civil            Int       @id @default(autoincrement())
-  codigo                     String    @unique
+  id_estado_civil            Int           @id @default(autoincrement())
+  codigo                     String        @unique
   nombre                     String
-  activo                     Boolean   @default(true)
-  fecha_creacion             DateTime  @default(now())
-  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+  activo                     Boolean       @default(true)
+  fecha_creacion             DateTime      @default(now())
+  fecha_ultima_actualizacion DateTime      @default(now()) @updatedAt
   clientes                   cliente[]
   // Relación con empleados de RRHH
   empleados                  rh_empleado[]
@@ -3159,37 +3164,37 @@ enum logica_condicion {
 
 // Conversación de WhatsApp
 model whatsapp_chat {
-  id_chat                    Int       @id @default(autoincrement())
-  whatsapp_chat_id           String    @unique // ID externo de WhatsApp
+  id_chat                    Int         @id @default(autoincrement())
+  whatsapp_chat_id           String      @unique // ID externo de WhatsApp
   id_cliente                 Int?
   telefono_cliente           String
   nombre_cliente             String?
-  foto_perfil_cliente        String?   @db.Text
+  foto_perfil_cliente        String?     @db.Text
   estado                     estado_chat @default(PENDIENTE)
   id_usuario_asignado        Int?
   ultimo_mensaje_at          DateTime?
   ultima_interaccion_cliente DateTime? // Último mensaje ENTRANTE del cliente (para validación 24h)
-  preview_ultimo_mensaje     String?   @db.Text
-  mensajes_no_leidos         Int       @default(0)
-  ia_habilitada              Boolean   @default(true)
-  ia_mensajes_count          Int       @default(0)
+  preview_ultimo_mensaje     String?     @db.Text
+  mensajes_no_leidos         Int         @default(0)
+  ia_habilitada              Boolean     @default(true)
+  ia_mensajes_count          Int         @default(0)
   tags                       String[]
   metadata                   Json?
-  fecha_creacion             DateTime  @default(now())
-  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+  fecha_creacion             DateTime    @default(now())
+  fecha_ultima_actualizacion DateTime    @default(now()) @updatedAt
   fecha_cierre               DateTime?
-  archivado                  Boolean   @default(false)
+  archivado                  Boolean     @default(false)
   fecha_archivado            DateTime?
 
   // Relaciones
-  cliente                    cliente?  @relation(fields: [id_cliente], references: [id_cliente], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_chat_cliente")
-  usuario_asignado           usuarios? @relation("whatsapp_chat_asignado", fields: [id_usuario_asignado], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_chat_usuario_asignado")
-  mensajes                   whatsapp_message[]
-  asignaciones               whatsapp_chat_assignment[]
-  metricas                   whatsapp_chat_metrics?
-  etiquetas                  whatsapp_chat_etiqueta_chat[]
-  validaciones_comprobante   whatsapp_validacion_comprobante[]
-  tickets                    ticket_soporte[]
+  cliente                  cliente?                          @relation(fields: [id_cliente], references: [id_cliente], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_chat_cliente")
+  usuario_asignado         usuarios?                         @relation("whatsapp_chat_asignado", fields: [id_usuario_asignado], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_chat_usuario_asignado")
+  mensajes                 whatsapp_message[]
+  asignaciones             whatsapp_chat_assignment[]
+  metricas                 whatsapp_chat_metrics?
+  etiquetas                whatsapp_chat_etiqueta_chat[]
+  validaciones_comprobante whatsapp_validacion_comprobante[]
+  tickets                  ticket_soporte[]
 
   @@index([id_cliente])
   @@index([id_usuario_asignado])
@@ -3202,31 +3207,31 @@ model whatsapp_chat {
 
 // Mensaje de WhatsApp
 model whatsapp_message {
-  id_message                 Int       @id @default(autoincrement())
-  id_chat                    Int
-  whatsapp_message_id        String    @unique // ID externo de WhatsApp
-  direccion                  direccion_mensaje
-  tipo                       tipo_mensaje_whatsapp @default(TEXTO)
-  contenido                  String    @db.Text
-  url_media                  String?   @db.Text
-  tipo_media                 String?
-  tamano_media               Int?
-  estado                     estado_mensaje_whatsapp @default(ENVIADO)
-  id_usuario_envia           Int?      // Si es saliente, quién lo envió
-  es_de_ia                   Boolean   @default(false)
-  id_regla_ia                Int?
-  confianza_ia               Float?
-  metadata                   Json?
-  fecha_creacion             DateTime  @default(now())
-  fecha_entrega              DateTime?
-  fecha_lectura              DateTime?
+  id_message          Int                     @id @default(autoincrement())
+  id_chat             Int
+  whatsapp_message_id String                  @unique // ID externo de WhatsApp
+  direccion           direccion_mensaje
+  tipo                tipo_mensaje_whatsapp   @default(TEXTO)
+  contenido           String                  @db.Text
+  url_media           String?                 @db.Text
+  tipo_media          String?
+  tamano_media        Int?
+  estado              estado_mensaje_whatsapp @default(ENVIADO)
+  id_usuario_envia    Int? // Si es saliente, quién lo envió
+  es_de_ia            Boolean                 @default(false)
+  id_regla_ia         Int?
+  confianza_ia        Float?
+  metadata            Json?
+  fecha_creacion      DateTime                @default(now())
+  fecha_entrega       DateTime?
+  fecha_lectura       DateTime?
 
   // Relaciones
-  chat                       whatsapp_chat @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_message_chat")
-  usuario_envia              usuarios?     @relation("whatsapp_message_usuario", fields: [id_usuario_envia], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_message_usuario")
-  regla_ia                   whatsapp_ia_rule? @relation(fields: [id_regla_ia], references: [id_regla], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_message_regla_ia")
-  validaciones_comprobante   whatsapp_validacion_comprobante[]
-  validacion_mensajes        whatsapp_validacion_mensaje[]
+  chat                     whatsapp_chat                     @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_message_chat")
+  usuario_envia            usuarios?                         @relation("whatsapp_message_usuario", fields: [id_usuario_envia], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_message_usuario")
+  regla_ia                 whatsapp_ia_rule?                 @relation(fields: [id_regla_ia], references: [id_regla], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_message_regla_ia")
+  validaciones_comprobante whatsapp_validacion_comprobante[]
+  validacion_mensajes      whatsapp_validacion_mensaje[]
 
   @@index([id_chat])
   @@index([id_usuario_envia])
@@ -3237,51 +3242,51 @@ model whatsapp_message {
 
 // Configuración de IA para WhatsApp
 model whatsapp_ia_config {
-  id_config                  Int       @id @default(autoincrement())
+  id_config                  Int          @id @default(autoincrement())
   nombre                     String
-  descripcion                String?   @db.Text
-  activo                     Boolean   @default(false)
+  descripcion                String?      @db.Text
+  activo                     Boolean      @default(false)
   proveedor                  proveedor_ia @default(OPENAI)
-  modelo                     String    @default("gpt-4")
-  api_key                    String?   @db.Text // Encriptado, null si usa key global
-  temperatura                Float     @default(0.7)
-  max_tokens                 Int       @default(500)
-  system_prompt              String    @db.Text
-  ventana_contexto           Int       @default(10) // Número de mensajes previos a incluir
-  fallback_a_humano          Boolean   @default(true)
-  condiciones_fallback       Json?     // Array de FallbackCondition
-  delay_respuesta_seg        Int       @default(2)
-  horario_atencion           Json?     // BusinessHours config
+  modelo                     String       @default("gpt-4")
+  api_key                    String?      @db.Text // Encriptado, null si usa key global
+  temperatura                Float        @default(0.7)
+  max_tokens                 Int          @default(500)
+  system_prompt              String       @db.Text
+  ventana_contexto           Int          @default(10) // Número de mensajes previos a incluir
+  fallback_a_humano          Boolean      @default(true)
+  condiciones_fallback       Json? // Array de FallbackCondition
+  delay_respuesta_seg        Int          @default(2)
+  horario_atencion           Json? // BusinessHours config
   metadata                   Json?
-  fecha_creacion             DateTime  @default(now())
-  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+  fecha_creacion             DateTime     @default(now())
+  fecha_ultima_actualizacion DateTime     @default(now()) @updatedAt
 
   // Relaciones
-  reglas                     whatsapp_ia_rule[]
+  reglas whatsapp_ia_rule[]
 
   @@index([activo])
 }
 
 // Reglas de IA para respuestas automáticas
 model whatsapp_ia_rule {
-  id_regla                   Int       @id @default(autoincrement())
+  id_regla                   Int              @id @default(autoincrement())
   id_config                  Int
   nombre                     String
-  descripcion                String?   @db.Text
-  prioridad                  Int       @default(0) // Mayor = más prioridad
-  activo                     Boolean   @default(true)
-  condiciones                Json      // Array de RuleCondition
+  descripcion                String?          @db.Text
+  prioridad                  Int              @default(0) // Mayor = más prioridad
+  activo                     Boolean          @default(true)
+  condiciones                Json // Array de RuleCondition
   logica_condiciones         logica_condicion @default(AND)
-  acciones                   Json      // Array de RuleAction
+  acciones                   Json // Array de RuleAction
   metadata                   Json?
-  ejecuciones_count          Int       @default(0)
+  ejecuciones_count          Int              @default(0)
   ultima_ejecucion_at        DateTime?
-  fecha_creacion             DateTime  @default(now())
-  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+  fecha_creacion             DateTime         @default(now())
+  fecha_ultima_actualizacion DateTime         @default(now()) @updatedAt
 
   // Relaciones
-  config                     whatsapp_ia_config @relation(fields: [id_config], references: [id_config], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_ia_rule_config")
-  mensajes                   whatsapp_message[]
+  config   whatsapp_ia_config @relation(fields: [id_config], references: [id_config], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_ia_rule_config")
+  mensajes whatsapp_message[]
 
   @@index([id_config])
   @@index([activo])
@@ -3290,19 +3295,19 @@ model whatsapp_ia_rule {
 
 // Historial de asignaciones de chat
 model whatsapp_chat_assignment {
-  id_asignacion              Int       @id @default(autoincrement())
-  id_chat                    Int
-  id_usuario                 Int
-  id_asignado_por            Int?
-  fecha_asignacion           DateTime  @default(now())
-  fecha_desasignacion        DateTime?
-  razon                      String?   @db.Text
-  activo                     Boolean   @default(true)
+  id_asignacion       Int       @id @default(autoincrement())
+  id_chat             Int
+  id_usuario          Int
+  id_asignado_por     Int?
+  fecha_asignacion    DateTime  @default(now())
+  fecha_desasignacion DateTime?
+  razon               String?   @db.Text
+  activo              Boolean   @default(true)
 
   // Relaciones
-  chat                       whatsapp_chat @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_assignment_chat")
-  usuario                    usuarios      @relation("whatsapp_assignment_usuario", fields: [id_usuario], references: [id_usuario], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_assignment_usuario")
-  asignado_por               usuarios?     @relation("whatsapp_assignment_asignado_por", fields: [id_asignado_por], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_assignment_asignado_por")
+  chat         whatsapp_chat @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_assignment_chat")
+  usuario      usuarios      @relation("whatsapp_assignment_usuario", fields: [id_usuario], references: [id_usuario], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_assignment_usuario")
+  asignado_por usuarios?     @relation("whatsapp_assignment_asignado_por", fields: [id_asignado_por], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_assignment_asignado_por")
 
   @@index([id_chat])
   @@index([id_usuario])
@@ -3311,42 +3316,42 @@ model whatsapp_chat_assignment {
 
 // Métricas de chat
 model whatsapp_chat_metrics {
-  id_metrica                 Int       @id @default(autoincrement())
-  id_chat                    Int       @unique
-  tiempo_primera_respuesta   Int?      // Segundos
+  id_metrica                 Int      @id @default(autoincrement())
+  id_chat                    Int      @unique
+  tiempo_primera_respuesta   Int? // Segundos
   tiempo_respuesta_promedio  Int?
-  total_mensajes             Int       @default(0)
-  mensajes_agente            Int       @default(0)
-  mensajes_ia                Int       @default(0)
-  mensajes_cliente           Int       @default(0)
-  duracion                   Int?      // Segundos desde apertura a cierre
-  puntuacion_satisfaccion    Int?      // 1-5
-  fue_escalado               Boolean   @default(false)
-  razon_escalado             String?   @db.Text
-  fecha_creacion             DateTime  @default(now())
-  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+  total_mensajes             Int      @default(0)
+  mensajes_agente            Int      @default(0)
+  mensajes_ia                Int      @default(0)
+  mensajes_cliente           Int      @default(0)
+  duracion                   Int? // Segundos desde apertura a cierre
+  puntuacion_satisfaccion    Int? // 1-5
+  fue_escalado               Boolean  @default(false)
+  razon_escalado             String?  @db.Text
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 
   // Relaciones
-  chat                       whatsapp_chat @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_metrics_chat")
+  chat whatsapp_chat @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_metrics_chat")
 
   @@index([id_chat])
 }
 
 // Etiquetas para chats de WhatsApp (globales, compartidas entre usuarios)
 model whatsapp_chat_etiqueta {
-  id_etiqueta                Int       @id @default(autoincrement())
-  nombre                     String    @unique
-  color                      String    // Hex: #FF5733
-  descripcion                String?   @db.Text
-  orden                      Int       @default(0)
-  activo                     Boolean   @default(true)
-  fecha_creacion             DateTime  @default(now())
-  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+  id_etiqueta                Int      @id @default(autoincrement())
+  nombre                     String   @unique
+  color                      String // Hex: #FF5733
+  descripcion                String?  @db.Text
+  orden                      Int      @default(0)
+  activo                     Boolean  @default(true)
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
   id_usuario_creador         Int?
 
   // Relaciones
-  usuario_creador            usuarios? @relation("etiqueta_creador", fields: [id_usuario_creador], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_etiqueta_usuario_creador")
-  chats                      whatsapp_chat_etiqueta_chat[]
+  usuario_creador usuarios?                     @relation("etiqueta_creador", fields: [id_usuario_creador], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_etiqueta_usuario_creador")
+  chats           whatsapp_chat_etiqueta_chat[]
 
   @@index([activo])
   @@index([nombre])
@@ -3354,16 +3359,16 @@ model whatsapp_chat_etiqueta {
 
 // Tabla intermedia many-to-many: Chat <-> Etiqueta
 model whatsapp_chat_etiqueta_chat {
-  id                         Int       @id @default(autoincrement())
-  id_chat                    Int
-  id_etiqueta                Int
-  fecha_asignacion           DateTime  @default(now())
-  id_usuario_asigno          Int?
+  id                Int      @id @default(autoincrement())
+  id_chat           Int
+  id_etiqueta       Int
+  fecha_asignacion  DateTime @default(now())
+  id_usuario_asigno Int?
 
   // Relaciones
-  chat                       whatsapp_chat @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_etiqueta_chat_chat")
-  etiqueta                   whatsapp_chat_etiqueta @relation(fields: [id_etiqueta], references: [id_etiqueta], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_etiqueta_chat_etiqueta")
-  usuario_asigno             usuarios? @relation("etiqueta_asignacion", fields: [id_usuario_asigno], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_etiqueta_chat_usuario")
+  chat           whatsapp_chat          @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_etiqueta_chat_chat")
+  etiqueta       whatsapp_chat_etiqueta @relation(fields: [id_etiqueta], references: [id_etiqueta], onDelete: Cascade, onUpdate: NoAction, map: "fk_whatsapp_etiqueta_chat_etiqueta")
+  usuario_asigno usuarios?              @relation("etiqueta_asignacion", fields: [id_usuario_asigno], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_whatsapp_etiqueta_chat_usuario")
 
   @@unique([id_chat, id_etiqueta])
   @@index([id_chat])
@@ -3376,11 +3381,11 @@ model whatsapp_template {
   meta_template_id           String?   @unique // ID de la plantilla en Meta
   nombre                     String    @unique // Nombre único de la plantilla en Meta
   idioma                     String    @default("es") // Código de idioma (es, en_US, etc.)
-  categoria                  String    // MARKETING, UTILITY, AUTHENTICATION
+  categoria                  String // MARKETING, UTILITY, AUTHENTICATION
   estado                     String    @default("PENDING") // APPROVED, PENDING, REJECTED, DISABLED
-  reject_reason              String?   // Razón de rechazo de Meta
-  componentes                Json      // Estructura: { header?, body, footer?, buttons? }
-  variables                  Json?     // Variables requeridas: [{ name, type, example }]
+  reject_reason              String? // Razón de rechazo de Meta
+  componentes                Json // Estructura: { header?, body, footer?, buttons? }
+  variables                  Json? // Variables requeridas: [{ name, type, example }]
   descripcion                String?   @db.Text
   activo                     Boolean   @default(true) // Para habilitar/deshabilitar localmente
   sincronizado_con_meta      Boolean   @default(false) // Si está sincronizado con Meta
@@ -3397,14 +3402,14 @@ model whatsapp_template {
 
 // Configuración global de WhatsApp Chat
 model configuracion_whatsapp {
-  id_config                  Int       @id @default(autoincrement())
-  auto_asignacion            Boolean   @default(true) // Asignar automáticamente chats nuevos
-  max_chats_por_agente       Int       @default(10) // Máximo de chats activos por agente
-  notificaciones_push        Boolean   @default(true) // Habilitar notificaciones push
-  sonido_notificacion        Boolean   @default(true) // Sonido en notificaciones
+  id_config                   Int      @id @default(autoincrement())
+  auto_asignacion             Boolean  @default(true) // Asignar automáticamente chats nuevos
+  max_chats_por_agente        Int      @default(10) // Máximo de chats activos por agente
+  notificaciones_push         Boolean  @default(true) // Habilitar notificaciones push
+  sonido_notificacion         Boolean  @default(true) // Sonido en notificaciones
   tiempo_alerta_sin_respuesta Int      @default(5) // Minutos sin respuesta para alertar
-  fecha_creacion             DateTime  @default(now())
-  fecha_ultima_actualizacion DateTime  @default(now()) @updatedAt
+  fecha_creacion              DateTime @default(now())
+  fecha_ultima_actualizacion  DateTime @default(now()) @updatedAt
 }
 
 // Números de teléfono detectados como inválidos (sin cuenta de WhatsApp)
@@ -3432,53 +3437,53 @@ enum estado_validacion_comprobante {
 
 // Validación de comprobantes bancarios enviados por WhatsApp
 model whatsapp_validacion_comprobante {
-  id_validacion              Int       @id @default(autoincrement())
-  id_message                 Int?
-  id_chat                    Int?
+  id_validacion Int  @id @default(autoincrement())
+  id_message    Int?
+  id_chat       Int?
 
   // Datos extraídos por IA
-  monto                      Decimal?  @db.Decimal(12, 2)
-  fecha_transaccion          DateTime? @db.Date
-  numero_referencia          String?   @db.VarChar(100)
-  banco                      String?   @db.VarChar(100)
-  cuenta_origen              String?   @db.VarChar(50)
-  cuenta_destino             String?   @db.VarChar(50)
-  nombre_titular             String?   @db.VarChar(200)
-  nombre_cliente             String?   @db.VarChar(200)
-  confianza                  String?   @db.VarChar(10) // alta, media, baja
-  es_transferencia_365       Boolean   @default(false)
-  banco_origen               String?   @db.VarChar(100)
+  monto                Decimal?  @db.Decimal(12, 2)
+  fecha_transaccion    DateTime? @db.Date
+  numero_referencia    String?   @db.VarChar(100)
+  banco                String?   @db.VarChar(100)
+  cuenta_origen        String?   @db.VarChar(50)
+  cuenta_destino       String?   @db.VarChar(50)
+  nombre_titular       String?   @db.VarChar(200)
+  nombre_cliente       String?   @db.VarChar(200)
+  confianza            String?   @db.VarChar(10) // alta, media, baja
+  es_transferencia_365 Boolean   @default(false)
+  banco_origen         String?   @db.VarChar(100)
 
   // Imágenes subidas directamente (sin WhatsApp)
-  imagenes_directas          String?   @db.Text
+  imagenes_directas String? @db.Text
 
   // Cuenta bancaria destino (match automático)
-  id_cuenta_bancaria         Int?
-  cuenta_bancaria_destino    cuenta_bancaria? @relation("validacion_cuenta_destino", fields: [id_cuenta_bancaria], references: [id_cuenta_bancaria], onDelete: SetNull, onUpdate: NoAction, map: "fk_validacion_comprobante_cuenta_bancaria")
+  id_cuenta_bancaria      Int?
+  cuenta_bancaria_destino cuenta_bancaria? @relation("validacion_cuenta_destino", fields: [id_cuenta_bancaria], references: [id_cuenta_bancaria], onDelete: SetNull, onUpdate: NoAction, map: "fk_validacion_comprobante_cuenta_bancaria")
 
   // Contrato asociado (cuando se aplica con pago)
-  id_contrato                Int?
-  contrato                   atcContrato? @relation(fields: [id_contrato], references: [id_contrato], onDelete: SetNull, onUpdate: NoAction, map: "fk_validacion_comprobante_contrato")
+  id_contrato Int?
+  contrato    atcContrato? @relation(fields: [id_contrato], references: [id_contrato], onDelete: SetNull, onUpdate: NoAction, map: "fk_validacion_comprobante_contrato")
 
   // Estado de validación
-  estado                     estado_validacion_comprobante @default(PENDIENTE)
-  comentario_rechazo         String?   @db.Text
+  estado             estado_validacion_comprobante @default(PENDIENTE)
+  comentario_rechazo String?                       @db.Text
 
   // Auditoría
-  id_usuario_envia           Int
-  id_usuario_valida          Int?
-  id_usuario_aplica          Int?
-  fecha_creacion             DateTime  @default(now())
-  fecha_validacion           DateTime?
-  fecha_aplicacion           DateTime?
+  id_usuario_envia  Int
+  id_usuario_valida Int?
+  id_usuario_aplica Int?
+  fecha_creacion    DateTime  @default(now())
+  fecha_validacion  DateTime?
+  fecha_aplicacion  DateTime?
 
   // Relaciones
-  message                    whatsapp_message? @relation(fields: [id_message], references: [id_message], onDelete: Cascade, onUpdate: NoAction, map: "fk_validacion_comprobante_message")
-  chat                       whatsapp_chat? @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_validacion_comprobante_chat")
-  usuario_envia              usuarios @relation("validacion_comprobante_usuario_envia", fields: [id_usuario_envia], references: [id_usuario], onDelete: Restrict, onUpdate: NoAction, map: "fk_validacion_comprobante_usuario_envia")
-  usuario_valida             usuarios? @relation("validacion_comprobante_usuario_valida", fields: [id_usuario_valida], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_validacion_comprobante_usuario_valida")
-  usuario_aplica             usuarios? @relation("validacion_comprobante_usuario_aplica", fields: [id_usuario_aplica], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_validacion_comprobante_usuario_aplica")
-  mensajes_validacion        whatsapp_validacion_mensaje[]
+  message             whatsapp_message?             @relation(fields: [id_message], references: [id_message], onDelete: Cascade, onUpdate: NoAction, map: "fk_validacion_comprobante_message")
+  chat                whatsapp_chat?                @relation(fields: [id_chat], references: [id_chat], onDelete: Cascade, onUpdate: NoAction, map: "fk_validacion_comprobante_chat")
+  usuario_envia       usuarios                      @relation("validacion_comprobante_usuario_envia", fields: [id_usuario_envia], references: [id_usuario], onDelete: Restrict, onUpdate: NoAction, map: "fk_validacion_comprobante_usuario_envia")
+  usuario_valida      usuarios?                     @relation("validacion_comprobante_usuario_valida", fields: [id_usuario_valida], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_validacion_comprobante_usuario_valida")
+  usuario_aplica      usuarios?                     @relation("validacion_comprobante_usuario_aplica", fields: [id_usuario_aplica], references: [id_usuario], onDelete: SetNull, onUpdate: NoAction, map: "fk_validacion_comprobante_usuario_aplica")
+  mensajes_validacion whatsapp_validacion_mensaje[]
 
   @@index([estado])
   @@index([fecha_creacion])
@@ -3488,15 +3493,15 @@ model whatsapp_validacion_comprobante {
 }
 
 model whatsapp_validacion_mensaje {
-  id_validacion_mensaje  Int       @id @default(autoincrement())
-  id_validacion          Int
-  id_message             Int
-  tipo                   tipo_mensaje_whatsapp
-  orden                  Int       @default(0)
-  fecha_creacion         DateTime  @default(now())
+  id_validacion_mensaje Int                   @id @default(autoincrement())
+  id_validacion         Int
+  id_message            Int
+  tipo                  tipo_mensaje_whatsapp
+  orden                 Int                   @default(0)
+  fecha_creacion        DateTime              @default(now())
 
-  validacion             whatsapp_validacion_comprobante @relation(fields: [id_validacion], references: [id_validacion], onDelete: Cascade, onUpdate: NoAction, map: "fk_validacion_mensaje_validacion")
-  message                whatsapp_message @relation(fields: [id_message], references: [id_message], onDelete: Cascade, onUpdate: NoAction, map: "fk_validacion_mensaje_message")
+  validacion whatsapp_validacion_comprobante @relation(fields: [id_validacion], references: [id_validacion], onDelete: Cascade, onUpdate: NoAction, map: "fk_validacion_mensaje_validacion")
+  message    whatsapp_message                @relation(fields: [id_message], references: [id_message], onDelete: Cascade, onUpdate: NoAction, map: "fk_validacion_mensaje_message")
 
   @@unique([id_validacion, id_message])
   @@index([id_validacion])
@@ -3509,14 +3514,14 @@ model whatsapp_validacion_mensaje {
 
 // Sesiones de cliente para control de dispositivos y tokens
 model cliente_sesiones {
-  id_sesion        Int       @id @default(autoincrement())
-  id_cliente       Int
-  cliente          cliente   @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
+  id_sesion  Int     @id @default(autoincrement())
+  id_cliente Int
+  cliente    cliente @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
 
-  token_hash       String    @unique       // Hash del refresh token
-  ip_address       String?
-  user_agent       String?   @db.Text
-  dispositivo      String?                 // Identificador del dispositivo
+  token_hash  String  @unique // Hash del refresh token
+  ip_address  String?
+  user_agent  String? @db.Text
+  dispositivo String? // Identificador del dispositivo
 
   fecha_creacion   DateTime  @default(now())
   fecha_expiracion DateTime
@@ -3531,16 +3536,16 @@ model cliente_sesiones {
 
 // Log de actividad del cliente para auditoría y seguridad
 model cliente_log {
-  id_log         Int       @id @default(autoincrement())
-  id_cliente     Int?
-  cliente        cliente?  @relation(fields: [id_cliente], references: [id_cliente], onDelete: SetNull)
+  id_log     Int      @id @default(autoincrement())
+  id_cliente Int?
+  cliente    cliente? @relation(fields: [id_cliente], references: [id_cliente], onDelete: SetNull)
 
-  accion         String                  // LOGIN_SUCCESS, LOGIN_FAILED, PASSWORD_RESET, LOGOUT, etc.
-  ip_address     String?
-  user_agent     String?   @db.Text
-  detalles       String?   @db.Text      // JSON con información adicional
+  accion     String // LOGIN_SUCCESS, LOGIN_FAILED, PASSWORD_RESET, LOGOUT, etc.
+  ip_address String?
+  user_agent String? @db.Text
+  detalles   String? @db.Text // JSON con información adicional
 
-  fecha_creacion DateTime  @default(now())
+  fecha_creacion DateTime @default(now())
 
   @@index([id_cliente])
   @@index([accion])
@@ -3551,11 +3556,11 @@ model cliente_log {
 
 // Estado del empleado en el proceso de contratación
 enum estado_empleado {
-  SOLICITANTE      // Solicitud recibida
-  EN_PROCESO       // En proceso de selección
-  CONTRATADO       // Empleado activo
-  RECHAZADO        // Solicitud rechazada
-  INACTIVO         // Empleado dado de baja
+  SOLICITANTE // Solicitud recibida
+  EN_PROCESO // En proceso de selección
+  CONTRATADO // Empleado activo
+  RECHAZADO // Solicitud rechazada
+  INACTIVO // Empleado dado de baja
 }
 
 // ============= CATÁLOGOS DE RECURSOS HUMANOS =============
@@ -3774,13 +3779,13 @@ model rh_empleado {
   estado estado_empleado @default(SOLICITANTE)
 
   // === CAMPOS DE CONTRATACIÓN (se llenan cuando estado = CONTRATADO) ===
-  id_usuario             Int?      // FK → usuarios (cuenta de acceso al sistema)
-  usuario                usuarios? @relation("empleado_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_empleado_usuario")
+  id_usuario             Int? // FK → usuarios (cuenta de acceso al sistema)
+  usuario                usuarios?  @relation("empleado_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_empleado_usuario")
   fecha_contratacion     DateTime?
-  salario_acordado       Decimal?  @db.Decimal(10, 2)
+  salario_acordado       Decimal?   @db.Decimal(10, 2)
   id_cargo               Int?
   cargo                  cat_cargo? @relation(fields: [id_cargo], references: [id_cargo], onDelete: NoAction, onUpdate: NoAction, map: "fk_empleado_cargo")
-  observaciones_contrato String?   @db.Text
+  observaciones_contrato String?    @db.Text
 
   // Auditoría
   fecha_creacion             DateTime @default(now())
@@ -3823,7 +3828,7 @@ model rh_empleado_documento {
   // Cuenta bancaria
   numero_cuenta_banco String?
   id_banco            Int?
-  banco               cat_banco?            @relation(fields: [id_banco], references: [id_banco], onDelete: NoAction, onUpdate: NoAction, map: "fk_documento_banco")
+  banco               cat_banco?             @relation(fields: [id_banco], references: [id_banco], onDelete: NoAction, onUpdate: NoAction, map: "fk_documento_banco")
   id_tipo_cuenta      Int?
   tipo_cuenta         cat_tipo_cuenta_banco? @relation(fields: [id_tipo_cuenta], references: [id_tipo_cuenta], onDelete: NoAction, onUpdate: NoAction, map: "fk_documento_tipo_cuenta")
 
@@ -3840,11 +3845,11 @@ model rh_empleado_contacto_emergencia {
   id_empleado Int
   empleado    rh_empleado @relation(fields: [id_empleado], references: [id_empleado], onDelete: Cascade, onUpdate: NoAction, map: "fk_contacto_empleado")
 
-  nombre        String
-  prioridad     Int             @default(1) // 1 = primario, 2 = secundario
-  id_parentesco Int?
-  parentesco    cat_parentesco? @relation(fields: [id_parentesco], references: [id_parentesco], onDelete: NoAction, onUpdate: NoAction, map: "fk_contacto_parentesco")
-  telefono_dia  String
+  nombre         String
+  prioridad      Int             @default(1) // 1 = primario, 2 = secundario
+  id_parentesco  Int?
+  parentesco     cat_parentesco? @relation(fields: [id_parentesco], references: [id_parentesco], onDelete: NoAction, onUpdate: NoAction, map: "fk_contacto_parentesco")
+  telefono_dia   String
   telefono_noche String?
 
   fecha_creacion             DateTime @default(now())
@@ -4013,7 +4018,7 @@ model rh_empleado_archivo {
 
   tipo_archivo   String // DUI_FRENTE, DUI_TRASERA, CV, TITULO, CERTIFICADO, FOTO, CONSTANCIA, OTRO
   nombre_archivo String
-  ruta_archivo   String @db.Text // URL en MinIO
+  ruta_archivo   String  @db.Text // URL en MinIO
   mimetype       String
   size           Int
   descripcion    String?
@@ -4031,114 +4036,114 @@ model rh_empleado_archivo {
 
 // Tipo de detalle para cada línea de factura
 enum tipo_detalle_factura {
-  GRAVADO   // Aplica IVA 13%
-  EXENTA    // Exento de IVA
-  NOSUJETO  // No sujeto a IVA
+  GRAVADO // Aplica IVA 13%
+  EXENTA // Exento de IVA
+  NOSUJETO // No sujeto a IVA
   NOGRABADO // No gravado (cargos que no afectan base imponible)
 }
 
 // Estado de pago de la factura
 enum estado_pago_factura {
-  PAGADO     // Pagado en su totalidad
-  PENDIENTE  // Pendiente de pago (crédito)
-  PARCIAL    // Pago parcial
-  VENCIDA    // Factura vencida (pasó fecha vencimiento sin pago completo)
+  PAGADO // Pagado en su totalidad
+  PENDIENTE // Pendiente de pago (crédito)
+  PARCIAL // Pago parcial
+  VENCIDA // Factura vencida (pasó fecha vencimiento sin pago completo)
   EN_ACUERDO // Factura con acuerdo de pago vigente
 }
 
 // Estado general de la factura directa
 enum estado_factura_directa {
-  ACTIVO  // Factura activa/válida
+  ACTIVO // Factura activa/válida
   ANULADO // Factura anulada
 }
 
 // Tipo de cliente directo (clasificación)
 model tipoClienteDirecto {
-  id_tipo_cliente            Int               @id @default(autoincrement())
+  id_tipo_cliente            Int              @id @default(autoincrement())
   nombre                     String // PERSONA_NATURAL, EMPRESA, CONTRIBUYENTE, etc.
   descripcion                String?
-  estado                     estado            @default(ACTIVO)
-  fecha_creacion             DateTime          @default(now())
-  fecha_ultima_actualizacion DateTime          @default(now()) @updatedAt
+  estado                     estado           @default(ACTIVO)
+  fecha_creacion             DateTime         @default(now())
+  fecha_ultima_actualizacion DateTime         @default(now()) @updatedAt
   clientes                   clienteDirecto[]
 }
 
 // Métodos de pago disponibles
 model metodosPago {
-  id_metodo_pago             Int               @id @default(autoincrement())
+  id_metodo_pago             Int              @id @default(autoincrement())
   nombre                     String // EFECTIVO, TARJETA, CHEQUE, TRANSFERENCIA, MIXTO
-  codigo                     String?           @unique // 01, 02, 03, etc.
+  codigo                     String?          @unique // 01, 02, 03, etc.
   descripcion                String?
-  estado                     estado            @default(ACTIVO)
-  fecha_creacion             DateTime          @default(now())
-  fecha_ultima_actualizacion DateTime          @default(now()) @updatedAt
+  estado                     estado           @default(ACTIVO)
+  fecha_creacion             DateTime         @default(now())
+  fecha_ultima_actualizacion DateTime         @default(now()) @updatedAt
   facturasDirectas           facturaDirecta[]
 }
 
 // Descuentos configurables para facturas directas
 model descuentosDirectos {
-  id_descuento               Int               @id @default(autoincrement())
+  id_descuento               Int      @id @default(autoincrement())
   nombre                     String
-  porcentaje                 Decimal           @db.Decimal(5, 2) // 0.00 a 100.00
-  tipo                       String            @default("AMBOS") // AMBOS, GLOBAL, ITEM
-  estado                     estado            @default(ACTIVO)
-  fecha_creacion             DateTime          @default(now())
-  fecha_ultima_actualizacion DateTime          @default(now()) @updatedAt
+  porcentaje                 Decimal  @db.Decimal(5, 2) // 0.00 a 100.00
+  tipo                       String   @default("AMBOS") // AMBOS, GLOBAL, ITEM
+  estado                     estado   @default(ACTIVO)
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 }
 
 // Cliente para venta directa (diferente a 'cliente' que es para contratos)
 model clienteDirecto {
-  id_cliente_directo Int    @id @default(autoincrement())
+  id_cliente_directo Int @id @default(autoincrement())
 
   // === DATOS BÁSICOS ===
-  nombre             String // Nombre o razón social
-  giro               String? // Giro del negocio
-  razon_social       String? // Razón social (si es empresa)
+  nombre       String // Nombre o razón social
+  giro         String? // Giro del negocio
+  razon_social String? // Razón social (si es empresa)
 
   // === DOCUMENTOS DE IDENTIFICACIÓN ===
-  registro_nrc       String? // Número de Registro de Contribuyente
-  nit                String? // NIT (14 dígitos con guión)
-  dui                String? // DUI (9 dígitos con guión)
+  registro_nrc String? // Número de Registro de Contribuyente
+  nit          String? // NIT (14 dígitos con guión)
+  dui          String? // DUI (9 dígitos con guión)
 
   // === TIPO DE DOCUMENTO ===
-  id_tipo_documento  Int?
-  tipoDocumento      dTETipoDocumentoIdentificacion? @relation(fields: [id_tipo_documento], references: [id_tipo_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_tipo_documento")
+  id_tipo_documento Int?
+  tipoDocumento     dTETipoDocumentoIdentificacion? @relation(fields: [id_tipo_documento], references: [id_tipo_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_tipo_documento")
 
   // === ACTIVIDAD ECONÓMICA ===
   id_actividad_economica Int?
   actividadEconomica     dTEActividadEconomica? @relation(fields: [id_actividad_economica], references: [id_actividad], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_actividad_economica")
 
   // === UBICACIÓN ===
-  id_pais            Int?
-  pais               dTEPais? @relation(fields: [id_pais], references: [id_pais], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_pais")
-  id_municipio       Int?
-  municipio          municipios? @relation(fields: [id_municipio], references: [id_municipio], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_municipio")
-  direccion          String? @db.Text // Dirección completa
+  id_pais      Int?
+  pais         dTEPais?    @relation(fields: [id_pais], references: [id_pais], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_pais")
+  id_municipio Int?
+  municipio    municipios? @relation(fields: [id_municipio], references: [id_municipio], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_municipio")
+  direccion    String?     @db.Text // Dirección completa
 
   // === CONTACTO ===
-  contacto           String? // Nombre del contacto
-  telefono           String?
-  correo             String?
+  contacto String? // Nombre del contacto
+  telefono String?
+  correo   String?
 
   // === CONFIGURACIÓN ===
-  retencion          Boolean @default(false) // Si aplica retención de IVA
+  retencion Boolean @default(false) // Si aplica retención de IVA
 
   // === TIPO DE CLIENTE ===
-  id_tipo_cliente    Int?
-  tipoCliente        tipoClienteDirecto? @relation(fields: [id_tipo_cliente], references: [id_tipo_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_tipo")
+  id_tipo_cliente Int?
+  tipoCliente     tipoClienteDirecto? @relation(fields: [id_tipo_cliente], references: [id_tipo_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_tipo")
 
   // === SUCURSAL ===
-  id_sucursal        Int?
-  sucursal           sucursales? @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_sucursal")
+  id_sucursal Int?
+  sucursal    sucursales? @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_cliente_directo_sucursal")
 
   // === ESTADO Y AUDITORÍA ===
-  estado             estado   @default(ACTIVO)
-  fecha_creacion     DateTime @default(now())
+  estado              estado   @default(ACTIVO)
+  fecha_creacion      DateTime @default(now())
   fecha_actualizacion DateTime @default(now()) @updatedAt
 
   // === RELACIONES ===
-  facturasDirectas   facturaDirecta[]
-  cuentasPorCobrar   cuenta_por_cobrar[]
+  facturasDirectas facturaDirecta[]
+  cuentasPorCobrar cuenta_por_cobrar[]
 
   // === ÍNDICES ===
   @@index([nit])
@@ -4150,91 +4155,91 @@ model clienteDirecto {
 
 // Factura para venta directa (sin contrato previo)
 model facturaDirecta {
-  id_factura_directa Int    @id @default(autoincrement())
+  id_factura_directa Int @id @default(autoincrement())
 
   // === NUMERACIÓN ===
-  numero_factura     String? // Nullable: se asigna al firmar. Número secuencial (padded a 10 dígitos)
+  numero_factura String? // Nullable: se asigna al firmar. Número secuencial (padded a 10 dígitos)
 
   // === FECHAS ===
-  fecha_creacion     DateTime @default(now())
-  fecha_de_pago      DateTime? // Para crédito (no usado en esta implementación)
+  fecha_creacion DateTime  @default(now())
+  fecha_de_pago  DateTime? // Para crédito (no usado en esta implementación)
 
   // === SNAPSHOT DEL CLIENTE (momento de emisión) ===
-  cliente_nombre     String?
-  cliente_nrc        String?
-  cliente_nit        String?
-  cliente_direccion  String? @db.Text
-  cliente_giro       String?
-  cliente_telefono   String?
-  cliente_correo     String?
+  cliente_nombre    String?
+  cliente_nrc       String?
+  cliente_nit       String?
+  cliente_direccion String? @db.Text
+  cliente_giro      String?
+  cliente_telefono  String?
+  cliente_correo    String?
 
   // === RELACIÓN CON CLIENTE DIRECTO (opcional, para ventas directas) ===
   id_cliente_directo Int?
   clienteDirecto     clienteDirecto? @relation(fields: [id_cliente_directo], references: [id_cliente_directo], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_cliente")
 
   // === CONTRATO (facturas proyectadas de servicio recurrente) ===
-  id_contrato            Int?
-  contrato               atcContrato? @relation(fields: [id_contrato], references: [id_contrato], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_contrato")
+  id_contrato Int?
+  contrato    atcContrato? @relation(fields: [id_contrato], references: [id_contrato], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_contrato")
 
-  id_cliente             Int?
-  cliente                cliente? @relation(fields: [id_cliente], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_cliente_contrato")
+  id_cliente Int?
+  cliente    cliente? @relation(fields: [id_cliente], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_cliente_contrato")
 
   id_cliente_facturacion Int?
   clienteFacturacion     clienteDatosFacturacion? @relation(fields: [id_cliente_facturacion], references: [id_cliente_datos_facturacion], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_datos_facturacion")
 
   // === DATOS DE CUOTA/PERIODO ===
-  fecha_vencimiento      DateTime?
-  periodo_inicio         DateTime?
-  periodo_fin            DateTime?
-  numero_cuota           Int?
-  total_cuotas           Int?
-  es_instalacion         Boolean  @default(false)
+  fecha_vencimiento DateTime?
+  periodo_inicio    DateTime?
+  periodo_fin       DateTime?
+  numero_cuota      Int?
+  total_cuotas      Int?
+  es_instalacion    Boolean   @default(false)
 
   // === TIPO DE FACTURA (DTE) ===
-  id_tipo_factura    Int?
-  tipoFactura        facturasTipos? @relation(fields: [id_tipo_factura], references: [id_tipo_factura], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_tipo")
+  id_tipo_factura Int?
+  tipoFactura     facturasTipos? @relation(fields: [id_tipo_factura], references: [id_tipo_factura], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_tipo")
 
   // === BLOQUE DE NUMERACIÓN ===
-  id_bloque          Int?
-  bloque             facturasBloques? @relation(fields: [id_bloque], references: [id_bloque], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_bloque")
+  id_bloque Int?
+  bloque    facturasBloques? @relation(fields: [id_bloque], references: [id_bloque], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_bloque")
 
   // === MONTOS TOTALES ===
-  subtotal           Decimal @default(0) @db.Decimal(12, 2)
-  subTotalVentas     Decimal @default(0) @db.Decimal(12, 2)
-  descuento          Decimal @default(0) @db.Decimal(12, 2)
+  subtotal       Decimal @default(0) @db.Decimal(12, 2)
+  subTotalVentas Decimal @default(0) @db.Decimal(12, 2)
+  descuento      Decimal @default(0) @db.Decimal(12, 2)
 
   // === METADATOS DE DESCUENTO ===
-  descuento_porcentaje  Decimal?  @db.Decimal(5, 2)
-  descuento_motivo      String?   @db.Text
-  descuento_usuario     Int?
-  descuento_fecha       DateTime?
+  descuento_porcentaje Decimal?  @db.Decimal(5, 2)
+  descuento_motivo     String?   @db.Text
+  descuento_usuario    Int?
+  descuento_fecha      DateTime?
 
   // === DESGLOSE POR TIPO DE VENTA ===
-  totalNoSuj         Decimal @default(0) @db.Decimal(12, 2) // Total no sujeto
-  totalExenta        Decimal @default(0) @db.Decimal(12, 2) // Total exento
-  totalGravada       Decimal @default(0) @db.Decimal(12, 2) // Total gravado
-  totalNoGravado     Decimal @default(0) @db.Decimal(12, 2) // Total no gravado
+  totalNoSuj     Decimal @default(0) @db.Decimal(12, 2) // Total no sujeto
+  totalExenta    Decimal @default(0) @db.Decimal(12, 2) // Total exento
+  totalGravada   Decimal @default(0) @db.Decimal(12, 2) // Total gravado
+  totalNoGravado Decimal @default(0) @db.Decimal(12, 2) // Total no gravado
 
   // === DESCUENTOS POR TIPO ===
-  descuNoSuj         Decimal @default(0) @db.Decimal(12, 2)
-  descuExenta        Decimal @default(0) @db.Decimal(12, 2)
-  descuGravada       Decimal @default(0) @db.Decimal(12, 2)
+  descuNoSuj   Decimal @default(0) @db.Decimal(12, 2)
+  descuExenta  Decimal @default(0) @db.Decimal(12, 2)
+  descuGravada Decimal @default(0) @db.Decimal(12, 2)
 
   // === IVA Y RETENCIONES ===
-  iva                Decimal @default(0) @db.Decimal(12, 2) // IVA 13%
-  iva_retenido       Decimal @default(0) @db.Decimal(12, 2) // IVA retenido por el cliente
-  iva_percibido      Decimal @default(0) @db.Decimal(12, 2) // IVA percibido
-  renta_retenido     Decimal @default(0) @db.Decimal(12, 2) // Retención de renta
+  iva            Decimal @default(0) @db.Decimal(12, 2) // IVA 13%
+  iva_retenido   Decimal @default(0) @db.Decimal(12, 2) // IVA retenido por el cliente
+  iva_percibido  Decimal @default(0) @db.Decimal(12, 2) // IVA percibido
+  renta_retenido Decimal @default(0) @db.Decimal(12, 2) // Retención de renta
 
   // === TOTAL FINAL ===
-  total              Decimal @default(0) @db.Decimal(12, 2)
-  total_letras       String? @db.VarChar(300) // "MIL DOSCIENTOS DÓLARES"
+  total        Decimal @default(0) @db.Decimal(12, 2)
+  total_letras String? @db.VarChar(300) // "MIL DOSCIENTOS DÓLARES"
 
   // === PAGOS (solo contado en esta implementación) ===
-  efectivo           Decimal @default(0) @db.Decimal(12, 2)
-  tarjeta            Decimal @default(0) @db.Decimal(12, 2)
-  cheque             Decimal @default(0) @db.Decimal(12, 2)
-  transferencia      Decimal @default(0) @db.Decimal(12, 2)
+  efectivo      Decimal @default(0) @db.Decimal(12, 2)
+  tarjeta       Decimal @default(0) @db.Decimal(12, 2)
+  cheque        Decimal @default(0) @db.Decimal(12, 2)
+  transferencia Decimal @default(0) @db.Decimal(12, 2)
 
   // === CUENTAS BANCARIAS DESTINO (para pagos no-efectivo en contado) ===
   id_cuenta_tarjeta       Int?
@@ -4245,74 +4250,75 @@ model facturaDirecta {
   cuentaTransferencia     cuenta_bancaria? @relation("factura_cuenta_transferencia", fields: [id_cuenta_transferencia], references: [id_cuenta_bancaria], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_cuenta_transferencia")
 
   // === MÉTODO DE PAGO ===
-  id_metodo_pago     Int?
-  metodoPago         metodosPago? @relation(fields: [id_metodo_pago], references: [id_metodo_pago], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_metodo_pago")
-  condicion_operacion Int @default(1) // 1=Contado, 2=Crédito, 3=Otro
+  id_metodo_pago      Int?
+  metodoPago          metodosPago? @relation(fields: [id_metodo_pago], references: [id_metodo_pago], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_metodo_pago")
+  condicion_operacion Int          @default(1) // 1=Contado, 2=Crédito, 3=Otro
   dias_credito        Int?
   fecha_pago_estimada DateTime?
 
   // === CAMPOS DE EXPORTACIÓN (FEX tipo 11) ===
-  flete              Decimal @default(0) @db.Decimal(12, 2)
-  seguro             Decimal @default(0) @db.Decimal(12, 2)
-  recintoFiscal      String? @db.VarChar(10) // Código recinto fiscal
-  regimen            String? @db.VarChar(10) // Código régimen
-  codIncoterms       String? @db.VarChar(10) // Código Incoterms
-  descIncoterms      String? @db.VarChar(200) // Descripción Incoterms
-  tipoItemExpor      Int? // Tipo de item de exportación
+  flete         Decimal @default(0) @db.Decimal(12, 2)
+  seguro        Decimal @default(0) @db.Decimal(12, 2)
+  recintoFiscal String? @db.VarChar(10) // Código recinto fiscal
+  regimen       String? @db.VarChar(10) // Código régimen
+  codIncoterms  String? @db.VarChar(10) // Código Incoterms
+  descIncoterms String? @db.VarChar(200) // Descripción Incoterms
+  tipoItemExpor Int? // Tipo de item de exportación
 
   // === DOCUMENTO RELACIONADO (para NC/ND) ===
   id_factura_original Int?
-  facturaOriginal    facturaDirecta? @relation("factura_nota", fields: [id_factura_original], references: [id_factura_directa], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_original")
-  notasCredito       facturaDirecta[] @relation("factura_nota")
+  facturaOriginal     facturaDirecta?  @relation("factura_nota", fields: [id_factura_original], references: [id_factura_directa], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_original")
+  notasCredito        facturaDirecta[] @relation("factura_nota")
 
   // === DTE (Documento Tributario Electrónico) ===
-  codigo_generacion  String? @db.Char(36) // UUID v4 del DTE
-  numero_control     String? @db.VarChar(31) // DTE-XX-YYYYYYYY-ZZZZZZZZZZZZZZZ
-  dte_json           String? @db.Text // JSON completo del DTE
-  dte_firmado        String? @db.Text // DTE firmado (JWS)
-  sello_recepcion    String? @db.VarChar(50) // Sello de MH (40 chars)
+  codigo_generacion  String?   @db.Char(36) // UUID v4 del DTE
+  numero_control     String?   @db.VarChar(31) // DTE-XX-YYYYYYYY-ZZZZZZZZZZZZZZZ
+  dte_json           String?   @db.Text // JSON completo del DTE
+  dte_firmado        String?   @db.Text // DTE firmado (JWS)
+  sello_recepcion    String?   @db.VarChar(50) // Sello de MH (40 chars)
   fecha_recepcion_mh DateTime? // Fecha de procesamiento MH
-  codigo_msg_mh      String? @db.VarChar(10) // Código respuesta MH
-  descripcion_msg_mh String? @db.VarChar(500) // Mensaje MH
-  observaciones_mh   String? @db.Text // Observaciones de MH
+  codigo_msg_mh      String?   @db.VarChar(10) // Código respuesta MH
+  descripcion_msg_mh String?   @db.VarChar(500) // Mensaje MH
+  observaciones_mh   String?   @db.Text // Observaciones de MH
 
   // === ESTADO DEL DTE ===
-  estado_dte         estado_dte @default(BORRADOR)
-  intentos_dte       Int @default(0) // Intentos de transmisión
-  ultimo_error_dte   String? @db.Text // Último error
+  estado_dte       estado_dte @default(BORRADOR)
+  intentos_dte     Int        @default(0) // Intentos de transmisión
+  ultimo_error_dte String?    @db.Text // Último error
 
   // === MORA ===
-  monto_mora         Decimal @default(0) @db.Decimal(12, 2)  // Mora acumulada aplicada a esta factura
+  monto_mora Decimal @default(0) @db.Decimal(12, 2) // Mora acumulada aplicada a esta factura
 
   // === ESTADO DE LA FACTURA ===
-  estado             estado_factura_directa @default(ACTIVO)
-  estado_pago        estado_pago_factura @default(PAGADO) // Solo contado
+  estado      estado_factura_directa @default(ACTIVO)
+  estado_pago estado_pago_factura    @default(PAGADO) // Solo contado
 
   // === OBSERVACIONES ===
-  observaciones      String? @db.Text
+  observaciones String? @db.Text
 
   // === DATOS DE ANULACIÓN (cuando se invalida el DTE) ===
-  anulacion_codigo_generacion  String? @unique @db.Char(36) // UUID del evento de anulación
-  anulacion_sello_recepcion    String? @db.VarChar(50) // Sello de MH de la anulación
-  anulacion_json               String? @db.Text // JSON del evento de anulación
-  anulacion_firmada            String? @db.Text // Evento firmado (JWS)
-  fecha_anulacion              DateTime? // Fecha de procesamiento de anulación
-  anulacion_motivo             String? @db.VarChar(300) // Motivo de anulación
-  anulacion_codigo_msg         String? @db.VarChar(10) // Código respuesta MH anulación
-  anulacion_descripcion_msg    String? @db.VarChar(500) // Mensaje MH anulación
+  anulacion_codigo_generacion String?   @unique @db.Char(36) // UUID del evento de anulación
+  anulacion_sello_recepcion   String?   @db.VarChar(50) // Sello de MH de la anulación
+  anulacion_json              String?   @db.Text // JSON del evento de anulación
+  anulacion_firmada           String?   @db.Text // Evento firmado (JWS)
+  fecha_anulacion             DateTime? // Fecha de procesamiento de anulación
+  anulacion_motivo            String?   @db.VarChar(300) // Motivo de anulación
+  anulacion_codigo_msg        String?   @db.VarChar(10) // Código respuesta MH anulación
+  anulacion_descripcion_msg   String?   @db.VarChar(500) // Mensaje MH anulación
 
   // === SUCURSAL Y USUARIO ===
-  id_sucursal        Int
-  sucursal           sucursales @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_sucursal")
-  id_usuario         Int
-  usuario            usuarios @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_usuario")
+  id_sucursal Int
+  sucursal    sucursales @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_sucursal")
+  id_usuario  Int
+  usuario     usuarios   @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_usuario")
 
   // === AUDITORÍA ===
   fecha_actualizacion DateTime @default(now()) @updatedAt
 
   // === RELACIONES ===
-  detalles           facturaDirectaDetalle[]
-  cuenta_por_cobrar  cuenta_por_cobrar?
+  detalles             facturaDirectaDetalle[]
+  cuenta_por_cobrar    cuenta_por_cobrar?
+  cobranzaAsignaciones cobranza_asignacion[]
 
   // === ÍNDICES ===
   @@index([numero_factura])
@@ -4329,50 +4335,50 @@ model facturaDirecta {
 
 // Detalle de líneas de factura directa
 model facturaDirectaDetalle {
-  id_detalle         Int @id @default(autoincrement())
+  id_detalle Int @id @default(autoincrement())
 
   // === RELACIÓN CON FACTURA ===
   id_factura_directa Int
   facturaDirecta     facturaDirecta @relation(fields: [id_factura_directa], references: [id_factura_directa], onDelete: Cascade, onUpdate: NoAction, map: "fk_factura_directa_detalle")
 
   // === DATOS DEL ÍTEM ===
-  num_item           Int // Número de línea (1, 2, 3...)
-  codigo             String? @db.VarChar(50) // SKU/Código del producto
-  nombre             String @db.VarChar(200) // Nombre del producto/servicio
-  descripcion        String? @db.Text // Descripción adicional
-  nota               String? @db.Text // Nota adicional
+  num_item    Int // Número de línea (1, 2, 3...)
+  codigo      String? @db.VarChar(50) // SKU/Código del producto
+  nombre      String  @db.VarChar(200) // Nombre del producto/servicio
+  descripcion String? @db.Text // Descripción adicional
+  nota        String? @db.Text // Nota adicional
 
   // === CANTIDADES Y PRECIOS ===
-  cantidad           Decimal @db.Decimal(12, 4)
-  uni_medida         Int @default(99) // Código unidad de medida (99=Otro)
-  precio_unitario    Decimal @db.Decimal(12, 4)
-  precio_sin_iva     Decimal @default(0) @db.Decimal(12, 4)
-  precio_con_iva     Decimal @default(0) @db.Decimal(12, 4)
+  cantidad        Decimal @db.Decimal(12, 4)
+  uni_medida      Int     @default(99) // Código unidad de medida (99=Otro)
+  precio_unitario Decimal @db.Decimal(12, 4)
+  precio_sin_iva  Decimal @default(0) @db.Decimal(12, 4)
+  precio_con_iva  Decimal @default(0) @db.Decimal(12, 4)
 
   // === TIPO DE DETALLE (determina tratamiento fiscal) ===
-  tipo_detalle       tipo_detalle_factura @default(GRAVADO)
+  tipo_detalle tipo_detalle_factura @default(GRAVADO)
 
   // === VENTAS POR TIPO ===
-  venta_gravada      Decimal @default(0) @db.Decimal(12, 2)
-  venta_exenta       Decimal @default(0) @db.Decimal(12, 2)
-  venta_nosujeto     Decimal @default(0) @db.Decimal(12, 2)
-  venta_nograbada    Decimal @default(0) @db.Decimal(12, 2)
+  venta_gravada   Decimal @default(0) @db.Decimal(12, 2)
+  venta_exenta    Decimal @default(0) @db.Decimal(12, 2)
+  venta_nosujeto  Decimal @default(0) @db.Decimal(12, 2)
+  venta_nograbada Decimal @default(0) @db.Decimal(12, 2)
 
   // === CÁLCULOS ===
-  subtotal           Decimal @default(0) @db.Decimal(12, 2)
-  descuento          Decimal @default(0) @db.Decimal(12, 2)
-  iva                Decimal @default(0) @db.Decimal(12, 2) // IVA del ítem
-  total              Decimal @default(0) @db.Decimal(12, 2)
+  subtotal  Decimal @default(0) @db.Decimal(12, 2)
+  descuento Decimal @default(0) @db.Decimal(12, 2)
+  iva       Decimal @default(0) @db.Decimal(12, 2) // IVA del ítem
+  total     Decimal @default(0) @db.Decimal(12, 2)
 
   // === RELACIÓN CON CATÁLOGO (opcional) ===
-  id_catalogo        Int?
-  catalogo           catalogo? @relation(fields: [id_catalogo], references: [id_catalogo], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_detalle_catalogo")
+  id_catalogo Int?
+  catalogo    catalogo? @relation(fields: [id_catalogo], references: [id_catalogo], onDelete: NoAction, onUpdate: NoAction, map: "fk_factura_directa_detalle_catalogo")
 
   // === RELACIÓN CON DESCUENTO (opcional) ===
-  id_descuento       Int?
+  id_descuento Int?
 
   // === AUDITORÍA ===
-  fecha_creacion     DateTime @default(now())
+  fecha_creacion DateTime @default(now())
 
   // === ÍNDICES ===
   @@index([id_factura_directa])
@@ -4453,60 +4459,60 @@ enum tipo_deposito_bancario {
 }
 
 model cuenta_bancaria {
-  id_cuenta_bancaria         Int                      @id @default(autoincrement())
+  id_cuenta_bancaria         Int                   @id @default(autoincrement())
   id_banco                   Int
-  banco                      cat_banco                @relation(fields: [id_banco], references: [id_banco], onDelete: NoAction, onUpdate: NoAction, map: "fk_cuenta_bancaria_banco")
+  banco                      cat_banco             @relation(fields: [id_banco], references: [id_banco], onDelete: NoAction, onUpdate: NoAction, map: "fk_cuenta_bancaria_banco")
   id_tipo_cuenta             Int
-  tipo_cuenta                cat_tipo_cuenta_banco    @relation(fields: [id_tipo_cuenta], references: [id_tipo_cuenta], onDelete: NoAction, onUpdate: NoAction, map: "fk_cuenta_bancaria_tipo_cuenta")
+  tipo_cuenta                cat_tipo_cuenta_banco @relation(fields: [id_tipo_cuenta], references: [id_tipo_cuenta], onDelete: NoAction, onUpdate: NoAction, map: "fk_cuenta_bancaria_tipo_cuenta")
   id_sucursal                Int?
-  sucursal                   sucursales?              @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_cuenta_bancaria_sucursal")
+  sucursal                   sucursales?           @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_cuenta_bancaria_sucursal")
   id_usuario_crea            Int
-  usuario_crea               usuarios                 @relation("cuenta_bancaria_usuario_crea", fields: [id_usuario_crea], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cuenta_bancaria_usuario_crea")
-  numero_cuenta              String                   @unique
+  usuario_crea               usuarios              @relation("cuenta_bancaria_usuario_crea", fields: [id_usuario_crea], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cuenta_bancaria_usuario_crea")
+  numero_cuenta              String                @unique
   alias                      String?
-  moneda                     String                   @default("USD")
-  saldo_actual               Decimal                  @default(0) @db.Decimal(12, 2)
-  permite_saldo_negativo     Boolean                  @default(false)
+  moneda                     String                @default("USD")
+  saldo_actual               Decimal               @default(0) @db.Decimal(12, 2)
+  permite_saldo_negativo     Boolean               @default(false)
   fecha_apertura             DateTime?
-  estado                     estado                   @default(ACTIVO)
-  version                    Int                      @default(0)
-  fecha_creacion             DateTime                 @default(now())
-  fecha_ultima_actualizacion DateTime                 @default(now()) @updatedAt
+  estado                     estado                @default(ACTIVO)
+  version                    Int                   @default(0)
+  fecha_creacion             DateTime              @default(now())
+  fecha_ultima_actualizacion DateTime              @default(now()) @updatedAt
   movimientos                movimiento_bancario[]
 
   // Relaciones inversas con facturaDirecta (pagos no-efectivo)
-  facturas_tarjeta        facturaDirecta[] @relation("factura_cuenta_tarjeta")
-  facturas_cheque         facturaDirecta[] @relation("factura_cuenta_cheque")
-  facturas_transferencia  facturaDirecta[] @relation("factura_cuenta_transferencia")
-  validaciones_comprobante   whatsapp_validacion_comprobante[] @relation("validacion_cuenta_destino")
+  facturas_tarjeta         facturaDirecta[]                  @relation("factura_cuenta_tarjeta")
+  facturas_cheque          facturaDirecta[]                  @relation("factura_cuenta_cheque")
+  facturas_transferencia   facturaDirecta[]                  @relation("factura_cuenta_transferencia")
+  validaciones_comprobante whatsapp_validacion_comprobante[] @relation("validacion_cuenta_destino")
 
   @@index([id_banco])
   @@index([estado])
 }
 
 model movimiento_bancario {
-  id_movimiento              Int                          @id @default(autoincrement())
+  id_movimiento              Int                        @id @default(autoincrement())
   id_cuenta_bancaria         Int
-  cuenta_bancaria            cuenta_bancaria              @relation(fields: [id_cuenta_bancaria], references: [id_cuenta_bancaria], onDelete: NoAction, onUpdate: NoAction, map: "fk_movimiento_bancario_cuenta")
+  cuenta_bancaria            cuenta_bancaria            @relation(fields: [id_cuenta_bancaria], references: [id_cuenta_bancaria], onDelete: NoAction, onUpdate: NoAction, map: "fk_movimiento_bancario_cuenta")
   id_usuario                 Int
-  usuario                    usuarios                     @relation("movimiento_bancario_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_movimiento_bancario_usuario")
-  fecha_movimiento           DateTime                     @default(now())
+  usuario                    usuarios                   @relation("movimiento_bancario_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_movimiento_bancario_usuario")
+  fecha_movimiento           DateTime                   @default(now())
   tipo_movimiento            tipo_movimiento_bancario
   metodo                     metodo_movimiento_bancario
-  monto                      Decimal                      @db.Decimal(12, 2)
-  saldo_resultante           Decimal                      @db.Decimal(12, 2)
+  monto                      Decimal                    @db.Decimal(12, 2)
+  saldo_resultante           Decimal                    @db.Decimal(12, 2)
   referencia_bancaria        String?
   documento_origen_id        Int?
   modulo_origen              modulo_origen_movimiento?
   descripcion                String?
-  estado_movimiento          estado_movimiento_bancario   @default(ACTIVO)
+  estado_movimiento          estado_movimiento_bancario @default(ACTIVO)
   id_usuario_anula           Int?
-  usuario_anula              usuarios?                    @relation("movimiento_bancario_usuario_anula", fields: [id_usuario_anula], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_movimiento_bancario_usuario_anula")
+  usuario_anula              usuarios?                  @relation("movimiento_bancario_usuario_anula", fields: [id_usuario_anula], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_movimiento_bancario_usuario_anula")
   motivo_anulacion           String?
   fecha_anulacion            DateTime?
   metadata                   Json?
-  fecha_creacion             DateTime                     @default(now())
-  fecha_ultima_actualizacion DateTime                     @default(now()) @updatedAt
+  fecha_creacion             DateTime                   @default(now())
+  fecha_ultima_actualizacion DateTime                   @default(now()) @updatedAt
   cheque                     cheque?
   transferencia              transferencia_bancaria?
   deposito                   deposito_bancario?
@@ -4519,102 +4525,102 @@ model movimiento_bancario {
 }
 
 model cheque {
-  id_cheque                  Int                      @id @default(autoincrement())
-  id_movimiento              Int                      @unique
-  movimiento                 movimiento_bancario      @relation(fields: [id_movimiento], references: [id_movimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_cheque_movimiento")
+  id_cheque                  Int                 @id @default(autoincrement())
+  id_movimiento              Int                 @unique
+  movimiento                 movimiento_bancario @relation(fields: [id_movimiento], references: [id_movimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_cheque_movimiento")
   numero_cheque              String
   beneficiario               String
   fecha_emision              DateTime
   fecha_cobro                DateTime?
-  estado_cheque              estado_cheque            @default(EMITIDO)
-  fecha_creacion             DateTime                 @default(now())
-  fecha_ultima_actualizacion DateTime                 @default(now()) @updatedAt
+  estado_cheque              estado_cheque       @default(EMITIDO)
+  fecha_creacion             DateTime            @default(now())
+  fecha_ultima_actualizacion DateTime            @default(now()) @updatedAt
 }
 
 model transferencia_bancaria {
-  id_transferencia           Int                      @id @default(autoincrement())
-  id_movimiento              Int                      @unique
-  movimiento                 movimiento_bancario      @relation(fields: [id_movimiento], references: [id_movimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_transferencia_movimiento")
+  id_transferencia           Int                 @id @default(autoincrement())
+  id_movimiento              Int                 @unique
+  movimiento                 movimiento_bancario @relation(fields: [id_movimiento], references: [id_movimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_transferencia_movimiento")
   banco_contraparte          String?
   cuenta_contraparte         String?
   codigo_autorizacion        String?
   fecha_transferencia        DateTime
-  fecha_creacion             DateTime                 @default(now())
-  fecha_ultima_actualizacion DateTime                 @default(now()) @updatedAt
+  fecha_creacion             DateTime            @default(now())
+  fecha_ultima_actualizacion DateTime            @default(now()) @updatedAt
 }
 
 model deposito_bancario {
-  id_deposito                Int                      @id @default(autoincrement())
-  id_movimiento              Int                      @unique
-  movimiento                 movimiento_bancario      @relation(fields: [id_movimiento], references: [id_movimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_deposito_movimiento")
+  id_deposito                Int                    @id @default(autoincrement())
+  id_movimiento              Int                    @unique
+  movimiento                 movimiento_bancario    @relation(fields: [id_movimiento], references: [id_movimiento], onDelete: NoAction, onUpdate: NoAction, map: "fk_deposito_movimiento")
   tipo_deposito              tipo_deposito_bancario
   numero_boleta              String?
   fecha_deposito             DateTime
-  fecha_creacion             DateTime                 @default(now())
-  fecha_ultima_actualizacion DateTime                 @default(now()) @updatedAt
+  fecha_creacion             DateTime               @default(now())
+  fecha_ultima_actualizacion DateTime               @default(now()) @updatedAt
 }
 
 // ============= CUENTAS POR COBRAR =============
 
 model cuenta_por_cobrar {
-  id_cxc                     Int                      @id @default(autoincrement())
+  id_cxc Int @id @default(autoincrement())
 
   // === RELACIÓN CON FACTURA ===
-  id_factura_directa         Int                      @unique
-  facturaDirecta             facturaDirecta           @relation(fields: [id_factura_directa], references: [id_factura_directa], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_factura_directa")
+  id_factura_directa Int            @unique
+  facturaDirecta     facturaDirecta @relation(fields: [id_factura_directa], references: [id_factura_directa], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_factura_directa")
 
   // === RELACIÓN CON CLIENTE DIRECTO (ventas directas) ===
-  id_cliente_directo         Int?
-  clienteDirecto             clienteDirecto?          @relation(fields: [id_cliente_directo], references: [id_cliente_directo], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_cliente_directo")
+  id_cliente_directo Int?
+  clienteDirecto     clienteDirecto? @relation(fields: [id_cliente_directo], references: [id_cliente_directo], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_cliente_directo")
 
   // === RELACIÓN CON CLIENTE DE CONTRATO ===
-  id_cliente                 Int?
-  cliente                    cliente?                 @relation("cxc_cliente", fields: [id_cliente], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_cliente")
+  id_cliente Int?
+  cliente    cliente? @relation("cxc_cliente", fields: [id_cliente], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_cliente")
 
   // === RELACIÓN CON CONTRATO ===
-  id_contrato                Int?
-  contrato                   atcContrato?             @relation(fields: [id_contrato], references: [id_contrato], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_contrato")
+  id_contrato Int?
+  contrato    atcContrato? @relation(fields: [id_contrato], references: [id_contrato], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_contrato")
 
   // === MONTOS ===
-  monto_total                Decimal                  @db.Decimal(12, 2)
-  saldo_pendiente            Decimal                  @db.Decimal(12, 2)
-  total_abonado              Decimal                  @default(0) @db.Decimal(12, 2)
+  monto_total     Decimal @db.Decimal(12, 2)
+  saldo_pendiente Decimal @db.Decimal(12, 2)
+  total_abonado   Decimal @default(0) @db.Decimal(12, 2)
 
   // === FECHAS Y CRÉDITO ===
-  fecha_emision              DateTime
-  fecha_vencimiento          DateTime
-  dias_credito               Int                      @default(30)
+  fecha_emision     DateTime
+  fecha_vencimiento DateTime
+  dias_credito      Int      @default(30)
 
   // === ESTADO ===
-  estado                     estado_cxc               @default(PENDIENTE)
+  estado estado_cxc @default(PENDIENTE)
 
   // === MORA ===
-  monto_mora                 Decimal                  @default(0) @db.Decimal(12, 2)
-  mora_exonerada             Boolean                  @default(false)
-  id_mora_config             Int?
-  moraConfig                 mora_configuracion?      @relation("mora_cxc", fields: [id_mora_config], references: [id_mora_config], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_mora_config")
+  monto_mora     Decimal             @default(0) @db.Decimal(12, 2)
+  mora_exonerada Boolean             @default(false)
+  id_mora_config Int?
+  moraConfig     mora_configuracion? @relation("mora_cxc", fields: [id_mora_config], references: [id_mora_config], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_mora_config")
 
   // === SUCURSAL ===
-  id_sucursal                Int
-  sucursal                   sucursales               @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_sucursal")
+  id_sucursal Int
+  sucursal    sucursales @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_sucursal")
 
   // === USUARIO CREADOR ===
-  id_usuario_crea            Int
-  usuarioCrea                usuarios                 @relation("cxc_usuario_crea", fields: [id_usuario_crea], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_usuario_crea")
+  id_usuario_crea Int
+  usuarioCrea     usuarios @relation("cxc_usuario_crea", fields: [id_usuario_crea], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxc_usuario_crea")
 
   // === ACUERDO DE PAGO ===
-  fecha_acuerdo_pago         DateTime?                // Fecha límite del acuerdo de pago
-  fecha_vencimiento_original DateTime?                // Vencimiento original antes del acuerdo
+  fecha_acuerdo_pago         DateTime? // Fecha límite del acuerdo de pago
+  fecha_vencimiento_original DateTime? // Vencimiento original antes del acuerdo
 
   // === OBSERVACIONES ===
-  observaciones              String?                  @db.Text
+  observaciones String? @db.Text
 
   // === AUDITORÍA ===
-  fecha_creacion             DateTime                 @default(now())
-  fecha_actualizacion        DateTime                 @default(now()) @updatedAt
+  fecha_creacion      DateTime @default(now())
+  fecha_actualizacion DateTime @default(now()) @updatedAt
 
   // === RELACIONES ===
-  abonos                     abono_cxc[]
+  abonos abono_cxc[]
 
   // === ÍNDICES ===
   @@index([id_factura_directa])
@@ -4627,40 +4633,40 @@ model cuenta_por_cobrar {
 }
 
 model abono_cxc {
-  id_abono                   Int                      @id @default(autoincrement())
+  id_abono Int @id @default(autoincrement())
 
   // === RELACIÓN CON CXC ===
-  id_cxc                     Int
-  cuentaPorCobrar            cuenta_por_cobrar        @relation(fields: [id_cxc], references: [id_cxc], onDelete: NoAction, onUpdate: NoAction, map: "fk_abono_cxc")
+  id_cxc          Int
+  cuentaPorCobrar cuenta_por_cobrar @relation(fields: [id_cxc], references: [id_cxc], onDelete: NoAction, onUpdate: NoAction, map: "fk_abono_cxc")
 
   // === MONTOS ===
-  monto                      Decimal                  @db.Decimal(12, 2)
-  saldo_anterior             Decimal                  @db.Decimal(12, 2)
-  saldo_posterior             Decimal                  @db.Decimal(12, 2)
+  monto           Decimal @db.Decimal(12, 2)
+  saldo_anterior  Decimal @db.Decimal(12, 2)
+  saldo_posterior Decimal @db.Decimal(12, 2)
 
   // === PAGO ===
-  metodo_pago                metodo_pago_abono
-  referencia                 String?                  @db.VarChar(200)
-  comprobante_url            String?                  @db.VarChar(500)
-  fecha_pago                 DateTime                 @default(now())
-  id_movimiento_bancario     Int?
+  metodo_pago            metodo_pago_abono
+  referencia             String?           @db.VarChar(200)
+  comprobante_url        String?           @db.VarChar(500)
+  fecha_pago             DateTime          @default(now())
+  id_movimiento_bancario Int?
 
   // === USUARIO ===
-  id_usuario                 Int
-  usuario                    usuarios                 @relation("abono_cxc_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_abono_cxc_usuario")
+  id_usuario Int
+  usuario    usuarios @relation("abono_cxc_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_abono_cxc_usuario")
 
   // === OBSERVACIONES ===
-  observaciones              String?                  @db.Text
+  observaciones String? @db.Text
 
   // === ESTADO ===
-  activo                     Boolean                  @default(true)
+  activo Boolean @default(true)
 
   // === AUDITORÍA ===
-  fecha_creacion             DateTime                 @default(now())
-  fecha_actualizacion        DateTime                 @default(now()) @updatedAt
+  fecha_creacion      DateTime @default(now())
+  fecha_actualizacion DateTime @default(now()) @updatedAt
 
   // === CAJA ===
-  cajaMovimiento             caja_movimiento?
+  cajaMovimiento caja_movimiento?
 
   // === ÍNDICES ===
   @@index([id_cxc])
@@ -4681,46 +4687,46 @@ enum estado_cxp {
 }
 
 model cuenta_por_pagar {
-  id_cxp                     Int                      @id @default(autoincrement())
+  id_cxp Int @id @default(autoincrement())
 
   // === RELACIÓN CON COMPRA ===
-  id_compras                 Int                      @unique
-  compra                     compras                  @relation(fields: [id_compras], references: [id_compras], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxp_compra")
+  id_compras Int     @unique
+  compra     compras @relation(fields: [id_compras], references: [id_compras], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxp_compra")
 
   // === RELACIÓN CON PROVEEDOR ===
-  id_proveedor               Int
-  proveedor                  proveedores              @relation(fields: [id_proveedor], references: [id_proveedor], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxp_proveedor")
+  id_proveedor Int
+  proveedor    proveedores @relation(fields: [id_proveedor], references: [id_proveedor], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxp_proveedor")
 
   // === MONTOS ===
-  monto_total                Decimal                  @db.Decimal(12, 2)
-  saldo_pendiente            Decimal                  @db.Decimal(12, 2)
-  total_pagado               Decimal                  @default(0) @db.Decimal(12, 2)
+  monto_total     Decimal @db.Decimal(12, 2)
+  saldo_pendiente Decimal @db.Decimal(12, 2)
+  total_pagado    Decimal @default(0) @db.Decimal(12, 2)
 
   // === FECHAS Y CRÉDITO ===
-  fecha_emision              DateTime
-  fecha_vencimiento          DateTime
-  dias_credito               Int                      @default(30)
+  fecha_emision     DateTime
+  fecha_vencimiento DateTime
+  dias_credito      Int      @default(30)
 
   // === ESTADO ===
-  estado                     estado_cxp               @default(PENDIENTE)
+  estado estado_cxp @default(PENDIENTE)
 
   // === SUCURSAL ===
-  id_sucursal                Int
-  sucursal                   sucursales               @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxp_sucursal")
+  id_sucursal Int
+  sucursal    sucursales @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxp_sucursal")
 
   // === USUARIO CREADOR ===
-  id_usuario_crea            Int
-  usuarioCrea                usuarios                 @relation("cxp_usuario_crea", fields: [id_usuario_crea], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxp_usuario_crea")
+  id_usuario_crea Int
+  usuarioCrea     usuarios @relation("cxp_usuario_crea", fields: [id_usuario_crea], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cxp_usuario_crea")
 
   // === OBSERVACIONES ===
-  observaciones              String?                  @db.Text
+  observaciones String? @db.Text
 
   // === AUDITORÍA ===
-  fecha_creacion             DateTime                 @default(now())
-  fecha_actualizacion        DateTime                 @default(now()) @updatedAt
+  fecha_creacion      DateTime @default(now())
+  fecha_actualizacion DateTime @default(now()) @updatedAt
 
   // === RELACIONES ===
-  pagos                      pago_cxp[]
+  pagos pago_cxp[]
 
   // === ÍNDICES ===
   @@index([id_compras])
@@ -4731,36 +4737,36 @@ model cuenta_por_pagar {
 }
 
 model pago_cxp {
-  id_pago                    Int                      @id @default(autoincrement())
+  id_pago Int @id @default(autoincrement())
 
   // === RELACIÓN CON CXP ===
-  id_cxp                     Int
-  cuentaPorPagar             cuenta_por_pagar         @relation(fields: [id_cxp], references: [id_cxp], onDelete: NoAction, onUpdate: NoAction, map: "fk_pago_cxp")
+  id_cxp         Int
+  cuentaPorPagar cuenta_por_pagar @relation(fields: [id_cxp], references: [id_cxp], onDelete: NoAction, onUpdate: NoAction, map: "fk_pago_cxp")
 
   // === MONTOS ===
-  monto                      Decimal                  @db.Decimal(12, 2)
-  saldo_anterior             Decimal                  @db.Decimal(12, 2)
-  saldo_posterior             Decimal                  @db.Decimal(12, 2)
+  monto           Decimal @db.Decimal(12, 2)
+  saldo_anterior  Decimal @db.Decimal(12, 2)
+  saldo_posterior Decimal @db.Decimal(12, 2)
 
   // === PAGO ===
-  metodo_pago                metodo_pago_abono
-  referencia                 String?                  @db.VarChar(200)
-  fecha_pago                 DateTime                 @default(now())
-  id_movimiento_bancario     Int?
+  metodo_pago            metodo_pago_abono
+  referencia             String?           @db.VarChar(200)
+  fecha_pago             DateTime          @default(now())
+  id_movimiento_bancario Int?
 
   // === USUARIO ===
-  id_usuario                 Int
-  usuario                    usuarios                 @relation("pago_cxp_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_pago_cxp_usuario")
+  id_usuario Int
+  usuario    usuarios @relation("pago_cxp_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_pago_cxp_usuario")
 
   // === OBSERVACIONES ===
-  observaciones              String?                  @db.Text
+  observaciones String? @db.Text
 
   // === ESTADO ===
-  activo                     Boolean                  @default(true)
+  activo Boolean @default(true)
 
   // === AUDITORÍA ===
-  fecha_creacion             DateTime                 @default(now())
-  fecha_actualizacion        DateTime                 @default(now()) @updatedAt
+  fecha_creacion      DateTime @default(now())
+  fecha_actualizacion DateTime @default(now()) @updatedAt
 
   // === ÍNDICES ===
   @@index([id_cxp])
@@ -4798,9 +4804,9 @@ model solicitudes_compra {
   fecha_ultima_actualizacion DateTime                   @updatedAt
 
   // Relaciones
-  detalle                    solicitudes_compra_detalle[]
-  cotizaciones               cotizaciones_compra[]
-  ordenes_compra             ordenes_compra[]
+  detalle        solicitudes_compra_detalle[]
+  cotizaciones   cotizaciones_compra[]
+  ordenes_compra ordenes_compra[]
 
   @@index([estado])
   @@index([id_usuario_solicita])
@@ -4808,23 +4814,23 @@ model solicitudes_compra {
 }
 
 model solicitudes_compra_detalle {
-  id_solicitud_compra_detalle Int                  @id @default(autoincrement())
+  id_solicitud_compra_detalle Int                @id @default(autoincrement())
   id_solicitud_compra         Int
-  solicitud_compra            solicitudes_compra   @relation(fields: [id_solicitud_compra], references: [id_solicitud_compra], onDelete: Cascade)
+  solicitud_compra            solicitudes_compra @relation(fields: [id_solicitud_compra], references: [id_solicitud_compra], onDelete: Cascade)
   id_catalogo                 Int?
-  catalogo                    catalogo?            @relation(fields: [id_catalogo], references: [id_catalogo])
+  catalogo                    catalogo?          @relation(fields: [id_catalogo], references: [id_catalogo])
   codigo                      String?
   nombre                      String
-  descripcion                 String?              @db.Text
-  tiene_serie                 Boolean              @default(false)
-  afecta_inventario           Boolean              @default(true)
+  descripcion                 String?            @db.Text
+  tiene_serie                 Boolean            @default(false)
+  afecta_inventario           Boolean            @default(true)
   cantidad_solicitada         Float
   cantidad_aprobada           Float?
   costo_estimado              Float?
   observaciones               String?
 
   // Relaciones
-  cotizaciones_detalle        cotizaciones_compra_detalle[]
+  cotizaciones_detalle cotizaciones_compra_detalle[]
 
   @@index([id_solicitud_compra])
   @@index([id_catalogo])
@@ -4835,37 +4841,37 @@ model solicitudes_compra_detalle {
 // ============================================
 
 model cotizaciones_compra {
-  id_cotizacion_compra        Int                       @id @default(autoincrement())
-  id_solicitud_compra         Int
-  solicitud_compra            solicitudes_compra        @relation(fields: [id_solicitud_compra], references: [id_solicitud_compra], onDelete: NoAction, onUpdate: NoAction, map: "fk_cotizacion_compra_solicitud")
-  id_proveedor                Int
-  proveedor                   proveedores               @relation(fields: [id_proveedor], references: [id_proveedor], onDelete: NoAction, onUpdate: NoAction, map: "fk_cotizacion_compra_proveedor")
-  estado                      estado_cotizacion_compra  @default(PENDIENTE)
-  numero_cotizacion           String?
-  fecha_cotizacion            DateTime?
-  fecha_vencimiento           DateTime?
-  condiciones_pago            String?
-  dias_credito                Int?
-  dias_entrega                Int?
-  moneda                      String                    @default("USD")
-  subtotal                    Float?                    @default(0)
-  descuento                   Float?                    @default(0)
-  iva                         Float?                    @default(0)
-  total                       Float?                    @default(0)
-  observaciones               String?                   @db.Text
-  archivo_cotizacion          String?
-  motivo_seleccion            String?                   @db.Text
-  id_usuario_registra         Int
-  usuario_registra            usuarios                  @relation("usuario_registra_cotizacion_compra", fields: [id_usuario_registra], references: [id_usuario])
-  id_usuario_selecciona       Int?
-  usuario_selecciona          usuarios?                 @relation("usuario_selecciona_cotizacion_compra", fields: [id_usuario_selecciona], references: [id_usuario])
-  fecha_seleccion             DateTime?
-  fecha_creacion              DateTime                  @default(now())
-  fecha_ultima_actualizacion  DateTime                  @updatedAt
+  id_cotizacion_compra       Int                      @id @default(autoincrement())
+  id_solicitud_compra        Int
+  solicitud_compra           solicitudes_compra       @relation(fields: [id_solicitud_compra], references: [id_solicitud_compra], onDelete: NoAction, onUpdate: NoAction, map: "fk_cotizacion_compra_solicitud")
+  id_proveedor               Int
+  proveedor                  proveedores              @relation(fields: [id_proveedor], references: [id_proveedor], onDelete: NoAction, onUpdate: NoAction, map: "fk_cotizacion_compra_proveedor")
+  estado                     estado_cotizacion_compra @default(PENDIENTE)
+  numero_cotizacion          String?
+  fecha_cotizacion           DateTime?
+  fecha_vencimiento          DateTime?
+  condiciones_pago           String?
+  dias_credito               Int?
+  dias_entrega               Int?
+  moneda                     String                   @default("USD")
+  subtotal                   Float?                   @default(0)
+  descuento                  Float?                   @default(0)
+  iva                        Float?                   @default(0)
+  total                      Float?                   @default(0)
+  observaciones              String?                  @db.Text
+  archivo_cotizacion         String?
+  motivo_seleccion           String?                  @db.Text
+  id_usuario_registra        Int
+  usuario_registra           usuarios                 @relation("usuario_registra_cotizacion_compra", fields: [id_usuario_registra], references: [id_usuario])
+  id_usuario_selecciona      Int?
+  usuario_selecciona         usuarios?                @relation("usuario_selecciona_cotizacion_compra", fields: [id_usuario_selecciona], references: [id_usuario])
+  fecha_seleccion            DateTime?
+  fecha_creacion             DateTime                 @default(now())
+  fecha_ultima_actualizacion DateTime                 @updatedAt
 
   // Relaciones
-  detalle                     cotizaciones_compra_detalle[]
-  ordenes_compra              ordenes_compra[]
+  detalle        cotizaciones_compra_detalle[]
+  ordenes_compra ordenes_compra[]
 
   @@index([id_solicitud_compra])
   @@index([id_proveedor])
@@ -4873,17 +4879,17 @@ model cotizaciones_compra {
 }
 
 model cotizaciones_compra_detalle {
-  id_cotizacion_compra_detalle Int                         @id @default(autoincrement())
+  id_cotizacion_compra_detalle Int                        @id @default(autoincrement())
   id_cotizacion_compra         Int
-  cotizacion_compra            cotizaciones_compra         @relation(fields: [id_cotizacion_compra], references: [id_cotizacion_compra], onDelete: Cascade)
+  cotizacion_compra            cotizaciones_compra        @relation(fields: [id_cotizacion_compra], references: [id_cotizacion_compra], onDelete: Cascade)
   id_solicitud_compra_detalle  Int
-  solicitud_compra_detalle     solicitudes_compra_detalle  @relation(fields: [id_solicitud_compra_detalle], references: [id_solicitud_compra_detalle], onDelete: NoAction, onUpdate: NoAction, map: "fk_cotizacion_detalle_solicitud_detalle")
-  costo_unitario               Float                       @default(0)
-  descuento_porcentaje         Float?                      @default(0)
-  descuento_monto              Float?                      @default(0)
-  subtotal                     Float?                      @default(0)
-  iva                          Float?                      @default(0)
-  total                        Float?                      @default(0)
+  solicitud_compra_detalle     solicitudes_compra_detalle @relation(fields: [id_solicitud_compra_detalle], references: [id_solicitud_compra_detalle], onDelete: NoAction, onUpdate: NoAction, map: "fk_cotizacion_detalle_solicitud_detalle")
+  costo_unitario               Float                      @default(0)
+  descuento_porcentaje         Float?                     @default(0)
+  descuento_monto              Float?                     @default(0)
+  subtotal                     Float?                     @default(0)
+  iva                          Float?                     @default(0)
+  total                        Float?                     @default(0)
   disponibilidad               String?
   observaciones                String?
 
@@ -4896,51 +4902,51 @@ model cotizaciones_compra_detalle {
 // ============================================
 
 model ordenes_compra {
-  id_orden_compra     Int                   @id @default(autoincrement())
-  codigo              String                @unique // OC-YYYYMM-#####
-  estado              estado_orden_compra   @default(BORRADOR)
+  id_orden_compra Int                 @id @default(autoincrement())
+  codigo          String              @unique // OC-YYYYMM-#####
+  estado          estado_orden_compra @default(BORRADOR)
 
   // Proveedor
-  id_proveedor        Int
-  proveedor           proveedores           @relation(fields: [id_proveedor], references: [id_proveedor], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_proveedor")
+  id_proveedor Int
+  proveedor    proveedores @relation(fields: [id_proveedor], references: [id_proveedor], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_proveedor")
 
   // Destino
-  id_sucursal         Int?
-  sucursal            sucursales?           @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_sucursal")
-  id_bodega           Int?
-  bodega              bodegas?              @relation(fields: [id_bodega], references: [id_bodega], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_bodega")
+  id_sucursal Int?
+  sucursal    sucursales? @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_sucursal")
+  id_bodega   Int?
+  bodega      bodegas?    @relation(fields: [id_bodega], references: [id_bodega], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_bodega")
 
   // Condiciones comerciales
-  id_forma_pago       Int?
-  forma_pago          dTEFormaPago?         @relation(fields: [id_forma_pago], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_forma_pago")
-  dias_credito        Int?                  @default(0)
-  moneda              String                @default("USD")
+  id_forma_pago Int?
+  forma_pago    dTEFormaPago? @relation(fields: [id_forma_pago], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_forma_pago")
+  dias_credito  Int?          @default(0)
+  moneda        String        @default("USD")
 
   // Totales (calculados server-side)
-  subtotal            Float?                @default(0)
-  descuento           Float?                @default(0)
-  iva                 Float?                @default(0)
-  total               Float?                @default(0)
+  subtotal  Float? @default(0)
+  descuento Float? @default(0)
+  iva       Float? @default(0)
+  total     Float? @default(0)
 
   // Usuarios workflow
-  id_usuario_crea     Int
-  usuario_crea        usuarios              @relation("usuario_crea_orden_compra", fields: [id_usuario_crea], references: [id_usuario])
-  id_usuario_aprueba  Int?
-  usuario_aprueba     usuarios?             @relation("usuario_aprueba_orden_compra", fields: [id_usuario_aprueba], references: [id_usuario])
+  id_usuario_crea      Int
+  usuario_crea         usuarios  @relation("usuario_crea_orden_compra", fields: [id_usuario_crea], references: [id_usuario])
+  id_usuario_aprueba   Int?
+  usuario_aprueba      usuarios? @relation("usuario_aprueba_orden_compra", fields: [id_usuario_aprueba], references: [id_usuario])
   id_usuario_encargado Int?
-  usuario_encargado   usuarios?             @relation("usuario_encargado_orden_compra", fields: [id_usuario_encargado], references: [id_usuario])
+  usuario_encargado    usuarios? @relation("usuario_encargado_orden_compra", fields: [id_usuario_encargado], references: [id_usuario])
 
   // Observaciones workflow
-  motivo              String?               @db.Text
-  observaciones       String?               @db.Text
-  observaciones_aprobacion String?           @db.Text
-  motivo_rechazo      String?               @db.Text
+  motivo                   String? @db.Text
+  observaciones            String? @db.Text
+  observaciones_aprobacion String? @db.Text
+  motivo_rechazo           String? @db.Text
 
   // Fechas workflow
-  fecha_emision           DateTime?
-  fecha_aprobacion        DateTime?
-  fecha_entrega_esperada  DateTime?
-  fecha_cierre            DateTime?
+  fecha_emision          DateTime?
+  fecha_aprobacion       DateTime?
+  fecha_entrega_esperada DateTime?
+  fecha_cierre           DateTime?
 
   // Pago
   pago_registrado         Boolean   @default(false)
@@ -4951,18 +4957,18 @@ model ordenes_compra {
   fecha_pago              DateTime?
 
   // Timestamps
-  fecha_creacion             DateTime        @default(now())
-  fecha_ultima_actualizacion DateTime        @default(now()) @updatedAt
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 
   // Trazabilidad solicitud/cotización
-  id_solicitud_compra    Int?
-  solicitud_compra       solicitudes_compra?   @relation(fields: [id_solicitud_compra], references: [id_solicitud_compra], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_solicitud")
-  id_cotizacion_compra   Int?
-  cotizacion_compra      cotizaciones_compra?  @relation(fields: [id_cotizacion_compra], references: [id_cotizacion_compra], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_cotizacion")
+  id_solicitud_compra  Int?
+  solicitud_compra     solicitudes_compra?  @relation(fields: [id_solicitud_compra], references: [id_solicitud_compra], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_solicitud")
+  id_cotizacion_compra Int?
+  cotizacion_compra    cotizaciones_compra? @relation(fields: [id_cotizacion_compra], references: [id_cotizacion_compra], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_cotizacion")
 
   // Relaciones
-  detalle             ordenes_compra_detalle[]
-  compras             compras[]
+  detalle ordenes_compra_detalle[]
+  compras compras[]
 
   @@index([estado])
   @@index([id_proveedor])
@@ -4973,33 +4979,33 @@ model ordenes_compra {
 }
 
 model ordenes_compra_detalle {
-  id_orden_compra_detalle Int              @id @default(autoincrement())
+  id_orden_compra_detalle Int            @id @default(autoincrement())
   id_orden_compra         Int
-  orden_compra            ordenes_compra   @relation(fields: [id_orden_compra], references: [id_orden_compra], onDelete: Cascade)
+  orden_compra            ordenes_compra @relation(fields: [id_orden_compra], references: [id_orden_compra], onDelete: Cascade)
 
-  id_catalogo             Int?
-  catalogo                catalogo?        @relation(fields: [id_catalogo], references: [id_catalogo])
+  id_catalogo Int?
+  catalogo    catalogo? @relation(fields: [id_catalogo], references: [id_catalogo])
 
-  codigo                  String?          @db.Text
-  nombre                  String
-  descripcion             String?          @db.Text
-  tiene_serie             Boolean          @default(false)
-  afecta_inventario       Boolean          @default(true)
+  codigo            String? @db.Text
+  nombre            String
+  descripcion       String? @db.Text
+  tiene_serie       Boolean @default(false)
+  afecta_inventario Boolean @default(true)
 
-  cantidad_ordenada       Float            @default(0)
-  cantidad_recibida       Float            @default(0)
+  cantidad_ordenada Float @default(0)
+  cantidad_recibida Float @default(0)
 
-  costo_unitario          Float?           @default(0)
-  subtotal                Float?           @default(0)
-  descuento_porcentaje    Float?           @default(0)
-  descuento_monto         Float?           @default(0)
-  iva                     Float?           @default(0)
-  total                   Float?           @default(0)
+  costo_unitario       Float? @default(0)
+  subtotal             Float? @default(0)
+  descuento_porcentaje Float? @default(0)
+  descuento_monto      Float? @default(0)
+  iva                  Float? @default(0)
+  total                Float? @default(0)
 
-  observaciones           String?
+  observaciones String?
 
-  fecha_creacion             DateTime      @default(now())
-  fecha_ultima_actualizacion DateTime      @default(now()) @updatedAt
+  fecha_creacion             DateTime @default(now())
+  fecha_ultima_actualizacion DateTime @default(now()) @updatedAt
 
   @@index([id_orden_compra])
   @@index([id_catalogo])
@@ -5058,31 +5064,31 @@ model pago_tarjeta_intent {
 // =============================================================
 
 model caja_movimiento {
-  id_movimiento_caja         Int                @id @default(autoincrement())
+  id_movimiento_caja Int @id @default(autoincrement())
 
   // === USUARIO QUE REGISTRÓ EL COBRO ===
-  id_usuario                 Int
-  usuario                    usuarios           @relation("caja_movimiento_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_caja_movimiento_usuario")
+  id_usuario Int
+  usuario    usuarios @relation("caja_movimiento_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_caja_movimiento_usuario")
 
   // === CLIENTE QUE PAGÓ ===
-  id_cliente                 Int
-  cliente                    cliente            @relation(fields: [id_cliente], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_caja_movimiento_cliente")
+  id_cliente Int
+  cliente    cliente @relation(fields: [id_cliente], references: [id_cliente], onDelete: NoAction, onUpdate: NoAction, map: "fk_caja_movimiento_cliente")
 
   // === DATOS DEL MOVIMIENTO ===
-  monto                      Decimal            @db.Decimal(12, 2)
-  metodo_pago                metodo_pago_abono
-  fecha_hora                 DateTime           @default(now())
+  monto       Decimal           @db.Decimal(12, 2)
+  metodo_pago metodo_pago_abono
+  fecha_hora  DateTime          @default(now())
 
   // === REFERENCIA AL ABONO ===
-  id_abono_cxc               Int                @unique
-  abonoCxc                   abono_cxc          @relation(fields: [id_abono_cxc], references: [id_abono], onDelete: NoAction, onUpdate: NoAction, map: "fk_caja_movimiento_abono")
+  id_abono_cxc Int       @unique
+  abonoCxc     abono_cxc @relation(fields: [id_abono_cxc], references: [id_abono], onDelete: NoAction, onUpdate: NoAction, map: "fk_caja_movimiento_abono")
 
   // === CIERRES (NULL = PENDIENTE) ===
-  id_cierre_usuario          Int?
-  cierreUsuario              cierre_usuario?    @relation(fields: [id_cierre_usuario], references: [id_cierre_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_caja_movimiento_cierre_usuario")
+  id_cierre_usuario Int?
+  cierreUsuario     cierre_usuario? @relation(fields: [id_cierre_usuario], references: [id_cierre_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_caja_movimiento_cierre_usuario")
 
-  id_cierre_diario           Int?
-  cierreDiario               cierre_diario?     @relation(fields: [id_cierre_diario], references: [id_cierre_diario], onDelete: NoAction, onUpdate: NoAction, map: "fk_caja_movimiento_cierre_diario")
+  id_cierre_diario Int?
+  cierreDiario     cierre_diario? @relation(fields: [id_cierre_diario], references: [id_cierre_diario], onDelete: NoAction, onUpdate: NoAction, map: "fk_caja_movimiento_cierre_diario")
 
   // === ÍNDICES ===
   @@index([id_usuario])
@@ -5093,25 +5099,25 @@ model caja_movimiento {
 }
 
 model cierre_usuario {
-  id_cierre_usuario          Int                @id @default(autoincrement())
+  id_cierre_usuario Int @id @default(autoincrement())
 
   // === USUARIO ===
-  id_usuario                 Int
-  usuario                    usuarios           @relation("cierre_usuario_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cierre_usuario_usuario")
+  id_usuario Int
+  usuario    usuarios @relation("cierre_usuario_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cierre_usuario_usuario")
 
   // === DATOS DEL CIERRE ===
-  fecha_hora                 DateTime           @default(now())
-  total_efectivo             Decimal            @default(0) @db.Decimal(12, 2)
-  total_cheque               Decimal            @default(0) @db.Decimal(12, 2)
-  total_transferencia        Decimal            @default(0) @db.Decimal(12, 2)
-  total_deposito             Decimal            @default(0) @db.Decimal(12, 2)
-  total_tarjeta              Decimal            @default(0) @db.Decimal(12, 2)
-  total_otro                 Decimal            @default(0) @db.Decimal(12, 2)
-  total_general              Decimal            @default(0) @db.Decimal(12, 2)
-  estado                     estado_cierre      @default(CERRADO)
+  fecha_hora          DateTime      @default(now())
+  total_efectivo      Decimal       @default(0) @db.Decimal(12, 2)
+  total_cheque        Decimal       @default(0) @db.Decimal(12, 2)
+  total_transferencia Decimal       @default(0) @db.Decimal(12, 2)
+  total_deposito      Decimal       @default(0) @db.Decimal(12, 2)
+  total_tarjeta       Decimal       @default(0) @db.Decimal(12, 2)
+  total_otro          Decimal       @default(0) @db.Decimal(12, 2)
+  total_general       Decimal       @default(0) @db.Decimal(12, 2)
+  estado              estado_cierre @default(CERRADO)
 
   // === MOVIMIENTOS ===
-  movimientos                caja_movimiento[]
+  movimientos caja_movimiento[]
 
   // === ÍNDICES ===
   @@index([id_usuario])
@@ -5119,25 +5125,25 @@ model cierre_usuario {
 }
 
 model cierre_diario {
-  id_cierre_diario           Int                @id @default(autoincrement())
+  id_cierre_diario Int @id @default(autoincrement())
 
   // === CREADOR ===
-  id_creado_por              Int
-  creadoPor                  usuarios           @relation("cierre_diario_creado_por", fields: [id_creado_por], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cierre_diario_creado_por")
+  id_creado_por Int
+  creadoPor     usuarios @relation("cierre_diario_creado_por", fields: [id_creado_por], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cierre_diario_creado_por")
 
   // === DATOS DEL CIERRE ===
-  fecha_hora                 DateTime           @default(now())
-  total_efectivo             Decimal            @default(0) @db.Decimal(12, 2)
-  total_cheque               Decimal            @default(0) @db.Decimal(12, 2)
-  total_transferencia        Decimal            @default(0) @db.Decimal(12, 2)
-  total_deposito             Decimal            @default(0) @db.Decimal(12, 2)
-  total_tarjeta              Decimal            @default(0) @db.Decimal(12, 2)
-  total_otro                 Decimal            @default(0) @db.Decimal(12, 2)
-  total_general              Decimal            @default(0) @db.Decimal(12, 2)
-  estado                     estado_cierre      @default(CERRADO)
+  fecha_hora          DateTime      @default(now())
+  total_efectivo      Decimal       @default(0) @db.Decimal(12, 2)
+  total_cheque        Decimal       @default(0) @db.Decimal(12, 2)
+  total_transferencia Decimal       @default(0) @db.Decimal(12, 2)
+  total_deposito      Decimal       @default(0) @db.Decimal(12, 2)
+  total_tarjeta       Decimal       @default(0) @db.Decimal(12, 2)
+  total_otro          Decimal       @default(0) @db.Decimal(12, 2)
+  total_general       Decimal       @default(0) @db.Decimal(12, 2)
+  estado              estado_cierre @default(CERRADO)
 
   // === MOVIMIENTOS ===
-  movimientos                caja_movimiento[]
+  movimientos caja_movimiento[]
 
   // === ÍNDICES ===
   @@index([id_creado_por])
@@ -5147,13 +5153,13 @@ model cierre_diario {
 // ============= MÓDULO PUNTOXPRESS (INTEGRADORES EXTERNOS) =============
 
 model puntoxpress_integrador {
-  id_integrador       Int       @id @default(autoincrement())
-  nombre              String    @unique
-  usuario             String    @unique
+  id_integrador       Int      @id @default(autoincrement())
+  nombre              String   @unique
+  usuario             String   @unique
   password_hash       String
-  activo              Boolean   @default(true)
-  fecha_creacion      DateTime  @default(now())
-  fecha_actualizacion DateTime  @default(now()) @updatedAt
+  activo              Boolean  @default(true)
+  fecha_creacion      DateTime @default(now())
+  fecha_actualizacion DateTime @default(now()) @updatedAt
 
   @@index([usuario])
   @@map("punto_express_integrador")
@@ -5177,123 +5183,123 @@ model puntoxpress_legacy_log {
 // ============= MÓDULO OLT (INFRAESTRUCTURA FTTH) =============
 
 model olt_equipo {
-  id_olt_equipo  Int              @id @default(autoincrement())
-  nombre         String           @db.VarChar(50)
-  ip_address     String           @db.VarChar(50)
-  id_sucursal    Int?
-  sucursal       sucursales?      @relation(fields: [id_sucursal], references: [id_sucursal])
-  tarjetas       olt_tarjeta[]
-  credencial     olt_credencial?
-  comandos       olt_comando[]
-  legacy_id      Int?             @unique
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id_olt_equipo Int             @id @default(autoincrement())
+  nombre        String          @db.VarChar(50)
+  ip_address    String          @db.VarChar(50)
+  id_sucursal   Int?
+  sucursal      sucursales?     @relation(fields: [id_sucursal], references: [id_sucursal])
+  tarjetas      olt_tarjeta[]
+  credencial    olt_credencial?
+  comandos      olt_comando[]
+  legacy_id     Int?            @unique
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 }
 
 model olt_marca {
-  id_olt_marca   Int              @id @default(autoincrement())
-  nombre         String           @db.VarChar(25)
-  modelos        olt_modelo[]
-  legacy_id      Int?             @unique
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id_olt_marca Int          @id @default(autoincrement())
+  nombre       String       @db.VarChar(25)
+  modelos      olt_modelo[]
+  legacy_id    Int?         @unique
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 }
 
 model olt_modelo {
-  id_olt_modelo     Int           @id @default(autoincrement())
-  id_olt_marca      Int
-  marca             olt_marca     @relation(fields: [id_olt_marca], references: [id_olt_marca])
-  nombre            String        @db.VarChar(20)
-  srvprofile_olt    String?       @db.VarChar(45)
-  asignaciones      olt_cliente[]
-  legacy_id         Int?          @unique
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id_olt_modelo  Int           @id @default(autoincrement())
+  id_olt_marca   Int
+  marca          olt_marca     @relation(fields: [id_olt_marca], references: [id_olt_marca])
+  nombre         String        @db.VarChar(20)
+  srvprofile_olt String?       @db.VarChar(45)
+  asignaciones   olt_cliente[]
+  legacy_id      Int?          @unique
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 }
 
 model olt_tarjeta {
-  id_olt_tarjeta Int              @id @default(autoincrement())
+  id_olt_tarjeta Int           @id @default(autoincrement())
   id_olt_equipo  Int
-  equipo         olt_equipo       @relation(fields: [id_olt_equipo], references: [id_olt_equipo])
-  nombre         String           @db.VarChar(50)
+  equipo         olt_equipo    @relation(fields: [id_olt_equipo], references: [id_olt_equipo])
+  nombre         String        @db.VarChar(50)
   slot           Int
-  modelo         String?          @db.VarChar(50)
+  modelo         String?       @db.VarChar(50)
   asignaciones   olt_cliente[]
-  legacy_id      Int?             @unique
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  legacy_id      Int?          @unique
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 }
 
 model olt_perfil_trafico {
-  id_olt_perfil_trafico Int       @id @default(autoincrement())
-  nombre                String    @db.VarChar(30)
+  id_olt_perfil_trafico Int      @id @default(autoincrement())
+  nombre                String   @db.VarChar(30)
   cir                   Int
   cbs                   Int
   pir                   Int
   pbs                   Int
-  legacy_id             Int?      @unique
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  legacy_id             Int?     @unique
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
 model olt_red {
-  id_olt_red     Int              @id @default(autoincrement())
-  network        String           @db.VarChar(15)
-  netmask        String           @db.VarChar(15)
-  cidr           Int
-  gateway        String           @db.VarChar(15)
-  pri_dns        String?          @db.VarChar(15)
-  slv_dns        String?          @db.VarChar(15)
-  proposito      String?          @db.VarChar(255)
-  ips            olt_cliente_ip[]
-  legacy_id      Int?             @unique
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id_olt_red Int              @id @default(autoincrement())
+  network    String           @db.VarChar(15)
+  netmask    String           @db.VarChar(15)
+  cidr       Int
+  gateway    String           @db.VarChar(15)
+  pri_dns    String?          @db.VarChar(15)
+  slv_dns    String?          @db.VarChar(15)
+  proposito  String?          @db.VarChar(255)
+  ips        olt_cliente_ip[]
+  legacy_id  Int?             @unique
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
 }
 
 model olt_cliente {
-  id_olt_cliente          Int       @id @default(autoincrement())
-  id_cliente              Int?
-  cliente                 cliente?  @relation(fields: [id_cliente], references: [id_cliente])
-  id_olt_tarjeta          Int
-  tarjeta                 olt_tarjeta @relation(fields: [id_olt_tarjeta], references: [id_olt_tarjeta])
-  port                    Int
-  ont                     Int
-  ont_status              Int       @default(0)
-  serviceport             Int
-  serviceport_status      Int       @default(0)
-  id_olt_modelo           Int?
-  modelo                  olt_modelo? @relation(fields: [id_olt_modelo], references: [id_olt_modelo])
-  sn                      String?   @db.VarChar(30)
-  password                String?   @db.VarChar(15)
-  fecha_activacion        DateTime?
-  vlan                    Int?
-  user_vlan               Int?
-  serviceport_tr069       Int?
-  serviceport_iptv        Int?
-  serviceport_voip        Int?
-  legacy_id               Int?      @unique
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+  id_olt_cliente     Int         @id @default(autoincrement())
+  id_cliente         Int?
+  cliente            cliente?    @relation(fields: [id_cliente], references: [id_cliente])
+  id_olt_tarjeta     Int
+  tarjeta            olt_tarjeta @relation(fields: [id_olt_tarjeta], references: [id_olt_tarjeta])
+  port               Int
+  ont                Int
+  ont_status         Int         @default(0)
+  serviceport        Int
+  serviceport_status Int         @default(0)
+  id_olt_modelo      Int?
+  modelo             olt_modelo? @relation(fields: [id_olt_modelo], references: [id_olt_modelo])
+  sn                 String?     @db.VarChar(30)
+  password           String?     @db.VarChar(15)
+  fecha_activacion   DateTime?
+  vlan               Int?
+  user_vlan          Int?
+  serviceport_tr069  Int?
+  serviceport_iptv   Int?
+  serviceport_voip   Int?
+  legacy_id          Int?        @unique
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
   @@index([id_cliente])
   @@index([serviceport])
 }
 
 model olt_cliente_ip {
-  id_olt_cliente_ip Int            @id @default(autoincrement())
+  id_olt_cliente_ip Int      @id @default(autoincrement())
   id_cliente        Int?
-  cliente           cliente?       @relation(fields: [id_cliente], references: [id_cliente])
+  cliente           cliente? @relation(fields: [id_cliente], references: [id_cliente])
   id_olt_red        Int
-  red               olt_red        @relation(fields: [id_olt_red], references: [id_olt_red])
-  ip                String         @db.VarChar(15)
+  red               olt_red  @relation(fields: [id_olt_red], references: [id_olt_red])
+  ip                String   @db.VarChar(15)
   long_code         BigInt?
-  selected_pri_dns  String?        @db.VarChar(15)
-  selected_slv_dns  String?        @db.VarChar(15)
-  is_reserved       Boolean        @default(false)
-  legacy_id         Int?           @unique
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  selected_pri_dns  String?  @db.VarChar(15)
+  selected_slv_dns  String?  @db.VarChar(15)
+  is_reserved       Boolean  @default(false)
+  legacy_id         Int?     @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@index([id_cliente])
 }
@@ -5314,32 +5320,32 @@ model olt_cliente_telefono {
 // ============= OLT - GESTIÓN OPERATIVA =============
 
 model olt_credencial {
-  id_olt_credencial  Int        @id @default(autoincrement())
-  id_olt_equipo      Int        @unique
-  equipo             olt_equipo @relation(fields: [id_olt_equipo], references: [id_olt_equipo])
-  ssh_usuario        String     @db.VarChar(100)
-  ssh_password       String     @db.VarChar(255)
-  ssh_puerto         Int        @default(22)
-  prompt_pattern     String     @default("OLT1-Newtel>") @db.VarChar(100)
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  id_olt_credencial Int        @id @default(autoincrement())
+  id_olt_equipo     Int        @unique
+  equipo            olt_equipo @relation(fields: [id_olt_equipo], references: [id_olt_equipo])
+  ssh_usuario       String     @db.VarChar(100)
+  ssh_password      String     @db.VarChar(255)
+  ssh_puerto        Int        @default(22)
+  prompt_pattern    String     @default("OLT1-Newtel>") @db.VarChar(100)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
 }
 
 model olt_comando {
-  id_olt_comando   Int       @id @default(autoincrement())
-  id_olt_equipo    Int
-  equipo           olt_equipo @relation(fields: [id_olt_equipo], references: [id_olt_equipo])
-  id_cliente       Int?
-  cliente          cliente?  @relation(fields: [id_cliente], references: [id_cliente])
-  tipo_operacion   String    @db.VarChar(30)
-  comando          String    @db.Text
-  estado           Int       @default(0)
-  respuesta        String?   @db.Text
-  error_mensaje    String?   @db.Text
-  id_usuario       Int
-  usuario          usuarios  @relation(fields: [id_usuario], references: [id_usuario])
-  createdAt        DateTime  @default(now())
-  ejecutadoAt      DateTime?
+  id_olt_comando Int        @id @default(autoincrement())
+  id_olt_equipo  Int
+  equipo         olt_equipo @relation(fields: [id_olt_equipo], references: [id_olt_equipo])
+  id_cliente     Int?
+  cliente        cliente?   @relation(fields: [id_cliente], references: [id_cliente])
+  tipo_operacion String     @db.VarChar(30)
+  comando        String     @db.Text
+  estado         Int        @default(0)
+  respuesta      String?    @db.Text
+  error_mensaje  String?    @db.Text
+  id_usuario     Int
+  usuario        usuarios   @relation(fields: [id_usuario], references: [id_usuario])
+  createdAt      DateTime   @default(now())
+  ejecutadoAt    DateTime?
 
   @@index([estado])
   @@index([id_cliente])
@@ -5361,4 +5367,69 @@ model olt_cambio_equipo {
   createdAt            DateTime @default(now())
 
   @@index([id_cliente])
+}
+
+// =====================================================
+// MÓDULO DE COBRANZA Y RECUPERACIÓN DE MORA
+// =====================================================
+
+enum estado_asignacion_cobranza {
+  ACTIVA
+  REASIGNADA
+  CERRADA_PAGADA
+  CERRADA_INCOBRABLE
+}
+
+enum bucket_mora {
+  DIAS_1_30
+  DIAS_31_60
+  DIAS_61_90
+  DIAS_91_MAS
+}
+
+enum tipo_nota_cobranza {
+  CONTACTO_WHATSAPP
+  LLAMADA_REALIZADA
+  VISITA_TECNICA
+  PROMESA_PAGO
+  OTRO
+}
+
+model cobranza_asignacion {
+  id_asignacion        Int                        @id @default(autoincrement())
+  id_factura_directa   Int
+  facturaDirecta       facturaDirecta             @relation(fields: [id_factura_directa], references: [id_factura_directa], onDelete: NoAction, onUpdate: NoAction, map: "fk_cobranza_asig_factura")
+  id_ciclo             Int
+  ciclo                atcCicloFacturacion        @relation(fields: [id_ciclo], references: [id_ciclo], onDelete: NoAction, onUpdate: NoAction, map: "fk_cobranza_asig_ciclo")
+  id_gestor            Int
+  gestor               usuarios                   @relation("cobranza_gestor", fields: [id_gestor], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cobranza_asig_gestor")
+  id_usuario_asignador Int
+  asignador            usuarios                   @relation("cobranza_asignador", fields: [id_usuario_asignador], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cobranza_asig_asignador")
+  estado               estado_asignacion_cobranza @default(ACTIVA)
+  bucket_inicial       bucket_mora
+  fecha_asignacion     DateTime                   @default(now())
+  fecha_cierre         DateTime?
+  motivo_cierre        String?                    @db.Text
+  notas                cobranza_nota[]
+
+  @@index([id_factura_directa])
+  @@index([id_gestor, estado])
+  @@index([id_ciclo])
+  @@index([estado])
+}
+
+model cobranza_nota {
+  id_nota        Int                 @id @default(autoincrement())
+  id_asignacion  Int
+  asignacion     cobranza_asignacion @relation(fields: [id_asignacion], references: [id_asignacion], onDelete: Cascade, onUpdate: NoAction, map: "fk_cobranza_nota_asig")
+  tipo           tipo_nota_cobranza
+  descripcion    String              @db.Text
+  fecha_promesa  DateTime?
+  monto_promesa  Decimal?            @db.Decimal(12, 2)
+  id_usuario     Int
+  usuario        usuarios            @relation("cobranza_nota_usuario", fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_cobranza_nota_usuario")
+  fecha_creacion DateTime            @default(now())
+
+  @@index([id_asignacion])
+  @@index([fecha_creacion])
 }
