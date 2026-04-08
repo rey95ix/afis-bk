@@ -1361,6 +1361,11 @@ export class ContratoPagosService {
     const estadoDteAnterior = factura.estado_dte;
 
     await this.prisma.$transaction(async (tx) => {
+      // Eliminar asignaciones de cobranza (FK NoAction; cobranza_nota cascadea)
+      await tx.cobranza_asignacion.deleteMany({
+        where: { id_factura_directa: idFactura },
+      });
+
       // Eliminar cuenta por cobrar (no tiene cascada)
       if (cxc) {
         await tx.cuenta_por_cobrar.delete({
@@ -1377,7 +1382,7 @@ export class ContratoPagosService {
     await this.prisma.logAction(
       'ELIMINAR_FACTURA',
       idUsuario,
-      `Factura ${numeroFactura} (id #${idFactura}, estado_dte: ${estadoDteAnterior}) eliminada junto con su detalle y cuenta por cobrar`,
+      `Factura ${numeroFactura} (id #${idFactura}, estado_dte: ${estadoDteAnterior}) eliminada junto con su detalle, cuenta por cobrar y asignaciones de cobranza`,
     );
 
     return {

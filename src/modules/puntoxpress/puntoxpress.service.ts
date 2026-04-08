@@ -172,17 +172,17 @@ export class PuntoXpressService {
     const resultado = await this.prisma.$transaction(
       async (tx) => {
         // Re-validar regla "factura más antigua primero" dentro de la transacción
-        const cxcMasAntigua = await tx.cuenta_por_cobrar.findFirst({
+        const cxcQueVencePrimero = await tx.cuenta_por_cobrar.findFirst({
           where: {
             id_cliente: idCliente,
             estado: { in: ['PENDIENTE', 'PAGADA_PARCIAL', 'VENCIDA'] },
           },
-          orderBy: { fecha_emision: 'asc' },
+          orderBy: { fecha_vencimiento: 'asc' },
         });
 
-        if (cxcMasAntigua && cxcMasAntigua.id_cxc !== cxc.id_cxc) {
+        if (cxcQueVencePrimero && cxcQueVencePrimero.id_cxc !== cxc.id_cxc) {
           throw new BadRequestException(
-            `Debe pagar primero la factura más antigua (CXC #${cxcMasAntigua.id_cxc})`,
+            `Debe pagar primero la factura que vence antes (CXC #${cxcQueVencePrimero.id_cxc})`,
           );
         }
 
