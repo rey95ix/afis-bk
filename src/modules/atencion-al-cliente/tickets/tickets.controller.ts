@@ -9,8 +9,11 @@ import {
   UseGuards,
   Request,
   ParseIntPipe,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { TicketsService } from './tickets.service';
+import { TicketsPdfService } from './tickets-pdf.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { QueryTicketDto } from './dto/query-ticket.dto';
@@ -32,7 +35,10 @@ import { RequirePermissions } from 'src/modules/auth/decorators/require-permissi
 @ApiBearerAuth(HEADER_API_BEARER_AUTH)
 @Auth()
 export class TicketsController {
-  constructor(private readonly ticketsService: TicketsService) {}
+  constructor(
+    private readonly ticketsService: TicketsService,
+    private readonly ticketsPdfService: TicketsPdfService,
+  ) {}
 
   @RequirePermissions('atencion_cliente.tickets:crear')
   @Post()
@@ -150,5 +156,28 @@ export class TicketsController {
     @Request() req,
   ) {
     return this.ticketsService.escalar(id, escalarDto, req.user.id_usuario);
+  }
+
+  @RequirePermissions('atencion_cliente.tickets:imprimir')
+  @Get(':id/pdf')
+  @ApiOperation({
+    summary: 'Generar comprobante PDF del ticket',
+    description:
+      'Genera un comprobante imprimible del ticket con los datos del cliente, dirección de servicio del contrato, fecha/hora del reporte y demás detalles del caso.',
+  })
+  @ApiParam({ name: 'id', description: 'ID del ticket', example: 1 })
+  @ApiResponse({ status: 200, description: 'PDF generado correctamente' })
+  @ApiResponse({ status: 404, description: 'Ticket no encontrado' })
+  async imprimirPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ): Promise<void> {
+    const buffer = await this.ticketsPdfService.generarPdf(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="Ticket_${id}.pdf"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 }

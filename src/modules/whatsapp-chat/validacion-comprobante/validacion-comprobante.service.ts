@@ -7,6 +7,10 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import * as ExcelJS from 'exceljs';
+import * as fs from 'fs';
+import * as path from 'path';
+import axios from 'axios';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MinioService } from '../../minio/minio.service';
 import { ComprobanteAnalyzerService } from './comprobante-analyzer.service';
@@ -639,10 +643,75 @@ export class ValidacionComprobanteService {
   }
 
   /**
-   * Listar validaciones con filtros y paginación
+   * Obtener cuentas bancarias activas de un banco
+   * @param id_banco ID del banco
    */
-  async findAll(query: QueryValidacionDto) {
-    const { estado, fecha_desde, fecha_hasta, banco, page = 1, limit = 20 } = query;
+  async getCuentasByBanco(id_banco: number) {
+    return this.prisma.cuenta_bancaria.findMany({
+      where: { id_banco, estado: 'ACTIVO' },
+      select: {
+        id_cuenta_bancaria: true,
+        numero_cuenta: true,
+        alias: true,
+        banco: { select: { id_banco: true, nombre: true } },
+      },
+      orderBy: { numero_cuenta: 'asc' },
+    });
+  }
+
+  /**
+   * Actualizar la cuenta bancaria destino de una validación pendiente o aprobada
+   * @param id ID de la validación
+   * @param id_cuenta_bancaria ID de la cuenta bancaria destino
+   */
+  async actualizarCuentaBancaria(id: number, id_cuenta_bancaria: number) {
+    const validacion = await this.prisma.whatsapp_validacion_comprobante.findUnique({
+      where: { id_validacion: id },
+    });
+
+    if (!validacion) {
+      throw new NotFoundException('Validación no encontrada');
+    }
+
+    if (validacion.estado !== 'PENDIENTE' && validacion.estado !== 'APROBADO') {
+      throw new BadRequestException('Solo se puede actualizar la cuenta bancaria de validaciones pendientes o aprobadas');
+    }
+
+    const cuenta = await this.prisma.cuenta_bancaria.findUnique({
+      where: { id_cuenta_bancaria },
+      include: { banco: { select: { id_banco: true, nombre: true } } },
+    });
+
+    if (!cuenta) {
+      throw new NotFoundException('Cuenta bancaria no encontrada');
+    }
+
+    return this.prisma.whatsapp_validacion_comprobante.update({
+      where: { id_validacion: id },
+      data: {
+        id_cuenta_bancaria,
+        banco: cuenta.banco.nombre,
+        cuenta_destino: cuenta.numero_cuenta,
+      },
+      include: {
+        cuenta_bancaria_destino: {
+          select: {
+            id_cuenta_bancaria: true,
+            numero_cuenta: true,
+            alias: true,
+            banco: { select: { id_banco: true, nombre: true } },
+          },
+        },
+      },
+    });
+  }
+
+  /**
+   * Construye el where compartido entre findAll y generateExcel.
+   * Incluye búsqueda libre accent-insensitive sobre múltiples campos.
+   */
+  private async buildValidacionWhere(query: QueryValidacionDto): Promise<any> {
+    const { estado, fecha_desde, fecha_hasta, banco, search, monto_min, monto_max } = query;
 
     const where: any = {};
 
@@ -666,6 +735,42 @@ export class ValidacionComprobanteService {
     if (banco) {
       where.banco = { contains: banco, mode: 'insensitive' };
     }
+
+    if (monto_min !== undefined || monto_max !== undefined) {
+      where.monto = {};
+      if (monto_min !== undefined) where.monto.gte = monto_min;
+      if (monto_max !== undefined) where.monto.lte = monto_max;
+    }
+
+    if (search && search.trim()) {
+      const term = `%${search.trim()}%`;
+      const matches = await this.prisma.$queryRaw<{ id_validacion: number }[]>(Prisma.sql`
+        SELECT v.id_validacion
+        FROM whatsapp_validacion_comprobante v
+        LEFT JOIN whatsapp_chat c ON c.id_chat = v.id_chat
+        WHERE unaccent(COALESCE(v.nombre_cliente, '')) ILIKE unaccent(${term})
+           OR unaccent(COALESCE(v.nombre_titular, '')) ILIKE unaccent(${term})
+           OR unaccent(COALESCE(v.numero_referencia, '')) ILIKE unaccent(${term})
+           OR unaccent(COALESCE(v.cuenta_origen, '')) ILIKE unaccent(${term})
+           OR unaccent(COALESCE(v.cuenta_destino, '')) ILIKE unaccent(${term})
+           OR unaccent(COALESCE(c.nombre_cliente, '')) ILIKE unaccent(${term})
+           OR COALESCE(c.telefono_cliente, '') ILIKE ${term}
+      `);
+      const ids = matches.map((r) => r.id_validacion);
+      // Si no hay coincidencias, forzamos un set vacío sin perder paginación
+      where.id_validacion = { in: ids.length > 0 ? ids : [-1] };
+    }
+
+    return where;
+  }
+
+  /**
+   * Listar validaciones con filtros y paginación
+   */
+  async findAll(query: QueryValidacionDto) {
+    const { page = 1, limit = 20 } = query;
+
+    const where = await this.buildValidacionWhere(query);
 
     const [data, total] = await Promise.all([
       this.prisma.whatsapp_validacion_comprobante.findMany({
@@ -1106,29 +1211,7 @@ export class ValidacionComprobanteService {
    * Generar reporte Excel de validaciones con filtros
    */
   async generateExcel(query: QueryValidacionDto): Promise<Buffer> {
-    const { estado, fecha_desde, fecha_hasta, banco } = query;
-
-    const where: any = {};
-
-    if (estado) {
-      where.estado = estado;
-    }
-
-    if (fecha_desde || fecha_hasta) {
-      where.fecha_creacion = {};
-      if (fecha_desde) {
-        where.fecha_creacion.gte = new Date(fecha_desde);
-      }
-      if (fecha_hasta) {
-        const endDate = new Date(fecha_hasta);
-        endDate.setDate(endDate.getDate() + 1);
-        where.fecha_creacion.lt = endDate;
-      }
-    }
-
-    if (banco) {
-      where.banco = { contains: banco, mode: 'insensitive' };
-    }
+    const where = await this.buildValidacionWhere(query);
 
     const data = await this.prisma.whatsapp_validacion_comprobante.findMany({
       where,
@@ -1254,5 +1337,161 @@ export class ValidacionComprobanteService {
 
     const buffer = await workbook.xlsx.writeBuffer();
     return Buffer.from(buffer);
+  }
+
+  /**
+   * Generar reporte PDF de validaciones con filtros (via jsReport)
+   */
+  async generatePdf(query: QueryValidacionDto): Promise<Buffer> {
+    const where = await this.buildValidacionWhere(query);
+
+    const data = await this.prisma.whatsapp_validacion_comprobante.findMany({
+      where,
+      include: {
+        chat: { select: { nombre_cliente: true } },
+        usuario_envia: { select: { nombres: true, apellidos: true } },
+        usuario_aplica: { select: { nombres: true, apellidos: true } },
+        cuenta_bancaria_destino: {
+          select: {
+            numero_cuenta: true,
+            alias: true,
+            banco: { select: { nombre: true } },
+          },
+        },
+      },
+      orderBy: { fecha_creacion: 'desc' },
+    });
+
+    // Cargar plantilla HTML
+    const templatePath = path.join(
+      process.cwd(),
+      'templates/whatsapp-validaciones/validacion-comprobantes.html',
+    );
+
+    if (!fs.existsSync(templatePath)) {
+      throw new BadRequestException('Plantilla de PDF no encontrada');
+    }
+
+    const templateHtml = fs.readFileSync(templatePath, 'utf-8');
+
+    // Preparar datos para el template
+    const formatFecha = (fecha: Date | string | null) => {
+      if (!fecha) return '';
+      const d = new Date(fecha);
+      return d.toLocaleDateString('es-SV', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    };
+
+    const formatFechaHora = (fecha: Date | string | null) => {
+      if (!fecha) return '';
+      const d = new Date(fecha);
+      return d.toLocaleString('es-SV', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    };
+
+    const formatMonto = (monto: any) => {
+      const n = monto ? Number(monto) : 0;
+      return n.toLocaleString('es-SV', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    };
+
+    let montoTotal = 0;
+    const registros = data.map((r, idx) => {
+      const monto = r.monto ? Number(r.monto) : 0;
+      montoTotal += monto;
+
+      const bancoNombre =
+        r.cuenta_bancaria_destino?.banco?.nombre || r.banco || '';
+      const cuentaDestino = r.cuenta_bancaria_destino
+        ? `${r.cuenta_bancaria_destino.alias || ''} ${r.cuenta_bancaria_destino.numero_cuenta}`.trim()
+        : r.cuenta_destino || '';
+
+      return {
+        fila: idx + 1,
+        nombreCliente: r.nombre_cliente || '',
+        nombreTitular: r.nombre_titular || '',
+        numeroReferencia: r.numero_referencia || '',
+        banco: bancoNombre,
+        cuentaDestino,
+        monto: formatMonto(monto),
+        fechaTransaccion: r.fecha_transaccion || '',
+        reportadoPor: r.usuario_envia
+          ? `${r.usuario_envia.nombres} ${r.usuario_envia.apellidos}`.trim()
+          : '',
+        estado: r.estado || '',
+        gestorAplico: r.usuario_aplica
+          ? `${r.usuario_aplica.nombres} ${r.usuario_aplica.apellidos}`.trim()
+          : '',
+        fechaAplicacion: formatFechaHora(r.fecha_aplicacion),
+      };
+    });
+
+    const periodo =
+      query.fecha_desde && query.fecha_hasta
+        ? `${formatFecha(query.fecha_desde)} - ${formatFecha(query.fecha_hasta)}`
+        : query.fecha_desde
+          ? `Desde ${formatFecha(query.fecha_desde)}`
+          : query.fecha_hasta
+            ? `Hasta ${formatFecha(query.fecha_hasta)}`
+            : 'Todos los registros';
+
+    const templateData = {
+      registros,
+      totalRegistros: registros.length,
+      montoTotal: formatMonto(montoTotal),
+      periodo,
+      fechaGeneracion: new Date().toLocaleString('es-SV'),
+    };
+
+    // Enviar a jsReport
+    const API_REPORT =
+      process.env.API_REPORT || 'https://reports.edal.group/api/report';
+
+    try {
+      const response = await axios.post(
+        API_REPORT,
+        {
+          template: {
+            content: templateHtml,
+            engine: 'jsrender',
+            recipe: 'chrome-pdf',
+            chrome: {
+              landscape: true,
+              marginTop: '1cm',
+              marginBottom: '1cm',
+              marginLeft: '0.5cm',
+              marginRight: '0.5cm',
+            },
+          },
+          data: templateData,
+          options: {
+            reportName: `validaciones_comprobantes_${Date.now()}`,
+          },
+        },
+        {
+          responseType: 'arraybuffer',
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 60000,
+        },
+      );
+
+      return Buffer.from(response.data);
+    } catch (error) {
+      this.logger.error('Error generando PDF de validaciones:', {
+        message: error.message,
+        status: error.response?.status,
+      });
+      throw new BadRequestException('Error al generar el PDF. Intente nuevamente.');
+    }
   }
 }

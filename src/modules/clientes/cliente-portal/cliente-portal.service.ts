@@ -4,10 +4,12 @@ import { randomBytes } from 'crypto';
 import { metodo_pago_abono, cliente } from '@prisma/client';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { ContratoPagosService } from 'src/modules/facturacion/services/contrato-pagos.service';
+import { FacturaDirectaService } from 'src/modules/facturacion/factura-directa/factura-directa.service';
 import { PayWayService } from './payway.service';
 import { MailService } from 'src/modules/mail/mail.service';
 import type { PagoTarjetaPortalDto } from './dto/pago-tarjeta-portal.dto';
 import type { CrearPagoIntentDto } from './dto/crear-pago-intent.dto';
+import type { FacturaDetallePortal } from './interfaces/factura-detalle-portal.interface';
 
 @Injectable()
 export class ClientePortalService {
@@ -17,6 +19,7 @@ export class ClientePortalService {
     private prisma: PrismaService,
     private configService: ConfigService,
     private contratoPagosService: ContratoPagosService,
+    private facturaDirectaService: FacturaDirectaService,
     private payWayService: PayWayService,
     private mailService: MailService,
   ) {
@@ -268,6 +271,164 @@ export class ClientePortalService {
       ...proximaPendiente,
       ...pagadas.sort((a, b) => (b.numeroCuota ?? 0) - (a.numeroCuota ?? 0)),
     ];
+  }
+
+  async obtenerFacturaDetalle(
+    idCliente: number,
+    idContrato: number,
+    idFactura: number,
+  ): Promise<FacturaDetallePortal> {
+    // 1. Validar que el contrato pertenece al cliente
+    const contrato = await this.prisma.atcContrato.findFirst({
+      where: {
+        id_contrato: idContrato,
+        id_cliente: idCliente,
+      },
+      select: { id_contrato: true },
+    });
+
+    if (!contrato) {
+      throw new NotFoundException(`Contrato #${idContrato} no encontrado`);
+    }
+
+    // 2. Buscar factura filtrando también por contrato (anti-IDOR)
+    const factura = await this.prisma.facturaDirecta.findFirst({
+      where: {
+        id_factura_directa: idFactura,
+        id_contrato: idContrato,
+      },
+      include: {
+        tipoFactura: {
+          select: { id_tipo_factura: true, nombre: true, codigo: true },
+        },
+        metodoPago: {
+          select: { id_metodo_pago: true, nombre: true },
+        },
+        detalles: {
+          include: {
+            catalogo: {
+              select: { id_catalogo: true, codigo: true, nombre: true },
+            },
+          },
+          orderBy: { num_item: 'asc' },
+        },
+        cuenta_por_cobrar: true,
+      },
+    });
+
+    if (!factura) {
+      throw new NotFoundException(`Factura #${idFactura} no encontrada`);
+    }
+
+    const cxc = factura.cuenta_por_cobrar;
+    const montoAbonado = cxc ? Number(cxc.total_abonado) : 0;
+    const saldoPendiente = cxc
+      ? Number(cxc.saldo_pendiente)
+      : Number(factura.total);
+
+    // Recalcular VENCIDA igual que en el listado
+    let estadoPago: string = factura.estado_pago;
+    if (
+      factura.estado_pago === 'PENDIENTE' &&
+      factura.fecha_vencimiento &&
+      factura.fecha_vencimiento < new Date()
+    ) {
+      estadoPago = 'VENCIDA';
+    }
+
+    return {
+      idFactura: factura.id_factura_directa,
+      numeroFactura: factura.numero_factura || null,
+      fechaCreacion: factura.fecha_creacion.toISOString(),
+
+      clienteNombre: factura.cliente_nombre || null,
+      clienteNit: factura.cliente_nit || null,
+      clienteNrc: factura.cliente_nrc || null,
+      clienteDireccion: factura.cliente_direccion || null,
+      clienteTelefono: factura.cliente_telefono || null,
+      clienteCorreo: factura.cliente_correo || null,
+
+      subtotal: Number(factura.subtotal),
+      descuento: Number(factura.descuento),
+      totalGravada: Number(factura.totalGravada),
+      totalExenta: Number(factura.totalExenta),
+      totalNoSuj: Number(factura.totalNoSuj),
+      iva: Number(factura.iva),
+      total: Number(factura.total),
+      totalLetras: factura.total_letras || null,
+
+      condicionOperacion: factura.condicion_operacion,
+      metodoPago: factura.metodoPago?.nombre || null,
+
+      tipoFactura: factura.tipoFactura?.nombre || null,
+      tipoFacturaCodigo: factura.tipoFactura?.codigo || null,
+      estadoDte: factura.estado_dte,
+      codigoGeneracion: factura.codigo_generacion || null,
+      numeroControl: factura.numero_control || null,
+      selloRecepcion: factura.sello_recepcion || null,
+      fechaRecepcionMh: factura.fecha_recepcion_mh?.toISOString() || null,
+
+      estado: factura.estado,
+      estadoPago,
+      montoAbonado,
+      saldoPendiente,
+
+      numeroCuota: factura.numero_cuota,
+      totalCuotas: factura.total_cuotas,
+      periodoInicio: factura.periodo_inicio?.toISOString() || null,
+      periodoFin: factura.periodo_fin?.toISOString() || null,
+      fechaVencimiento: factura.fecha_vencimiento?.toISOString() || null,
+      esInstalacion: factura.es_instalacion,
+      montoMora: Number(factura.monto_mora),
+
+      detalles: factura.detalles.map((d) => ({
+        idDetalle: d.id_detalle,
+        numItem: d.num_item,
+        codigo: d.codigo || d.catalogo?.codigo || null,
+        nombre: d.nombre,
+        descripcion: d.descripcion || null,
+        cantidad: Number(d.cantidad),
+        precioUnitario: Number(d.precio_unitario),
+        ventaGravada: Number(d.venta_gravada),
+        ventaExenta: Number(d.venta_exenta),
+        ventaNoSujeto: Number(d.venta_nosujeto),
+        subtotal: Number(d.subtotal),
+        descuento: Number(d.descuento),
+        iva: Number(d.iva),
+        total: Number(d.total),
+      })),
+    };
+  }
+
+  async generarFacturaPdf(
+    idCliente: number,
+    idContrato: number,
+    idFactura: number,
+  ): Promise<{ pdf: Buffer; numeroFactura: string | null }> {
+    // 1. Validar ownership del contrato
+    const contrato = await this.prisma.atcContrato.findFirst({
+      where: { id_contrato: idContrato, id_cliente: idCliente },
+      select: { id_contrato: true },
+    });
+    if (!contrato) {
+      throw new NotFoundException(`Contrato #${idContrato} no encontrado`);
+    }
+
+    // 2. Validar que la factura pertenezca al contrato
+    const factura = await this.prisma.facturaDirecta.findFirst({
+      where: {
+        id_factura_directa: idFactura,
+        id_contrato: idContrato,
+      },
+      select: { id_factura_directa: true, numero_factura: true },
+    });
+    if (!factura) {
+      throw new NotFoundException(`Factura #${idFactura} no encontrada`);
+    }
+
+    // 3. Delegar generación al servicio de facturación
+    const pdf = await this.facturaDirectaService.generatePdf(idFactura);
+    return { pdf, numeroFactura: factura.numero_factura };
   }
 
   async crearPagoIntent(

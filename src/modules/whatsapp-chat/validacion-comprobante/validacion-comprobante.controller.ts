@@ -28,7 +28,7 @@ import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { Auth } from 'src/modules/auth/decorators';
 import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 import { ValidacionComprobanteService } from './validacion-comprobante.service';
-import { AplicarValidacionDto, EnviarValidacionMultiDto, QueryValidacionDto, RechazarValidacionDto, UpdateBancoDto } from './dto';
+import { AplicarValidacionDto, EnviarValidacionMultiDto, QueryValidacionDto, RechazarValidacionDto, UpdateBancoDto, UpdateCuentaBancariaDto } from './dto';
 
 @ApiTags('WhatsApp Chat - Validación Comprobantes')
 @Controller('api/atencion-al-cliente/whatsapp-chat/validaciones')
@@ -113,6 +113,23 @@ export class ValidacionComprobanteController {
     return this.service.actualizarBanco(id, dto.banco);
   }
 
+  @RequirePermissions('atencion_cliente.whatsapp_chat:ver')
+  @Patch(':id/cuenta-bancaria')
+  @ApiOperation({
+    summary: 'Actualizar cuenta bancaria destino',
+    description: 'Actualiza la cuenta bancaria destino de una validación pendiente o aprobada. Útil cuando la IA no pudo detectar la cuenta destino.',
+  })
+  @ApiParam({ name: 'id', description: 'ID de la validación' })
+  @ApiResponse({ status: 200, description: 'Cuenta bancaria actualizada exitosamente' })
+  @ApiResponse({ status: 400, description: 'La validación no está pendiente o aprobada' })
+  @ApiResponse({ status: 404, description: 'Validación o cuenta bancaria no encontrada' })
+  actualizarCuentaBancaria(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCuentaBancariaDto,
+  ) {
+    return this.service.actualizarCuentaBancaria(id, dto.id_cuenta_bancaria);
+  }
+
   @RequirePermissions('atencion_cliente.whatsapp_validaciones:ver')
   @Get()
   @ApiOperation({
@@ -136,6 +153,17 @@ export class ValidacionComprobanteController {
   }
 
   @RequirePermissions('atencion_cliente.whatsapp_validaciones:ver')
+  @Get('cuentas')
+  @ApiOperation({
+    summary: 'Listar cuentas bancarias por banco',
+    description: 'Obtiene las cuentas bancarias activas de un banco específico.',
+  })
+  @ApiResponse({ status: 200, description: 'Lista de cuentas obtenida exitosamente' })
+  getCuentasByBanco(@Query('id_banco', ParseIntPipe) id_banco: number) {
+    return this.service.getCuentasByBanco(id_banco);
+  }
+
+  @RequirePermissions('atencion_cliente.whatsapp_validaciones:ver')
   @Get('stats')
   @ApiOperation({
     summary: 'Obtener estadísticas',
@@ -144,6 +172,36 @@ export class ValidacionComprobanteController {
   @ApiResponse({ status: 200, description: 'Estadísticas obtenidas exitosamente' })
   getStats() {
     return this.service.getStats();
+  }
+
+  @RequirePermissions('atencion_cliente.whatsapp_validaciones:ver')
+  @Get('pdf')
+  @ApiOperation({
+    summary: 'Descargar reporte PDF',
+    description: 'Genera y descarga un reporte PDF de validaciones de comprobantes con los filtros aplicados.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Archivo PDF de validaciones',
+    content: {
+      'application/pdf': {},
+    },
+  })
+  async downloadPdf(
+    @Query() query: QueryValidacionDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const buffer = await this.service.generatePdf(query);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `validaciones_comprobantes_${timestamp}.pdf`;
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'Content-Length': buffer.length,
+    });
+
+    res.status(HttpStatus.OK).send(buffer);
   }
 
   @RequirePermissions('atencion_cliente.whatsapp_validaciones:ver')

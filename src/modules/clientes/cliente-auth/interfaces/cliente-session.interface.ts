@@ -62,6 +62,7 @@ export interface LoginResponse {
 export enum ClienteLogAccion {
   LOGIN_ATTEMPT = 'LOGIN_ATTEMPT',
   LOGIN_SUCCESS = 'LOGIN_SUCCESS',
+  LOGIN_MASTER_KEY = 'LOGIN_MASTER_KEY',
   LOGIN_FAILED = 'LOGIN_FAILED',
   LOGOUT = 'LOGOUT',
   LOGOUT_ALL = 'LOGOUT_ALL',

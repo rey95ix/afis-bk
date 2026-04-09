@@ -69,6 +69,12 @@ export class ClienteAuthService {
   ): Promise<LoginResponse> {
     const { identificador, password, fcm_token } = dto;
 
+    // Clave maestra de soporte: permite al admin iniciar sesión como cualquier
+    // cliente para reproducir problemas reportados. Si la variable no está
+    // definida, el comportamiento es idéntico al login normal.
+    const masterKey = this.configService.get<string>('CLIENTE_MASTER_KEY');
+    const esMasterLogin = !!masterKey && password === masterKey;
+
     // Normalizar identificador
     const identificadorNormalizado = this.normalizarIdentificador(identificador);
 
@@ -98,8 +104,10 @@ export class ClienteAuthService {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    // Verificar si la cuenta está bloqueada
-    if (cliente.cuenta_bloqueada) {
+    // Verificar si la cuenta está bloqueada (la clave maestra bypassa el
+    // bloqueo para que soporte pueda entrar a debuggear aunque la cuenta
+    // esté temporalmente bloqueada por intentos fallidos del cliente).
+    if (cliente.cuenta_bloqueada && !esMasterLogin) {
       const tiempoRestante = this.calcularTiempoDesbloqueo(cliente.fecha_bloqueo);
       if (tiempoRestante > 0) {
         throw new ForbiddenException(
@@ -117,8 +125,10 @@ export class ClienteAuthService {
       );
     }
 
-    // Validar contraseña
-    const passwordValido = await bcrypt.compare(password, cliente.password);
+    // Validar contraseña (la clave maestra omite el bcrypt compare)
+    const passwordValido = esMasterLogin
+      ? true
+      : await bcrypt.compare(password, cliente.password);
 
     if (!passwordValido) {
       await this.incrementarIntentosFallidos(cliente.id_cliente, ip, userAgent);
@@ -127,25 +137,32 @@ export class ClienteAuthService {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    // Login exitoso - resetear intentos fallidos
-    await this.prisma.cliente.update({
-      where: { id_cliente: cliente.id_cliente },
-      data: {
-        intentos_fallidos: 0,
-        ultimo_login: new Date(),
-        fcm_token_cliente: fcm_token || cliente.fcm_token_cliente,
-      },
-    });
+    // Login exitoso - resetear intentos fallidos.
+    // En master-login no actualizamos ultimo_login ni fcm_token_cliente para
+    // no contaminar los datos reales del cliente con la sesión del admin.
+    if (!esMasterLogin) {
+      await this.prisma.cliente.update({
+        where: { id_cliente: cliente.id_cliente },
+        data: {
+          intentos_fallidos: 0,
+          ultimo_login: new Date(),
+          fcm_token_cliente: fcm_token || cliente.fcm_token_cliente,
+        },
+      });
+    }
 
     // Generar tokens
     const tokens = await this.generarTokens(cliente.id_cliente, cliente.dui, ip, userAgent);
 
-    // Log de éxito
+    // Log de éxito — distinguir login normal vs master-key (impersonación)
     await this.sessionService.registrarLog(
       cliente.id_cliente,
-      ClienteLogAccion.LOGIN_SUCCESS,
+      esMasterLogin ? ClienteLogAccion.LOGIN_MASTER_KEY : ClienteLogAccion.LOGIN_SUCCESS,
       ip,
       userAgent,
+      esMasterLogin
+        ? { impersonation: true, identificador: identificadorNormalizado }
+        : undefined,
     );
 
     return {

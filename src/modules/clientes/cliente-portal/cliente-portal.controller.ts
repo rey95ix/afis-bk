@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Param, ParseIntPipe, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Param, ParseIntPipe, Body, Req, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { ClienteAuth } from '../cliente-auth/decorators/cliente-auth.decorator';
@@ -48,6 +49,48 @@ export class ClientePortalController {
       id,
     );
     return { data };
+  }
+
+  @Get('contratos/:id/facturas/:idFactura')
+  @ApiOperation({ summary: 'Detalle de una factura del contrato' })
+  @ApiParam({ name: 'id', type: Number })
+  @ApiParam({ name: 'idFactura', type: Number })
+  async getFacturaDetalle(
+    @GetCliente() cliente: ClienteAutenticado,
+    @Param('id', ParseIntPipe) idContrato: number,
+    @Param('idFactura', ParseIntPipe) idFactura: number,
+  ) {
+    const data = await this.portalService.obtenerFacturaDetalle(
+      cliente.id_cliente,
+      idContrato,
+      idFactura,
+    );
+    return { data };
+  }
+
+  @Get('contratos/:id/facturas/:idFactura/pdf')
+  @ApiOperation({ summary: 'Descargar PDF del DTE de una factura del contrato' })
+  @ApiParam({ name: 'id', type: Number })
+  @ApiParam({ name: 'idFactura', type: Number })
+  async descargarFacturaPdf(
+    @GetCliente() cliente: ClienteAutenticado,
+    @Param('id', ParseIntPipe) idContrato: number,
+    @Param('idFactura', ParseIntPipe) idFactura: number,
+    @Res() res: Response,
+  ) {
+    const { pdf, numeroFactura } = await this.portalService.generarFacturaPdf(
+      cliente.id_cliente,
+      idContrato,
+      idFactura,
+    );
+
+    const filename = `DTE_${numeroFactura || idFactura}.pdf`;
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${filename}"`,
+      'Content-Length': pdf.length,
+    });
+    res.end(pdf);
   }
 
   @Post('contratos/:id/pago-intent')

@@ -27,7 +27,7 @@ import { DteSignerService } from '../dte/signer';
 import { MhTransmitterService, TransmisionResult } from '../dte/transmitter';
 import { MoraService } from './mora.service';
 import { TipoDte, Ambiente, DteDocument } from '../interfaces';
-import { estado_dte } from '@prisma/client';
+import { estado_dte, Prisma } from '@prisma/client';
 
 /**
  * Resultado de la creación de un cobro
@@ -718,12 +718,41 @@ export class CobrosService {
       }),
     };
 
-    // Búsqueda por nombre de cliente o número de contrato
-    if (search) {
-      whereClause.OR = [
-        { codigo: { contains: search, mode: 'insensitive' } },
-        { cliente: { titular: { contains: search, mode: 'insensitive' } } },
-      ];
+    // Búsqueda dinámica por nombre de cliente o código de contrato:
+    // - Insensible a tildes/acentos usando unaccent() de PostgreSQL.
+    // - Multi-palabra con AND: cada palabra debe aparecer en el titular o en
+    //   el código. Ej: "Alexander Rosales" coincide con "Reynaldo Alexander
+    //   Ruiz Rosales" pero NO con "Reynaldo Andree Ruiz Rosales".
+    // Se resuelve con SQL crudo obteniendo los ids que matchean, y luego se
+    // aplican al where Prisma para conservar los demás filtros y la paginación.
+    if (search && search.trim()) {
+      const palabras = search.trim().split(/\s+/).filter((p) => p.length > 0);
+      if (palabras.length > 0) {
+        const condiciones = palabras.map(
+          (palabra) => Prisma.sql`(
+            unaccent(c.titular) ILIKE unaccent(${'%' + palabra + '%'})
+            OR unaccent(ct.codigo) ILIKE unaccent(${'%' + palabra + '%'})
+          )`,
+        );
+        const whereSql = Prisma.join(condiciones, ' AND ');
+        const matches = await this.prisma.$queryRaw<{ id_contrato: number }[]>(
+          Prisma.sql`
+            SELECT ct.id_contrato
+            FROM "atcContrato" ct
+            INNER JOIN cliente c ON c.id_cliente = ct.id_cliente
+            WHERE ${whereSql}
+          `,
+        );
+        const ids = matches.map((r) => r.id_contrato);
+        if (ids.length === 0) {
+          // Sin coincidencias: cortocircuito para no ejecutar el findMany completo
+          return {
+            data: [],
+            meta: { total: 0, page, limit, totalPages: 0 },
+          };
+        }
+        whereClause.id_contrato = { in: ids };
+      }
     }
 
     // Obtener contratos con relaciones

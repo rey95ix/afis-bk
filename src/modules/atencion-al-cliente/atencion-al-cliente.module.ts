@@ -25,6 +25,7 @@ import { ReportesController } from './reportes/reportes.controller';
 import { ReportesService } from './reportes/reportes.service';
 import { TicketsController } from './tickets/tickets.controller';
 import { TicketsService } from './tickets/tickets.service';
+import { TicketsPdfService } from './tickets/tickets-pdf.service';
 import { ContratosController } from './contratos/contratos.controller';
 import { ContratosService } from './contratos/contratos.service';
 import { ContratoInstalacionController } from './contratos/contrato-instalacion.controller';
@@ -64,6 +65,7 @@ import { ContratosExcelService } from './contratos/contratos-excel.service';
     OrdenesTrabajoService,
     ReportesService,
     TicketsService,
+    TicketsPdfService,
     ContratosService,
     ContratosExcelService,
     ContratoInstalacionService,

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Comprobante de Ticket #{{:ticket.id_ticket}}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #333; padding: 20px 25px; display: flex; flex-direction: column; min-height: 25.5cm; }
+    .content { flex: 1 0 auto; }
+    .bottom { flex-shrink: 0; margin-top: auto; }
+    .header { display: flex; align-items: center; gap: 15px; text-align: left; margin-bottom: 15px; border-bottom: 2px solid #00126b; padding-bottom: 10px; }
+    .header .logo { height: 55px; width: auto; flex-shrink: 0; }
+    .header .titles { flex: 1; text-align: center; }
+    .header h1 { font-size: 16pt; color: #00126b; margin-bottom: 3px; }
+    .header h2 { font-size: 10pt; color: #666; font-weight: normal; }
+    .empresa-info { display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 9pt; }
+    .empresa-info .label { color: #888; font-size: 8pt; }
+    .ticket-banner { background: #EEF0FA; border: 1px solid #c7cde6; border-left: 4px solid #00126b; border-radius: 4px; padding: 10px 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+    .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-25deg); width: 70%; opacity: 0.06; z-index: -1; pointer-events: none; }
+    .ticket-banner .num { font-size: 14pt; font-weight: bold; color: #00126b; }
+    .ticket-banner .sub { font-size: 9pt; color: #555; margin-top: 2px; }
+    .badges { display: flex; gap: 6px; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 8pt; font-weight: bold; color: white; }
+    .estado-abierto { background: #3F51B5; }
+    .estado-diagnostico { background: #03A9F4; }
+    .estado-escalado { background: #FFA726; }
+    .estado-cerrado { background: #66BB6A; }
+    .estado-cancelado { background: #E53935; }
+    .sev-baja { background: #9E9E9E; }
+    .sev-media { background: #03A9F4; }
+    .sev-alta { background: #FFA726; }
+    .sev-critica { background: #E53935; }
+    .section { margin-bottom: 14px; }
+    .section-title { font-size: 9.5pt; font-weight: bold; color: #00126b; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px; margin-bottom: 8px; }
+    .grid-2 { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+    .grid-2 .item { flex: 1 1 45%; font-size: 9pt; }
+    .grid-2 .item .label { color: #888; font-size: 8pt; display: block; }
+    .grid-2 .item .value { color: #333; font-weight: 500; }
+    .descripcion { background: #fafafa; border: 1px solid #eee; border-radius: 4px; padding: 8px 10px; font-size: 9pt; line-height: 1.4; white-space: pre-wrap; }
+    table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+    th { background: #00126b; color: white; padding: 6px 8px; text-align: left; font-size: 8pt; }
+    td { padding: 5px 8px; border-bottom: 1px solid #e0e0e0; }
+    tr:nth-child(even) { background: #f9f9f9; }
+    .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 8pt; color: #777; }
+    .firma { margin-top: 35px; display: flex; justify-content: space-around; gap: 30px; }
+    .firma .linea { flex: 1; text-align: center; }
+    .firma .linea .line { border-top: 1px solid #333; margin-bottom: 4px; height: 30px; }
+    .firma .linea .label { font-size: 8pt; color: #555; }
+    .leyenda { margin-top: 14px; font-size: 8pt; color: #777; text-align: center; font-style: italic; }
+  </style>
+</head>
+<body>
+  {{if logoBase64}}<img class="watermark" src="data:image/png;base64,{{:logoBase64}}" alt="">{{/if}}
+  <div class="header">
+    {{if logoBase64}}<img class="logo" src="data:image/png;base64,{{:logoBase64}}" alt="Logo">{{/if}}
+    <div class="titles">
+      <h1>Comprobante de Reporte de Soporte</h1>
+      <h2>{{:empresa.nombre}}</h2>
+    </div>
+  </div>
+
+  <div class="content">
+  <div class="ticket-banner">
+    <div>
+      <div class="num">Ticket #{{:ticket.id_ticket}}</div>
+      <div class="sub">Reportado el {{:ticket.fecha_apertura}}</div>
+    </div>
+    <div class="badges">
+      <span class="badge {{:ticket.estadoClass}}">{{:ticket.estado}}</span> 
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Datos del Cliente</div>
+    <div class="grid-2">
+      <div class="item"><span class="label">Titular</span><span class="value">{{:cliente.titular}}</span></div>
+      <div class="item"><span class="label">DUI</span><span class="value">{{:cliente.dui}}</span></div>
+      <div class="item"><span class="label">Correo</span><span class="value">{{:cliente.correo}}</span></div>
+      <div class="item"><span class="label">Teléfono</span><span class="value">{{:cliente.telefono1}}{{if cliente.telefono2}} / {{:cliente.telefono2}}{{/if}}</span></div>
+    </div>
+  </div>
+
+  {{if contrato}}
+  <div class="section">
+    <div class="section-title">Contrato de Servicio</div>
+    <div class="grid-2">
+      <div class="item"><span class="label">Código</span><span class="value">{{:contrato.codigo}}</span></div>
+      <div class="item"><span class="label">Plan</span><span class="value">{{:contrato.plan}}{{if contrato.velocidad}} ({{:contrato.velocidad}}){{/if}}</span></div>
+      <div class="item"><span class="label">Estado</span><span class="value">{{:contrato.estado}}</span></div>
+    </div>
+  </div>
+  {{/if}}
+
+  {{if direccion}}
+  <div class="section">
+    <div class="section-title">Dirección de Servicio</div>
+    <div style="font-size: 9pt;">
+      {{:direccion.calle}}{{if direccion.colonia}}, {{:direccion.colonia}}{{/if}}<br>
+      {{:direccion.municipio}}{{if direccion.departamento}}, {{:direccion.departamento}}{{/if}}{{if direccion.codigo_postal}} &middot; CP {{:direccion.codigo_postal}}{{/if}}
+    </div>
+  </div>
+  {{/if}}
+
+  <div class="section">
+    <div class="section-title">Detalle del Reporte</div>
+    <div class="grid-2" style="margin-bottom: 8px;">
+      <div class="item"><span class="label">Fecha y hora</span><span class="value">{{:ticket.fecha_apertura}}</span></div>
+      <div class="item"><span class="label">Canal de contacto</span><span class="value">{{:ticket.canal}}</span></div> 
+      <div class="item"><span class="label">Estado actual</span><span class="value">{{:ticket.estado}}</span></div> 
+      {{if ticket.fecha_cierre}}<div class="item"><span class="label">Fecha de cierre</span><span class="value">{{:ticket.fecha_cierre}}</span></div>{{/if}}
+    </div>
+    <div style="margin-top: 6px;">
+      <div style="font-size: 8pt; color: #888; margin-bottom: 3px;">Descripción del problema</div>
+      <div class="descripcion">{{:ticket.descripcion_problema}}</div>
+    </div> 
+    {{if ticket.diagnostico_inicial}}
+    <div style="margin-top: 8px;">
+      <div style="font-size: 8pt; color: #888; margin-bottom: 3px;">Diagnóstico inicial</div>
+      <div class="descripcion">{{:ticket.diagnostico_inicial}}</div>
+    </div>
+    {{/if}}
+    {{if ticket.pruebas_remotas}}
+    <div style="margin-top: 8px;">
+      <div style="font-size: 8pt; color: #888; margin-bottom: 3px;">Pruebas remotas realizadas</div>
+      <div class="descripcion">{{:ticket.pruebas_remotas}}</div>
+    </div>
+    {{/if}}
+    {{if ticket.observaciones_cierre}}
+    <div style="margin-top: 8px;">
+      <div style="font-size: 8pt; color: #888; margin-bottom: 3px;">Observaciones de cierre</div>
+      <div class="descripcion">{{:ticket.observaciones_cierre}}</div>
+    </div>
+    {{/if}}
+  </div>
+
+  {{if tieneOrdenes}}
+  <div class="section">
+    <div class="section-title">Órdenes de Trabajo Asociadas</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Tipo</th>
+          <th>Estado</th>
+          <th>Técnico</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{for ordenes}}
+        <tr>
+          <td>{{:codigo}}</td>
+          <td>{{:tipo}}</td>
+          <td>{{:estado}}</td>
+          <td>{{:tecnico}}</td>
+        </tr>
+        {{/for}}
+      </tbody>
+    </table>
+  </div>
+  {{/if}}
+  </div>
+
+  <div class="bottom">
+    <div class="leyenda">
+      Este documento es un comprobante del reporte registrado en nuestro sistema de atención al cliente.
+    </div>
+
+    <div class="footer">
+      {{:empresa.nombre}} &middot; Comprobante generado el {{:fechaGeneracion}}
+    </div>
+  </div>
+</body>
+</html>

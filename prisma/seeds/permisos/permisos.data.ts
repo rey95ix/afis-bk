@@ -423,6 +423,13 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
   crearPermisoCustom('atencion_cliente', 'tickets', 'cerrar', 'Cerrar Tickets', 'Cerrar tickets resueltos', {
     requiere_auditoria: true,
   }),
+  crearPermisoCustom(
+    'atencion_cliente',
+    'tickets',
+    'imprimir',
+    'Imprimir Tickets',
+    'Generar comprobante PDF de tickets de soporte',
+  ),
 
   // Ordenes de Trabajo
   crearPermiso(

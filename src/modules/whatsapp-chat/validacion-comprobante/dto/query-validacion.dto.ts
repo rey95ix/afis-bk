@@ -1,4 +1,4 @@
-import { IsOptional, IsEnum, IsInt, IsDateString, Min } from 'class-validator';
+import { IsOptional, IsEnum, IsInt, IsDateString, IsNumber, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -30,6 +30,31 @@ export class QueryValidacionDto {
   })
   @IsOptional()
   banco?: string;
+
+  @ApiPropertyOptional({
+    description: 'Búsqueda libre (nombre cliente, titular, referencia, cuenta, teléfono)'
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({
+    description: 'Monto mínimo'
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  monto_min?: number;
+
+  @ApiPropertyOptional({
+    description: 'Monto máximo'
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  monto_max?: number;
 
   @ApiPropertyOptional({
     default: 1,

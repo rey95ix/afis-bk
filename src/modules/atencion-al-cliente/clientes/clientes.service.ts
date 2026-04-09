@@ -3,7 +3,7 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { PrismaService } from 'src/modules/prisma/prisma.service';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
-import { cliente } from '@prisma/client';
+import { cliente, Prisma } from '@prisma/client';
 import { PaginationDto, PaginatedResult } from 'src/common/dto';
 
 @Injectable()
@@ -60,16 +60,46 @@ export class ClientesService {
       where.estado = estado;
     }
 
-    if (search) {
-      where.OR = [
-        { titular: { contains: search, mode: 'insensitive' } },
-        { dui: { contains: search, mode: 'insensitive' } },
-        { nit: { contains: search, mode: 'insensitive' } },
-        { correo_electronico: { contains: search, mode: 'insensitive' } },
-        { telefono1: { contains: search, mode: 'insensitive' } },
-        { telefono2: { contains: search, mode: 'insensitive' } },
-        { empresa_trabajo: { contains: search, mode: 'insensitive' } },
-      ];
+    // Búsqueda dinámica:
+    // - Insensible a tildes/acentos con unaccent() de PostgreSQL.
+    // - Multi-palabra con AND: cada palabra debe aparecer en alguno de los
+    //   campos buscables. Ej: "Alexander Rosales" coincide con
+    //   "Reynaldo Alexander Ruiz Rosales" pero NO con
+    //   "Reynaldo Andree Ruiz Rosales".
+    // Se resuelve con SQL crudo para obtener los ids coincidentes y luego se
+    // aplican al where Prisma para conservar el filtro de estado y paginación.
+    if (search && search.trim()) {
+      const palabras = search.trim().split(/\s+/).filter((p) => p.length > 0);
+      if (palabras.length > 0) {
+        const condiciones = palabras.map(
+          (palabra) => Prisma.sql`(
+            unaccent(c.titular) ILIKE unaccent(${'%' + palabra + '%'})
+            OR unaccent(COALESCE(c.dui, '')) ILIKE unaccent(${'%' + palabra + '%'})
+            OR unaccent(COALESCE(c.nit, '')) ILIKE unaccent(${'%' + palabra + '%'})
+            OR unaccent(COALESCE(c.correo_electronico, '')) ILIKE unaccent(${'%' + palabra + '%'})
+            OR unaccent(COALESCE(c.telefono1, '')) ILIKE unaccent(${'%' + palabra + '%'})
+            OR unaccent(COALESCE(c.telefono2, '')) ILIKE unaccent(${'%' + palabra + '%'})
+            OR unaccent(COALESCE(c.empresa_trabajo, '')) ILIKE unaccent(${'%' + palabra + '%'})
+          )`,
+        );
+        const whereSql = Prisma.join(condiciones, ' AND ');
+        const matches = await this.prisma.$queryRaw<{ id_cliente: number }[]>(
+          Prisma.sql`
+            SELECT c.id_cliente
+            FROM "cliente" c
+            WHERE ${whereSql}
+          `,
+        );
+        const ids = matches.map((r) => r.id_cliente);
+        if (ids.length === 0) {
+          // Sin coincidencias: cortocircuito
+          return {
+            data: [],
+            meta: { total: 0, page, limit, totalPages: 0 },
+          };
+        }
+        where.id_cliente = { in: ids };
+      }
     }
 
     // Ejecutar consultas en paralelo
