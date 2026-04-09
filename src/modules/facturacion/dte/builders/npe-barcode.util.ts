@@ -17,21 +17,22 @@ export interface NpeParams {
 
 export interface NpeReferenceSource {
   id_contrato?: number | null;
+  id_factura_directa?: number | null;
   id_cliente_directo?: number | null;
   codigo_generacion?: string | null;
 }
 
 /**
  * Resuelve la referencia de pago (IA 8020) según §8.2 de la guía NPE/GS1-128.
- * Prioridad: contrato → cliente directo → dígitos del UUID codigo_generacion.
+ * Prioridad: factura directa → cliente directo → dígitos del UUID codigo_generacion.
  *
  * Esta función debe ser la única fuente de verdad para la referencia, así
  * el NPE almacenado en dte_json y el barcode renderizado en el PDF siempre
  * coinciden.
  */
 export function resolveNpeReference(source: NpeReferenceSource): string {
-  if (source.id_contrato) {
-    return String(source.id_contrato).padStart(10, '0');
+  if (source.id_factura_directa) {
+    return String(source.id_factura_directa).padStart(10, '0');
   }
   if (source.id_cliente_directo) {
     return String(source.id_cliente_directo).padStart(10, '0');
