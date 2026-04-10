@@ -475,6 +475,10 @@ export class ContratosService {
       const facturaIds = facturasPendientes.map((f) => f.id_factura_directa);
 
       if (facturaIds.length > 0) {
+        // Eliminar cobranza_asignacion asociadas
+        await tx.cobranza_asignacion.deleteMany({
+          where: { id_factura_directa: { in: facturaIds } },
+        });
         // Eliminar CxC asociadas
         await tx.cuenta_por_cobrar.deleteMany({
           where: { id_factura_directa: { in: facturaIds } },
@@ -637,6 +641,10 @@ export class ContratosService {
       const facturaIds = facturasPendientes.map((f) => f.id_factura_directa);
 
       if (facturaIds.length > 0) {
+        // Eliminar cobranza_asignacion asociadas
+        await tx.cobranza_asignacion.deleteMany({
+          where: { id_factura_directa: { in: facturaIds } },
+        });
         // Eliminar CxC asociadas
         await tx.cuenta_por_cobrar.deleteMany({
           where: { id_factura_directa: { in: facturaIds } },
