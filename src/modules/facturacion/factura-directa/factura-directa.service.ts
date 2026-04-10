@@ -2838,7 +2838,7 @@ export class FacturaDirectaService {
             helpers: JSRENDER_HELPERS,
             chrome: {
               marginTop: '1cm',
-              marginBottom: '1cm',
+              marginBottom: '0.5cm',
               marginLeft: '0.5cm',
               marginRight: '0.5cm',
             }

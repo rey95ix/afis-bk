@@ -1,20 +1,21 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <title>{{:nombreFactura}} - {{:identificacion.numeroControl}}</title>
     {{*
-        // Converter para 4 decimales (items)
-        $.views.converters("dec4", function(val) {
-            if (val === null || val === undefined) return "0.0000";
-            return Number(val).toFixed(4);
-        });
+    // Converter para 4 decimales (items)
+    $.views.converters("dec4", function(val) {
+    if (val === null || val === undefined) return "0.0000";
+    return Number(val).toFixed(4);
+    });
 
-        // Converter para 2 decimales (totales)
-        $.views.converters("dec2", function(val) {
-            if (val === null || val === undefined) return "0.00";
-            return Number(val).toFixed(2);
-        });
+    // Converter para 2 decimales (totales)
+    $.views.converters("dec2", function(val) {
+    if (val === null || val === undefined) return "0.00";
+    return Number(val).toFixed(2);
+    });
     }}
     <style>
         /* Styles migrated from fc_create_cf_pdf (factura_v_python.py)
@@ -42,7 +43,7 @@
             margin: 0 auto;
             background: #fff;
             padding: 20px 18px;
-            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
         }
 
         /* ==================== HEADER ==================== */
@@ -58,7 +59,7 @@
         }
 
         .logo {
-            height: 50px; 
+            height: 50px;
         }
 
         .company-details {
@@ -141,13 +142,13 @@
 
         .qr-details {
             font-weight: bold;
-            font-size: 11px; 
+            font-size: 11px;
             color: #333;
         }
 
         .qr-details span {
-            font-weight: normal; 
-            font-size: 9px; 
+            font-weight: normal;
+            font-size: 9px;
         }
 
         .qr-code {
@@ -205,7 +206,7 @@
             justify-content: space-between;
             align-items: center;
             padding: 6px 12px;
-            border-bottom: 1px solid rgba(255,255,255,0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
         }
 
         .main-row {
@@ -239,7 +240,8 @@
             border-radius: 2px;
             overflow: hidden;
         }
-         .document-body {
+
+        .document-body {
             margin-bottom: 15px;
             border-radius: 2px;
             overflow: hidden;
@@ -265,7 +267,7 @@
         .table-container {
             position: relative;
             background: #EAE9EF;
-            min-height: 325px;
+            min-height: 250px;
         }
 
         .watermark {
@@ -299,7 +301,7 @@
 
         .invoice-table td {
             padding: 5px 8px;
-            border-bottom: 1px solid rgba(0,0,0,0.05);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
         }
 
         .invoice-table td.center {
@@ -345,7 +347,7 @@
             font-weight: bold;
             font-size: 12px;
             margin-top: 6px;
-            border-top: 1px solid rgba(255,255,255,0.2);
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
             padding-top: 6px;
         }
 
@@ -369,6 +371,7 @@
                 background: white;
                 padding: 0;
             }
+
             .invoice-container {
                 box-shadow: none;
                 padding: 10px;
@@ -376,186 +379,208 @@
         }
     </style>
 </head>
+
 <body>
-<div class="invoice-container">
-    <!-- Header Section -->
-    <div class="header">
-        <div class="company-info">
-            {{if logo}}
-            <img src="{{:logo}}" alt="Logo" class="logo">
-            {{/if}}
-            <div class="company-details">
-                <strong>{{:emisor.nombre}}</strong><br>
-                Dirección: {{:emisor.direccion.complemento}}<br>
-                Registro: {{:emisor.nrc}}<br>
-                NIT: {{:emisor.nit}}<br>
-                Giro: {{:emisor.descActividad}}
-            </div>
-            <div class="contact-info">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                <span>Contacto: {{:emisor.telefono}}</span>
-            </div>
-        </div>
-
-        <div class="document-type-box">
-            {{if !esValidoMH}}
-            <div class="doc-status invalid">NO ES DTE VALIDO - {{:estadoDte}}</div>
-            {{/if}}
-            <div class="doc-title">{{:nombreFactura}}</div>
-            <div class="client-code-label">Código Cliente:</div>
-            <div class="client-code-value">{{:codigoCliente}}</div>
-            <div class="correlative">Referencia: {{:id_factura_directa}}</div>
-            <div class="total-badge">Total a Pagar: $ {{dec2:resumen.totalPagar}}</div>
-        </div>
-
-        <div class="qr-section">
-            <div class="qr-details">
-                Codigo de Generación: <br><span>{{:identificacion.codigoGeneracion}}</span><br>
-                {{if selloRecibido}}
-                Sello de Recepción: <br><span>{{:selloRecibido}}</span><br>
+    <div class="invoice-container">
+        <!-- Header Section -->
+        <div class="header">
+            <div class="company-info">
+                {{if logo}}
+                <img src="{{:logo}}" alt="Logo" class="logo">
                 {{/if}}
-                Número de Control: <br><span>{{:identificacion.numeroControl}}</span><br>
-                Modelo de Facturación: <span>{{:identificacion.tipoModelo}}</span><br>
-                Tipo de Transmisión: <span>{{:identificacion.tipoOperacion}}</span>
+                <div class="company-details">
+                    <strong>{{:emisor.nombre}}</strong><br>
+                    Dirección: {{:emisor.direccion.complemento}}<br>
+                    Registro: {{:emisor.nrc}}<br>
+                    NIT: {{:emisor.nit}}<br>
+                    Giro: {{:emisor.descActividad}}
+                </div>
+                <div class="contact-info">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path
+                            d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z">
+                        </path>
+                    </svg>
+                    <span>Contacto: {{:emisor.telefono}}</span>
+                </div>
             </div>
-            {{if qr}}
-            <img src="{{:qr}}" alt="QR Code" class="qr-code">
-            {{/if}}
-        </div>
-    </div>
 
-    <!-- Client and Summary Section -->
-    <div class="info-grid">
-        <div class="client-info-card">
-            {{if receptor}}
-            <div class="client-header">CLIENTE</div>
-            <div class="client-name">{{:receptor.nombre}}</div>
-            <div class="info-row"><strong>Dirección:</strong></div>
-            {{if receptor.direccion}}
+            <div class="document-type-box">
+                {{if !esValidoMH}}
+                <div class="doc-status invalid">NO ES DTE VALIDO - {{:estadoDte}}</div>
+                {{/if}}
+                <div class="doc-title">{{:nombreFactura}}</div>
+                <div class="client-code-label">Código Cliente:</div>
+                <div class="client-code-value">{{:codigoCliente}}</div>
+                <div class="correlative">Referencia: {{:id_factura_directa}}</div>
+                <div class="total-badge">Total a Pagar: $ {{dec2:resumen.totalPagar}}</div>
+            </div>
+
+            <div class="qr-section">
+                <div class="qr-details">
+                    Codigo de Generación: <br><span>{{:identificacion.codigoGeneracion}}</span><br>
+                    {{if selloRecibido}}
+                    Sello de Recepción: <br><span>{{:selloRecibido}}</span><br>
+                    {{/if}}
+                    Número de Control: <br><span>{{:identificacion.numeroControl}}</span><br>
+                    Modelo de Facturación: <span>{{:identificacion.tipoModelo}}</span><br>
+                    Tipo de Transmisión: <span>{{:identificacion.tipoOperacion}}</span>
+                </div>
+                {{if qr}}
+                <img src="{{:qr}}" alt="QR Code" class="qr-code">
+                {{/if}}
+            </div>
+        </div>
+
+        <!-- Client and Summary Section -->
+        <div class="info-grid">
+            <div class="client-info-card">
+                {{if receptor}}
+                <div class="client-header">CLIENTE</div>
+                <div class="client-name">{{:receptor.nombre}}</div>
+                <div class="info-row"><strong>Dirección:</strong></div>
+                {{if receptor.direccion}}
                 {{if receptor.direccion.complemento}}
                 <div class="info-row">{{:receptor.direccion.complemento}}</div>
                 {{else}}
                 <div class="info-row">{{:receptor.direccion}}</div>
                 {{/if}}
-            {{else}}
-            <div class="info-row">N/A</div>
-            {{/if}}
-            {{if esCCF}}
-            <div class="info-row"><strong>NIT:</strong> {{:receptor.nit}} | <strong>NRC:</strong> {{:receptor.nrc}}</div>
-            {{/if}}
-            {{if esFC}}
+                {{else}}
+                <div class="info-row">N/A</div>
+                {{/if}}
+                {{if esCCF}}
+                <div class="info-row"><strong>NIT:</strong> {{:receptor.nit}} | <strong>NRC:</strong> {{:receptor.nrc}}
+                </div>
+                {{/if}}
+                {{if esFC}}
                 {{if receptor.numDocumento}}
                 <div class="info-row"><strong>Documento:</strong> {{:receptor.numDocumento}}</div>
                 {{/if}}
-            {{/if}}
-            {{else}}
-            <div class="client-header">CLIENTE</div>
-            <div class="client-name">Consumidor Final</div>
-            {{/if}}
-        </div>
-
-        <div class="payment-summary-card">
-            <div class="summary-row main-row">
-                <div class="summary-label">TOTAL A PAGAR</div>
-                <div class="summary-value">$ {{dec2:resumen.totalPagar}}</div>
-            </div>
-            <div class="summary-row sub-row">
-                <div class="summary-label">ULTIMO DIA DE PAGO</div>
-                <div class="summary-value">{{:veciminento}}</div>
+                {{/if}}
+                {{else}}
+                <div class="client-header">CLIENTE</div>
+                <div class="client-name">Consumidor Final</div>
+                {{/if}}
             </div>
 
-            <div class="summary-row summary-dates">
-                <div class="summary-label" style="text-align: center;">FECHA EMISIÓN <br> {{:identificacion.fecEmi}} </div>
-                <div class="summary-value" style="text-align: center;">PERIODO FACTURADO <br> {{:periodo}} </div>
+            <div class="payment-summary-card">
+                <div class="summary-row main-row">
+                    <div class="summary-label">TOTAL A PAGAR</div>
+                    <div class="summary-value">$ {{dec2:resumen.totalPagar}}</div>
+                </div>
+                <div class="summary-row sub-row">
+                    <div class="summary-label">ULTIMO DIA DE PAGO</div>
+                    <div class="summary-value">{{:veciminento}}</div>
+                </div>
+
+                <div class="summary-row summary-dates">
+                    <div class="summary-label" style="text-align: center;">FECHA EMISIÓN <br> {{:identificacion.fecEmi}}
+                    </div>
+                    <div class="summary-value" style="text-align: center;">PERIODO FACTURADO <br> {{:periodo}} </div>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Message Box -->
-    <div class="message-box">
-        <div class="box-header">CAJA DE MENSAJES</div>
-        <div class="box-content">
-            Recuerda que puede hacer sus pagos en todos los puntos de pago de Punto Express, como también por medio de la aplicación (https://app.newtel.com.sv)
-        </div>
-    </div>
-
-    <!-- Document Body -->
-    <div class="document-body">
-        <div class="box-header">CUERPO DEL DOCUMENTO</div>
-        <hr style="height: 0.5px; color: white;">
-        <div class="table-container">
-            {{if logo}}<img src="{{:logo}}" class="watermark" alt="">{{/if}}
-            <table class="invoice-table">
-                <thead>
-                    <tr>
-                        <th>Cant.</th>
-                        <th>Unidad</th>
-                        <th>Descripción</th>
-                        <th>Precio U.</th>
-                        <th>Desc. Item</th>
-                        <th>No Sujetas</th>
-                        <th>Exentas</th>
-                        <th>Gravadas</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {{for cuerpoDocumento}}
-                    <tr>
-                        <td class="center">{{:cantidad}}</td>
-                        <td class="center">Unidad</td>
-                        <td>{{:descripcion}}</td>
-                        <td class="right">$ {{dec4:precioUni}}</td>
-                        <td class="right">$ {{dec4:montoDescu}}</td>
-                        <td class="right">$ {{dec4:ventaNoSuj}}</td>
-                        <td class="right">$ {{dec4:ventaExenta}}</td>
-                        <td class="right">$ {{dec4:ventaGravada}}</td>
-                    </tr>
-                    {{/for}}
-                </tbody>
-            </table>
+        <!-- Message Box -->
+        <div class="message-box">
+            <div class="box-header">CAJA DE MENSAJES</div>
+            <div class="box-content">
+                Recuerda que puede hacer sus pagos en todos los puntos de pago de Punto Express, como también por medio
+                de la aplicación (https://app.newtel.com.sv)
+            </div>
         </div>
 
-        <div class="bottom-section">
-            <div class="amount-text">
-                {{:resumen.totalLetras}}
-                <!-- Código de barras GS1-128 y NPE (Recibo de Pago) -->
+        <!-- Document Body -->
+        <div class="document-body">
+            <div class="box-header">CUERPO DEL DOCUMENTO</div>
+            <hr style="height: 0.5px; color: white;">
+            <div class="table-container">
+                {{if logo}}<img src="{{:logo}}" class="watermark" alt="">{{/if}}
+                <table class="invoice-table">
+                    <thead>
+                        <tr>
+                            <th>Cant.</th>
+                            <th>Unidad</th>
+                            <th>Descripción</th>
+                            <th>Precio U.</th>
+                            <th>Desc. Item</th>
+                            <th>No Sujetas</th>
+                            <th>Exentas</th>
+                            <th>Gravadas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{for cuerpoDocumento}}
+                        <tr>
+                            <td class="center">{{:cantidad}}</td>
+                            <td class="center">Unidad</td>
+                            <td>{{:descripcion}}</td>
+                            <td class="right">$ {{dec4:precioUni}}</td>
+                            <td class="right">$ {{dec4:montoDescu}}</td>
+                            <td class="right">$ {{dec4:ventaNoSuj}}</td>
+                            <td class="right">$ {{dec4:ventaExenta}}</td>
+                            <td class="right">$ {{dec4:ventaGravada}}</td>
+                        </tr>
+                        {{/for}}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="bottom-section">
+                <div class="amount-text">
+                    {{:resumen.totalLetras}}
+                    <!-- Código de barras GS1-128 y NPE (Recibo de Pago) -->
+
+                </div>
+                <div class="totals-card">
+                    <div class="total-line"><span>Suma Total de Operaciones:</span> <span>$
+                            {{dec2:resumen.subTotalVentas}}</span></div>
+                    <div class="total-line"><span>Monto global Desc., Rebajas y otros a ventas no sujetas:</span>
+                        <span>$ {{dec2:resumen.descuNoSuj}}</span></div>
+                    <div class="total-line"><span>Monto global Desc., Rebajas y otros a ventas exentas:</span> <span>$
+                            {{dec2:resumen.descuExenta}}</span></div>
+                    <div class="total-line"><span>Monto global Desc., Rebajas y otros a ventas gravadas:</span> <span>$
+                            {{dec2:resumen.descuGravada}}</span></div>
+                    <div class="total-line"><span>Sub-Total:</span> <span>$ {{dec2:resumen.subTotal}}</span></div>
+                    <div class="total-line"><span>IVA Percibido:</span> <span>$ {{dec2:resumen.ivaPerci1}}</span></div>
+                    <div class="total-line"><span>IVA Retenido:</span> <span>$ {{dec2:resumen.ivaRete1}}</span></div>
+                    <div class="total-line"><span>Retencion Renta:</span> <span>$ {{dec2:resumen.reteRenta}}</span>
+                    </div>
+                    <div class="total-line"><span>Monto Total de la Operación:</span> <span>$
+                            {{dec2:resumen.montoTotalOperacion}}</span></div>
+                    <div class="total-line"><span>Total Otros montos no afectos:</span> <span>$
+                            {{dec2:resumen.totalNoGravado}}</span></div>
+                    <div class="total-line bold-line"><span>Total a Pagar:</span> <span>$
+                            {{dec2:resumen.totalPagar}}</span></div>
+                </div>
+            </div>
             {{if barcodeImage}}
-            <div style="margin-top: 20px; text-align: center;   border-top: 1px solid #ddd; width: 100%;">
-                <div style="font-family: 'Courier New', monospace; font-size: 12px; font-weight: bold;   margin-bottom: 4px; color: #2C2E64;text-align: left;">
+            <div style="margin-top: 20px; text-align: center;   border-top: 1px solid #ddd; width: 50%;">
+                <div
+                    style="font-family: 'Courier New', monospace; font-size: 12px; font-weight: bold;   margin-bottom: 4px; color: #2C2E64;text-align: left;">
                     NPE: {{:npeFormatted}}
                 </div>
-                <img src="{{:barcodeImage}}" alt="GS1-128" style="width: 99%; height: auto; min-height: 10mm; max-height: 25mm;margin-right: 100px;">
-                <div style="font-family: 'Courier New', monospace; font-size: 10px; font-weight: bold;  margin-bottom: 8px; color: #2C2E64;">
+                <img src="{{:barcodeImage}}" alt="GS1-128"
+                    style="width: 100%; height: auto; min-height: 10mm; max-height: 25mm; ">
+                <div
+                    style="font-family: 'Courier New', monospace; font-size: 10px; font-weight: bold;  margin-bottom: 8px; color: #2C2E64;">
                     {{:barcodeImageText}}
                 </div>
             </div>
             {{/if}}
-            </div>
-            <div class="totals-card">
-                <div class="total-line"><span>Suma Total de Operaciones:</span> <span>$ {{dec2:resumen.subTotalVentas}}</span></div>
-                <div class="total-line"><span>Monto global Desc., Rebajas y otros a ventas no sujetas:</span> <span>$ {{dec2:resumen.descuNoSuj}}</span></div>
-                <div class="total-line"><span>Monto global Desc., Rebajas y otros a ventas exentas:</span> <span>$ {{dec2:resumen.descuExenta}}</span></div>
-                <div class="total-line"><span>Monto global Desc., Rebajas y otros a ventas gravadas:</span> <span>$ {{dec2:resumen.descuGravada}}</span></div>
-                <div class="total-line"><span>Sub-Total:</span> <span>$ {{dec2:resumen.subTotal}}</span></div>
-                <div class="total-line"><span>IVA Percibido:</span> <span>$ {{dec2:resumen.ivaPerci1}}</span></div>
-                <div class="total-line"><span>IVA Retenido:</span> <span>$ {{dec2:resumen.ivaRete1}}</span></div>
-                <div class="total-line"><span>Retencion Renta:</span> <span>$ {{dec2:resumen.reteRenta}}</span></div>
-                <div class="total-line"><span>Monto Total de la Operación:</span> <span>$ {{dec2:resumen.montoTotalOperacion}}</span></div>
-                <div class="total-line"><span>Total Otros montos no afectos:</span> <span>$ {{dec2:resumen.totalNoGravado}}</span></div>
-                <div class="total-line bold-line"><span>Total a Pagar:</span> <span>$ {{dec2:resumen.totalPagar}}</span></div>
-            </div>
         </div>
-    </div>
 
-    <!-- Notas/Observaciones -->
-    {{if nota}}
-    <div class="notes-box">
-        <strong>Observaciones:</strong>
-        {{:nota}}
-    </div>
-    {{/if}}
+        <!-- Notas/Observaciones -->
+        {{if nota}}
+        <div class="notes-box">
+            <strong>Observaciones:</strong>
+            {{:nota}}
+        </div>
+        {{/if}}
 
-    
-</div>
+
+    </div>
 </body>
+
 </html>
