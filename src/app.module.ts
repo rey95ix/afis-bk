@@ -27,7 +27,6 @@ import { ScheduledTasksModule } from './modules/scheduled-tasks/scheduled-tasks.
 
 @Module({
   imports: [
-    ConfigModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',

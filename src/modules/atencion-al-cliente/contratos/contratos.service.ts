@@ -935,7 +935,8 @@ export class ContratosService {
 
   /**
    * Marca un contrato como firmado: sube la imagen del contrato firmado,
-   * cambia el estado a PENDIENTE_INSTALACION y crea la Orden de Trabajo de instalación
+   * cambia el estado a PENDIENTE_INSTALACION y crea la OT correspondiente
+   * (instalación, renovación o reubicación según el contexto del contrato)
    */
   async marcarComoFirmado(
     id: number,
@@ -963,13 +964,16 @@ export class ContratosService {
     const objectName = `contratos-firmados/${contrato.codigo}/${Date.now()}_${archivo.originalname}`;
     const { url } = await this.minioService.uploadFile(archivo, objectName);
 
-    // Crear la Orden de Trabajo de Instalación (vinculada al contrato)
-    const ordenInstalacion = await this.ordenesTrabajoService.create(
+    // Determinar tipo de OT según si es instalación nueva, renovación o reubicación
+    const { tipo: tipoOT, descripcion, observacionExtra } = await this.determinarTipoOT(contrato);
+
+    // Crear la Orden de Trabajo vinculada al contrato
+    const ordenTrabajo = await this.ordenesTrabajoService.create(
       {
-        tipo: TipoOrden.INSTALACION,
+        tipo: tipoOT,
         id_cliente: contrato.id_cliente,
         id_direccion_servicio: contrato.id_direccion_servicio,
-        observaciones_tecnico: `Instalación para contrato ${contrato.codigo}${observaciones ? ` - ${observaciones}` : ''}`,
+        observaciones_tecnico: `${descripcion} para contrato ${contrato.codigo}${observaciones ? ` - ${observaciones}` : ''}${observacionExtra}`,
         id_contrato: id,
       },
       id_usuario,
@@ -989,7 +993,7 @@ export class ContratosService {
     await this.prisma.logAction(
       'FIRMAR_CONTRATO',
       id_usuario,
-      `Contrato firmado: ${contrato.codigo} - OT creada: ${ordenInstalacion.codigo}${observaciones ? ` - Obs: ${observaciones}` : ''}`,
+      `Contrato firmado: ${contrato.codigo} - OT ${descripcion} creada: ${ordenTrabajo.codigo}${observaciones ? ` - Obs: ${observaciones}` : ''}`,
     );
 
     return contratoActualizado;
@@ -1109,13 +1113,16 @@ export class ContratosService {
       throw new BadRequestException('El contrato ya no está pendiente de firma');
     }
 
-    // Crear OT de instalación usando el usuario creador del contrato
-    const ordenInstalacion = await this.ordenesTrabajoService.create(
+    // Determinar tipo de OT según si es instalación nueva, renovación o reubicación
+    const { tipo: tipoOT, descripcion, observacionExtra } = await this.determinarTipoOT(contrato);
+
+    // Crear OT usando el usuario creador del contrato
+    const ordenTrabajo = await this.ordenesTrabajoService.create(
       {
-        tipo: TipoOrden.INSTALACION,
+        tipo: tipoOT,
         id_cliente: contrato.id_cliente,
         id_direccion_servicio: contrato.id_direccion_servicio,
-        observaciones_tecnico: `Instalación para contrato ${contrato.codigo} - Firmado en línea`,
+        observaciones_tecnico: `${descripcion} para contrato ${contrato.codigo} - Firmado en línea${observacionExtra}`,
         id_contrato,
       },
       contrato.id_usuario_creador,
@@ -1128,10 +1135,67 @@ export class ContratosService {
     await this.prisma.logAction(
       'FIRMAR_CONTRATO_ONLINE',
       contrato.id_usuario_creador,
-      `Contrato firmado en línea: ${contrato.codigo} - OT: ${ordenInstalacion.codigo} - IP: ${ip}`,
+      `Contrato firmado en línea: ${contrato.codigo} - OT ${descripcion}: ${ordenTrabajo.codigo} - IP: ${ip}`,
     );
 
     return contratoActualizado;
+  }
+
+  /**
+   * Determina el tipo de OT a crear al firmar un contrato:
+   * - INSTALACION: contrato nuevo (sin contrato anterior)
+   * - RENOVACION: renovación en la misma dirección de servicio
+   * - REUBICACION: renovación con cambio de dirección de servicio
+   *
+   * Retorna tipo, descripción y observación adicional (para reubicación incluye origen → destino)
+   */
+  private async determinarTipoOT(
+    contrato: atcContrato,
+  ): Promise<{ tipo: TipoOrden; descripcion: string; observacionExtra: string }> {
+    if (contrato.id_contrato_anterior == null) {
+      return { tipo: TipoOrden.INSTALACION, descripcion: 'Instalación', observacionExtra: '' };
+    }
+
+    const contratoAnterior = await this.prisma.atcContrato.findUnique({
+      where: { id_contrato: contrato.id_contrato_anterior },
+      select: { id_direccion_servicio: true },
+    });
+
+    // Si el contrato anterior no existe, tratar como instalación nueva
+    if (!contratoAnterior) {
+      return { tipo: TipoOrden.INSTALACION, descripcion: 'Instalación', observacionExtra: '' };
+    }
+
+    if (contratoAnterior.id_direccion_servicio !== contrato.id_direccion_servicio) {
+      // Obtener ambas direcciones para la observación del técnico
+      const [dirOrigen, dirDestino] = await Promise.all([
+        this.prisma.clienteDirecciones.findUnique({
+          where: { id_cliente_direccion: contratoAnterior.id_direccion_servicio },
+          include: { municipio: true, departamento: true, colonias: true },
+        }),
+        this.prisma.clienteDirecciones.findUnique({
+          where: { id_cliente_direccion: contrato.id_direccion_servicio },
+          include: { municipio: true, departamento: true, colonias: true },
+        }),
+      ]);
+
+      const formatDir = (dir: typeof dirOrigen) => {
+        if (!dir) return 'Dirección no disponible';
+        const partes = [
+          dir.direccion,
+          dir.colonias?.nombre,
+          dir.municipio?.nombre,
+          dir.departamento?.nombre,
+        ].filter(Boolean);
+        return partes.join(', ');
+      };
+
+      const observacionExtra = `\n📍 Ubicación actual: ${formatDir(dirOrigen)}\n📍 Nueva ubicación: ${formatDir(dirDestino)}`;
+
+      return { tipo: TipoOrden.REUBICACION, descripcion: 'Reubicación', observacionExtra };
+    }
+
+    return { tipo: TipoOrden.RENOVACION, descripcion: 'Renovación', observacionExtra: '' };
   }
 
   /**

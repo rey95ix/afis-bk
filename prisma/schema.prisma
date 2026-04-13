@@ -1051,6 +1051,7 @@ enum estado_orden {
 enum tipo_orden {
   INCIDENCIA
   INSTALACION
+  RENOVACION
   MANTENIMIENTO
   REUBICACION
   RETIRO

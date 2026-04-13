@@ -4,6 +4,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export enum TipoOrden {
   INCIDENCIA = 'INCIDENCIA',
   INSTALACION = 'INSTALACION',
+  RENOVACION = 'RENOVACION',
   MANTENIMIENTO = 'MANTENIMIENTO',
   REUBICACION = 'REUBICACION',
   RETIRO = 'RETIRO',

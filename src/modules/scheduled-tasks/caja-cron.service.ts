@@ -6,6 +6,7 @@ import { CajaService } from '../facturacion/caja/caja.service';
 @Injectable()
 export class CajaCronService {
   private readonly logger = new Logger(CajaCronService.name);
+  private ejecutando = false;
 
   constructor(
     private readonly cajaService: CajaService,
@@ -24,6 +25,19 @@ export class CajaCronService {
    */
   @Cron('50 59 23 * * *', { timeZone: 'America/El_Salvador' })
   async ejecutarCierreUsuarioDiario(): Promise<void> {
+    if (this.ejecutando) {
+      this.logger.warn('Cierre automático ya en ejecución, omitiendo...');
+      return;
+    }
+    this.ejecutando = true;
+    try {
+      await this.ejecutarCierre();
+    } finally {
+      this.ejecutando = false;
+    }
+  }
+
+  private async ejecutarCierre(): Promise<void> {
     const raw = this.configService.get<string>('PORTAL_SYSTEM_USER_ID');
     if (!raw) {
       this.logger.error('PORTAL_SYSTEM_USER_ID no está configurado en las variables de entorno');

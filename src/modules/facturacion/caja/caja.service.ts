@@ -40,6 +40,9 @@ export class CajaService {
 
   async generarCierreUsuario(idUsuario: number) {
     return this.prisma.$transaction(async (tx) => {
+      // Advisory lock por usuario para evitar cierres duplicados concurrentes
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(1001, ${idUsuario})`;
+
       const movimientos = await tx.caja_movimiento.findMany({
         where: {
           id_usuario: idUsuario,
@@ -242,6 +245,9 @@ export class CajaService {
 
   async generarCierreDiario(idUsuarioCreador: number) {
     return this.prisma.$transaction(async (tx) => {
+      // Advisory lock global para evitar cierres diarios duplicados concurrentes
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(1002)`;
+
       const movimientos = await tx.caja_movimiento.findMany({
         where: { id_cierre_diario: null, abonoCxc: { activo: true } },
       });

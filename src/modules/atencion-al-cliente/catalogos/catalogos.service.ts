@@ -52,6 +52,7 @@ export class CatalogosService {
     return [
       { value: 'INCIDENCIA', label: 'Incidencia' },
       { value: 'INSTALACION', label: 'Instalación' },
+      { value: 'RENOVACION', label: 'Renovación' },
       { value: 'MANTENIMIENTO', label: 'Mantenimiento' },
       { value: 'REUBICACION', label: 'Reubicación' },
       { value: 'RETIRO', label: 'Retiro' },

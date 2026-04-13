@@ -1302,6 +1302,21 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     requiere_auditoria: true,
   }),
 
+  // CRUD de equipos OLT
+  crearPermisoCustom('olt', 'equipos', 'ver', 'Ver Equipos OLT', 'Consultar el listado y detalle de equipos OLT registrados'),
+  crearPermisoCustom('olt', 'equipos', 'crear', 'Crear Equipos OLT', 'Registrar un nuevo equipo OLT con sus credenciales SSH', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom('olt', 'equipos', 'editar', 'Editar Equipos OLT', 'Actualizar datos o credenciales de un equipo OLT', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+  crearPermisoCustom('olt', 'equipos', 'eliminar', 'Eliminar Equipos OLT', 'Eliminar un equipo OLT sin dependencias', {
+    es_critico: true,
+    requiere_auditoria: true,
+  }),
+
   // =============================================================
   // MODULO: CUENTAS POR PAGAR
   // =============================================================
