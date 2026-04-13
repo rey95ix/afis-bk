@@ -3342,10 +3342,10 @@ export class FacturaDirectaService {
       throw new BadRequestException(`El bloque de facturas ${bloque.serie} está agotado`);
     }
 
-    // 5. Generar identificación
+    // 5. Generar identificación (reutilizar si ya existen para no incrementar contador)
     const codigoGeneracion = factura.codigo_generacion || uuidv4().toUpperCase();
-    const numeroControl = this.generarNumeroControl(tipoDte, sucursal, bloque);
-    const numeroFactura = (bloque.actual + 1).toString().padStart(10, '0');
+    const numeroControl = factura.numero_control || this.generarNumeroControl(tipoDte, sucursal, bloque);
+    const numeroFactura = factura.numero_factura || (bloque.actual + 1).toString().padStart(10, '0');
 
     // 6. Construir DTE
     const emisor = this.construirEmisorActualizado(generalData, sucursal);
@@ -3405,12 +3405,13 @@ export class FacturaDirectaService {
         total_letras: numeroALetras(totales.totalPagar),
       },
     });
-      // Actualizar correlativo del bloque
-      await this.prisma.facturasBloques.update({
-        where: { id_bloque: bloque.id_bloque },
-        data: { actual: bloque.actual + 1 },
-      });
-      
+      // Actualizar correlativo del bloque solo si se generó un nuevo número
+      if (!factura.numero_factura) {
+        await this.prisma.facturasBloques.update({
+          where: { id_bloque: bloque.id_bloque },
+          data: { actual: bloque.actual + 1 },
+        });
+      }
 
 
     if (enviaraMH) {
