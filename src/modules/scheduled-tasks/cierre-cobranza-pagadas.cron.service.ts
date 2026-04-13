@@ -83,19 +83,19 @@ export class CierreCobranzaPagadasCronService {
       const factura = asig.facturaDirecta;
       const metodo = this.determinarMetodoPago(factura);
       const identificador = factura.numero_factura ?? `#${factura.id_factura_directa}`;
-      const motivo = `Auto-cierre: factura ${identificador} pagada. Método: ${metodo}`;
+      const motivo = `Cierre: factura ${identificador} pagada. Método: ${metodo}`;
 
       try {
         await this.cobranzaService.cerrar(
           asig.id_asignacion,
           { estado: 'CERRADA_PAGADA', motivo },
-          idUsuarioSistema,
+          asig.id_gestor,
         );
         exitosas++;
       } catch (error: any) {
         fallidas++;
         this.logger.error(
-          `Error al auto-cerrar asignación #${asig.id_asignacion} ` +
+          `Error al cerrar asignación #${asig.id_asignacion} ` +
             `(factura ${identificador}): ${error?.message}`,
         );
       }
@@ -115,6 +115,7 @@ export class CierreCobranzaPagadasCronService {
       },
       select: {
         id_asignacion: true,
+        id_gestor: true,
         facturaDirecta: {
           select: {
             id_factura_directa: true,
