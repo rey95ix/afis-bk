@@ -1041,8 +1041,8 @@ export class OrdenesTrabajoService {
         await this.crearRegistrosEvidencia(evidenciasData, prisma);
       }
 
-      // Si es una OT de INSTALACIÓN y el estado cambia a COMPLETADA, actualizar contrato vinculado
-      if (orden.tipo === 'INSTALACION' && cambiarEstadoDto.estado === 'COMPLETADA' && orden.id_contrato) {
+      // Si es una OT de INSTALACIÓN, RENOVACIÓN o REUBICACIÓN y el estado cambia a COMPLETADA, actualizar contrato vinculado
+      if (['INSTALACION', 'RENOVACION', 'REUBICACION'].includes(orden.tipo) && cambiarEstadoDto.estado === 'COMPLETADA' && orden.id_contrato) {
         const contrato = await prisma.atcContrato.findFirst({
           where: { id_contrato: orden.id_contrato, estado: 'PENDIENTE_INSTALACION' },
         });
@@ -1228,8 +1228,8 @@ export class OrdenesTrabajoService {
         },
       });
 
-      // Si es una OT de INSTALACIÓN con resultado RESUELTO, actualizar contrato vinculado
-      if (orden.tipo === 'INSTALACION' && cerrarDto.resultado === 'RESUELTO' && orden.id_contrato) {
+      // Si es una OT de INSTALACIÓN, RENOVACIÓN o REUBICACIÓN con resultado RESUELTO, actualizar contrato vinculado
+      if (['INSTALACION', 'RENOVACION', 'REUBICACION'].includes(orden.tipo) && cerrarDto.resultado === 'RESUELTO' && orden.id_contrato) {
         const contrato = await prisma.atcContrato.findFirst({
           where: { id_contrato: orden.id_contrato, estado: 'PENDIENTE_INSTALACION' },
         });

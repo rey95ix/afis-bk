@@ -484,6 +484,13 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     'Gestionar Evidencias',
     'Subir y ver evidencias fotograficas de ordenes',
   ),
+  crearPermisoCustom(
+    'atencion_cliente',
+    'ordenes',
+    'imprimir',
+    'Imprimir Ordenes',
+    'Generar comprobante PDF de ordenes de trabajo',
+  ),
 
   // Agenda
   crearPermiso('atencion_cliente', 'agenda', 'VER', 'Ver Agenda', 'Ver calendario de visitas tecnicas programadas'),

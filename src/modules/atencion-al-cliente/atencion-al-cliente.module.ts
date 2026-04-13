@@ -21,6 +21,7 @@ import { CatalogosController } from './catalogos/catalogos.controller';
 import { CatalogosService } from './catalogos/catalogos.service';
 import { OrdenesTrabajoController } from './ordenes-trabajo/ordenes-trabajo.controller';
 import { OrdenesTrabajoService } from './ordenes-trabajo/ordenes-trabajo.service';
+import { OrdenesTrabajoPdfService } from './ordenes-trabajo/ordenes-trabajo-pdf.service';
 import { ReportesController } from './reportes/reportes.controller';
 import { ReportesService } from './reportes/reportes.service';
 import { TicketsController } from './tickets/tickets.controller';
@@ -63,6 +64,7 @@ import { ContratosExcelService } from './contratos/contratos-excel.service';
     AgendaService,
     CatalogosService,
     OrdenesTrabajoService,
+    OrdenesTrabajoPdfService,
     ReportesService,
     TicketsService,
     TicketsPdfService,

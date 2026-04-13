@@ -9,14 +9,17 @@ import {
   Delete,
   UseGuards,
   Request,
+  Res,
   ParseIntPipe,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
 import { OrdenesTrabajoService } from './ordenes-trabajo.service';
+import { OrdenesTrabajoPdfService } from './ordenes-trabajo-pdf.service';
 
 const EVIDENCIAS_MULTER_OPTIONS: MulterOptions = {
   storage: memoryStorage(),
@@ -76,6 +79,7 @@ import { RequirePermissions } from 'src/modules/auth/decorators/require-permissi
 export class OrdenesTrabajoController {
   constructor(
     private readonly ordenesTrabajoService: OrdenesTrabajoService,
+    private readonly ordenesTrabajoPdfService: OrdenesTrabajoPdfService,
   ) {}
 
   @RequirePermissions('atencion_cliente.ordenes:crear')
@@ -603,5 +607,40 @@ export class OrdenesTrabajoController {
   })
   getEvidencias(@Param('id', ParseIntPipe) id: number) {
     return this.ordenesTrabajoService.getEvidencias(id);
+  }
+
+  // === PDF ===
+
+  @RequirePermissions('atencion_cliente.ordenes:imprimir')
+  @Get(':id/pdf')
+  @ApiOperation({
+    summary: 'Generar PDF de una orden de trabajo',
+    description:
+      'Genera un comprobante en PDF con todos los datos de la orden de trabajo: cliente, dirección, técnico, actividades, materiales e historial de estados.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID de la orden de trabajo',
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'PDF generado exitosamente',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Orden de trabajo no encontrada',
+  })
+  async imprimirPdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.ordenesTrabajoPdfService.generarPdf(id);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="OT_${id}.pdf"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 }

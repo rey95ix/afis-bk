@@ -1195,7 +1195,7 @@ export class ContratoPagosService {
 
         if (nuevoSaldoPendiente > 0) {
           nuevoEstadoCxc = totalAbonado > 0 ? 'PAGADA_PARCIAL' : 'PENDIENTE';
-          nuevoEstadoPago = totalAbonado > 0 ? 'ABONO' : 'PENDIENTE';
+          nuevoEstadoPago = totalAbonado > 0 ? 'PARCIAL' : 'PENDIENTE';
         }
 
         await tx.cuenta_por_cobrar.update({

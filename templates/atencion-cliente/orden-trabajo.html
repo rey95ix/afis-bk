@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Orden de Trabajo {{:orden.codigo}}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #333; padding: 20px 25px; display: flex; flex-direction: column; min-height: 25.5cm; }
+    .content { flex: 1 0 auto; }
+    .bottom { flex-shrink: 0; margin-top: auto; }
+    .header { display: flex; align-items: center; gap: 15px; text-align: left; margin-bottom: 15px; border-bottom: 2px solid #00126b; padding-bottom: 10px; }
+    .header .logo { height: 55px; width: auto; flex-shrink: 0; }
+    .header .titles { flex: 1; text-align: center; }
+    .header h1 { font-size: 16pt; color: #00126b; margin-bottom: 3px; }
+    .header h2 { font-size: 10pt; color: #666; font-weight: normal; }
+    .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-25deg); width: 70%; opacity: 0.06; z-index: -1; pointer-events: none; }
+    .ot-banner { background: #EEF0FA; border: 1px solid #c7cde6; border-left: 4px solid #00126b; border-radius: 4px; padding: 10px 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+    .ot-banner .num { font-size: 14pt; font-weight: bold; color: #00126b; }
+    .ot-banner .sub { font-size: 9pt; color: #555; margin-top: 2px; }
+    .badges { display: flex; gap: 6px; align-items: center; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 8pt; font-weight: bold; color: white; }
+    .badge-tipo { background: #5C6BC0; font-size: 22px;font-weight: bold; }
+    .estado-pendiente { background: #78909C; }
+    .estado-asignada { background: #3F51B5; }
+    .estado-agendada { background: #0288D1; }
+    .estado-enruta { background: #00897B; }
+    .estado-progreso { background: #FB8C00; }
+    .estado-espera { background: #F4511E; }
+    .estado-reprogramada { background: #8E24AA; }
+    .estado-completada { background: #43A047; }
+    .estado-cancelada { background: #E53935; }
+    .section { margin-bottom: 14px; }
+    .section-title { font-size: 9.5pt; font-weight: bold; color: #00126b; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px; margin-bottom: 8px; }
+    .grid-2 { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+    .grid-2 .item { flex: 1 1 45%; font-size: 9pt; }
+    .grid-2 .item .label { color: #888; font-size: 8pt; display: block; }
+    .grid-2 .item .value { color: #333; font-weight: 500; }
+    .descripcion { background: #fafafa; border: 1px solid #eee; border-radius: 4px; padding: 8px 10px; font-size: 9pt; line-height: 1.4; white-space: pre-wrap; }
+    table { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-top: 6px; }
+    th { background: #00126b; color: white; padding: 6px 8px; text-align: left; font-size: 8pt; }
+    td { padding: 5px 8px; border-bottom: 1px solid #e0e0e0; }
+    tr:nth-child(even) { background: #f9f9f9; }
+    .completado-si { color: #43A047; font-weight: bold; }
+    .completado-no { color: #E53935; }
+    .resultado-badge { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 8pt; font-weight: bold; background: #E8F5E9; color: #2E7D32; }
+    .calificacion { color: #FFA000; font-size: 11pt; }
+    .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 8pt; color: #777; }
+    .leyenda { margin-top: 14px; font-size: 8pt; color: #777; text-align: center; font-style: italic; }
+  </style>
+</head>
+<body>
+  {{if logoBase64}}<img class="watermark" src="data:image/png;base64,{{:logoBase64}}" alt="">{{/if}}
+  <div class="header">
+    {{if logoBase64}}<img class="logo" src="data:image/png;base64,{{:logoBase64}}" alt="Logo">{{/if}}
+    <div class="titles">
+      <h1>Orden de Trabajo</h1>
+      <h2>{{:empresa.nombre}}</h2>
+    </div>
+  </div>
+
+  <div class="content">
+  <div class="ot-banner">
+    <div>
+      <div class="num">{{:orden.codigo}}</div>
+      <div class="sub">Creada el {{:orden.fecha_creacion}}</div>
+    </div>
+    <div class="badges">
+      <span class="badge badge-tipo">{{:orden.tipo}}</span> 
+    </div>
+  </div>
+
+  <!-- Datos del Cliente -->
+  <div class="section">
+    <div class="section-title">Datos del Cliente</div>
+    <div class="grid-2">
+      <div class="item"><span class="label">Titular</span><span class="value">{{:cliente.titular}}</span></div>
+      <div class="item"><span class="label">DUI</span><span class="value">{{:cliente.dui}}</span></div>
+      <div class="item"><span class="label">Correo</span><span class="value">{{:cliente.correo}}</span></div>
+      <div class="item"><span class="label">Teléfono</span><span class="value">{{:cliente.telefono1}}{{if cliente.telefono2}} / {{:cliente.telefono2}}{{/if}}</span></div>
+    </div>
+  </div>
+  <!-- Contrato -->
+  {{if contrato}}
+  <div class="section">
+    <div class="section-title">Contrato de Servicio</div>
+    <div class="grid-2">
+      <div class="item"><span class="label">Código</span><span class="value">{{:contrato.codigo}}</span></div>
+      <div class="item"><span class="label">Plan</span><span class="value">{{:contrato.plan}}</span></div>
+      <div class="item"><span class="label">Estado</span><span class="value">{{:contrato.estado}}</span></div>
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- Dirección de Servicio -->
+  {{if direccion}}
+  <div class="section">
+    <div class="section-title">Dirección de Servicio</div>
+    <div style="font-size: 9pt;">
+      {{:direccion.calle}}{{if direccion.colonia}}, {{:direccion.colonia}}{{/if}}<br>
+      {{:direccion.municipio}}{{if direccion.departamento}}, {{:direccion.departamento}}{{/if}}{{if direccion.codigo_postal}} &middot; CP {{:direccion.codigo_postal}}{{/if}}
+    </div>
+  </div>
+  {{/if}}
+  
+
+  <!-- Agenda de Visita -->
+  {{if agenda}}
+  <div class="section">
+    <div class="section-title">Agenda de Visita</div>
+    <div class="grid-2">
+      <div class="item"><span class="label">Inicio</span><span class="value">{{:agenda.inicio}}</span></div>
+      <div class="item"><span class="label">Fin</span><span class="value">{{:agenda.fin}}</span></div>
+      <div class="item"><span class="label">Técnico</span><span class="value">{{:agenda.tecnico}}</span></div>
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- Ticket de Origen -->
+  {{if ticket}}
+  <div class="section">
+    <div class="section-title">Ticket de Origen</div>
+    <div class="grid-2">
+      <div class="item"><span class="label">Ticket</span><span class="value">#{{:ticket.id_ticket}}</span></div>
+      <div class="item"><span class="label">Severidad</span><span class="value">{{:ticket.severidad}}</span></div>
+    </div>
+    <div style="margin-top: 6px;">
+      <div style="font-size: 8pt; color: #888; margin-bottom: 3px;">Descripción del problema</div>
+      <div class="descripcion">{{:ticket.descripcion_problema}}</div>
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- Fechas Clave -->
+  <div class="section">
+    <div class="section-title">Fechas Clave</div>
+    <div class="grid-2">
+      <div class="item"><span class="label">Creación</span><span class="value">{{:orden.fecha_creacion}}</span></div>
+      {{if orden.fecha_asignacion}}<div class="item"><span class="label">Asignación</span><span class="value">{{:orden.fecha_asignacion}}</span></div>{{/if}}
+      {{if orden.fecha_llegada}}<div class="item"><span class="label">Llegada</span><span class="value">{{:orden.fecha_llegada}}</span></div>{{/if}}
+      {{if orden.fecha_inicio_trabajo}}<div class="item"><span class="label">Inicio de trabajo</span><span class="value">{{:orden.fecha_inicio_trabajo}}</span></div>{{/if}}
+      {{if orden.fecha_fin_trabajo}}<div class="item"><span class="label">Fin de trabajo</span><span class="value">{{:orden.fecha_fin_trabajo}}</span></div>{{/if}}
+    </div>
+  </div>
+
+  <!-- Observaciones del Técnico -->
+  {{if orden.observaciones_tecnico}}
+  <div class="section">
+    <div class="section-title">Observaciones</div>
+    <div class="descripcion">{{:orden.observaciones_tecnico}}</div>
+  </div>
+  {{/if}}
+
+  <!-- Cierre -->
+  {{if orden.resultado}}
+  <div class="section">
+    <div class="section-title">Resultado de Cierre</div>
+    <div class="grid-2">
+      <div class="item"><span class="label">Resultado</span><span class="value"><span class="resultado-badge">{{:orden.resultado}}</span></span></div>
+      {{if orden.motivo_cierre}}<div class="item"><span class="label">Motivo</span><span class="value">{{:orden.motivo_cierre}}</span></div>{{/if}}
+      {{if orden.calificacion_cliente}}<div class="item"><span class="label">Calificación del cliente</span><span class="value calificacion">{{:orden.calificacion_cliente}} / 5</span></div>{{/if}}
+    </div>
+    {{if orden.notas_cierre}}
+    <div style="margin-top: 6px;">
+      <div style="font-size: 8pt; color: #888; margin-bottom: 3px;">Notas de cierre</div>
+      <div class="descripcion">{{:orden.notas_cierre}}</div>
+    </div>
+    {{/if}}
+  </div>
+  {{/if}}
+
+  <!-- Actividades -->
+  {{if tieneActividades}}
+  <div class="section">
+    <div class="section-title">Actividades Realizadas</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Descripción</th>
+          <th>Solución</th>
+          <th>Valor Medido</th>
+          <th>Completado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{for actividades}}
+        <tr>
+          <td>{{:descripcion}}</td>
+          <td>{{:solucion}}</td>
+          <td>{{:valor_medido}}</td>
+          <td class="{{if completado === 'Sí'}}completado-si{{else}}completado-no{{/if}}">{{:completado}}</td>
+        </tr>
+        {{/for}}
+      </tbody>
+    </table>
+  </div>
+  {{/if}}
+
+  <!-- Materiales -->
+  {{if tieneMateriales}}
+  <div class="section">
+    <div class="section-title">Materiales Utilizados</div>
+    <table>
+      <thead>
+        <tr>
+          <th>SKU</th>
+          <th>Nombre</th>
+          <th>Cantidad</th>
+          <th>Serie</th>
+          <th>Costo Unit.</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{for materiales}}
+        <tr>
+          <td>{{:sku}}</td>
+          <td>{{:nombre}}</td>
+          <td>{{:cantidad}}</td>
+          <td>{{:serie}}</td>
+          <td>{{:costo_unitario}}</td>
+        </tr>
+        {{/for}}
+      </tbody>
+    </table>
+  </div>
+  {{/if}}
+
+  <!-- Historial de Estados -->
+  {{if tieneHistorial}}
+  <div class="section">
+    <div class="section-title">Historial de Estados</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Estado</th>
+          <th>Fecha</th>
+          <th>Comentario</th>
+          <th>Usuario</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{for historial}}
+        <tr>
+          <td><span class="badge {{:estadoClass}}">{{:estado}}</span></td>
+          <td>{{:fecha}}</td>
+          <td>{{:comentario}}</td>
+          <td>{{:usuario}}</td>
+        </tr>
+        {{/for}}
+      </tbody>
+    </table>
+  </div>
+  {{/if}}
+  </div>
+
+  <div class="bottom">
+    <div class="leyenda">
+      Este documento es un comprobante de la orden de trabajo registrada en el sistema.
+    </div>
+    <div class="footer">
+      {{:empresa.nombre}} &middot; Comprobante generado el {{:fechaGeneracion}}
+    </div>
+  </div>
+</body>
+</html>
