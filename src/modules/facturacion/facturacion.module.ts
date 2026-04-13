@@ -132,6 +132,8 @@ import { ComprobanteAnalyzerService } from '../whatsapp-chat/validacion-comproba
     FacturaDirectaService,
     // Caja (exportado para scheduled-tasks)
     CajaService,
+    // Cobranza (exportado para scheduled-tasks: auto-cierre de asignaciones pagadas)
+    CobranzaService,
   ],
 })
 export class FacturacionModule {}
