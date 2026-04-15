@@ -180,12 +180,15 @@ export class ClientesMigrationService {
       ? mappings.estadoVivienda.get(customer.id_house_status)
       : null;
 
-    const targetId = customer.id_customers;
-
     if (options.dryRun) {
-      this.logger.debug(`[DRY RUN] Migraría cliente: ${customer.name} (MySQL ID: ${targetId} → PG id_cliente: ${targetId})`);
-      mappings.clientes.set(targetId, targetId);
-      return { migrated: true, newId: targetId };
+      const existing = await this.prisma.cliente.findUnique({
+        where: { dui },
+        select: { id_cliente: true },
+      });
+      const previewId = existing?.id_cliente ?? customer.id_customers;
+      this.logger.debug(`[DRY RUN] Migraría/actualizaría cliente: ${customer.name} (DUI: ${dui} → PG id_cliente: ${previewId})`);
+      mappings.clientes.set(customer.id_customers, previewId);
+      return { migrated: true, newId: previewId };
     }
 
     // Campos comunes para create/update
@@ -208,173 +211,35 @@ export class ClientesMigrationService {
       estado: mapEstadoCliente(customer.customers_status) as any,
     };
 
-    // Buscar por DUI y por ID destino
-    const [existingByDui, existingById] = await Promise.all([
-      this.prisma.cliente.findUnique({ where: { dui }, select: { id_cliente: true, dui: true } }),
-      this.prisma.cliente.findUnique({ where: { id_cliente: targetId }, select: { id_cliente: true, dui: true } }),
-    ]);
-
-    // Caso A: ID destino ocupado por un cliente con DUI diferente
-    if (existingById && existingById.dui !== dui) {
-      this.logger.error(
-        `COLISIÓN: id_cliente=${targetId} ya está ocupado por DUI="${existingById.dui}", ` +
-        `pero MySQL ID ${targetId} tiene DUI="${dui}". Omitiendo cliente.`,
-      );
-      return { migrated: false, newId: 0 };
-    }
-
-    // Caso B: DUI existe con el mismo ID → solo UPDATE
-    if (existingByDui && existingByDui.id_cliente === targetId) {
-      await this.prisma.cliente.update({
-        where: { id_cliente: targetId },
-        data: clienteData,
-      });
-      mappings.clientes.set(targetId, targetId);
-      return { migrated: true, newId: targetId };
-    }
-
-    // Caso C: DUI existe con ID diferente → fue migrado previamente con autoincrement.
-    // El registro viejo ya fue limpiado por cleanupClienteData en migrateClienteById (con deleteClientRecord=true).
-    // Si aún existe aquí (migración batch sin cleanup previo), eliminarlo con limpieza completa de ~21 tablas FK.
-    if (existingByDui && existingByDui.id_cliente !== targetId) {
-      this.logger.warn(
-        `DUI="${dui}" existe con id_cliente=${existingByDui.id_cliente}, ` +
-        `pero necesita id_cliente=${targetId}. Eliminando registro viejo con todas las dependencias.`,
-      );
-      const oldId = existingByDui.id_cliente;
-
-      await this.prisma.$transaction(async (tx) => {
-        // 0. OLT data
-        await tx.olt_comando.deleteMany({ where: { id_cliente: oldId } });
-        await tx.olt_cambio_equipo.deleteMany({ where: { id_cliente: oldId } });
-        await tx.olt_cliente_telefono.deleteMany({ where: { id_cliente: oldId } });
-        await tx.olt_cliente_ip.deleteMany({ where: { id_cliente: oldId } });
-        await tx.olt_cliente.deleteMany({ where: { id_cliente: oldId } });
-
-        // 1. Recopilar IDs necesarios
-        const contratos = await tx.atcContrato.findMany({ where: { id_cliente: oldId }, select: { id_contrato: true } });
-        const contratoIds = contratos.map(c => c.id_contrato);
-
-        const facturasDirectas = await tx.facturaDirecta.findMany({ where: { id_cliente: oldId }, select: { id_factura_directa: true } });
-        const facturaDirectaIds = facturasDirectas.map(f => f.id_factura_directa);
-
-        const dtes = await tx.dte_emitidos.findMany({ where: { id_cliente: oldId }, select: { id_dte: true } });
-        const dteIds = dtes.map(d => d.id_dte);
-
-        const cxcs = await tx.cuenta_por_cobrar.findMany({ where: { id_cliente: oldId }, select: { id_cxc: true } });
-        const cxcIds = cxcs.map(c => c.id_cxc);
-
-        const abonos = cxcIds.length > 0
-          ? await tx.abono_cxc.findMany({ where: { id_cxc: { in: cxcIds } }, select: { id_abono: true } })
-          : [];
-        const abonoIds = abonos.map(a => a.id_abono);
-
-        // 2. caja_movimiento (via abonos)
-        if (abonoIds.length > 0) {
-          await tx.caja_movimiento.deleteMany({ where: { id_abono_cxc: { in: abonoIds } } });
-        }
-
-        // 3. abono_cxc
-        if (cxcIds.length > 0) {
-          await tx.abono_cxc.deleteMany({ where: { id_cxc: { in: cxcIds } } });
-        }
-
-        // 4. cuenta_por_cobrar
-        await tx.cuenta_por_cobrar.deleteMany({ where: { id_cliente: oldId } });
-
-        // 5. facturaDirectaDetalle
-        if (facturaDirectaIds.length > 0) {
-          await tx.facturaDirectaDetalle.deleteMany({ where: { id_factura_directa: { in: facturaDirectaIds } } });
-        }
-
-        // 6. facturaDirecta
-        await tx.facturaDirecta.deleteMany({ where: { id_cliente: oldId } });
-
-        // 7. dte_anulaciones
-        if (dteIds.length > 0) {
-          await tx.dte_anulaciones.deleteMany({ where: { id_dte: { in: dteIds } } });
-        }
-
-        // 8. dte_emitidos_detalle
-        if (dteIds.length > 0) {
-          await tx.dte_emitidos_detalle.deleteMany({ where: { id_dte: { in: dteIds } } });
-        }
-
-        // 9. dte_emitidos
-        await tx.dte_emitidos.deleteMany({ where: { id_cliente: oldId } });
-
-        // 10. pago_tarjeta_portal & pago_tarjeta_intent
-        await tx.pago_tarjeta_portal.deleteMany({ where: { id_cliente: oldId } });
-        await tx.pago_tarjeta_intent.deleteMany({ where: { id_cliente: oldId } });
-
-        // 11. whatsapp_validacion_comprobante → nullify contrato refs
-        if (contratoIds.length > 0) {
-          await tx.whatsapp_validacion_comprobante.updateMany({ where: { id_contrato: { in: contratoIds } }, data: { id_contrato: null } });
-        }
-
-        // 12. clienteDocumentos
-        await tx.clienteDocumentos.deleteMany({ where: { id_cliente: oldId } });
-
-        // 13. atcContratoInstalacion
-        if (contratoIds.length > 0) {
-          await tx.atcContratoInstalacion.deleteMany({ where: { id_contrato: { in: contratoIds } } });
-        }
-
-        // 14. orden_trabajo → nullify contrato refs
-        if (contratoIds.length > 0) {
-          await tx.orden_trabajo.updateMany({ where: { id_contrato: { in: contratoIds } }, data: { id_contrato: null } });
-        }
-
-        // 15. atcContrato
-        await tx.atcContrato.deleteMany({ where: { id_cliente: oldId } });
-
-        // 16. clienteDatosFacturacion
-        await tx.clienteDatosFacturacion.deleteMany({ where: { id_cliente: oldId } });
-
-        // 17. Órdenes de trabajo y dependencias
-        const ots = await tx.orden_trabajo.findMany({ where: { id_cliente: oldId }, select: { id_orden: true } });
-        const otIds = ots.map(o => o.id_orden);
-        if (otIds.length > 0) {
-          await tx.ot_historial_estado.deleteMany({ where: { id_orden: { in: otIds } } });
-          await tx.ot_actividades.deleteMany({ where: { id_orden: { in: otIds } } });
-          await tx.ot_materiales.deleteMany({ where: { id_orden: { in: otIds } } });
-          await tx.ot_evidencias.deleteMany({ where: { id_orden: { in: otIds } } });
-          await tx.agenda_visitas.deleteMany({ where: { id_orden: { in: otIds } } });
-          await tx.reservas_inventario.deleteMany({ where: { id_orden_trabajo: { in: otIds } } });
-          await tx.inventario_series.updateMany({ where: { id_orden_trabajo: { in: otIds } }, data: { id_orden_trabajo: null } });
-          await tx.movimientos_inventario.updateMany({ where: { id_orden_trabajo: { in: otIds } }, data: { id_orden_trabajo: null } });
-          await tx.historial_series.updateMany({ where: { id_orden_trabajo: { in: otIds } }, data: { id_orden_trabajo: null } });
-          await tx.sms_historial.updateMany({ where: { id_orden_trabajo: { in: otIds } }, data: { id_orden_trabajo: null } });
-          await tx.orden_trabajo.deleteMany({ where: { id_cliente: oldId } });
-        }
-
-        // 18. Tickets de soporte
-        const tickets = await tx.ticket_soporte.findMany({ where: { id_cliente: oldId }, select: { id_ticket: true } });
-        if (tickets.length > 0) {
-          await tx.sms_historial.updateMany({ where: { id_ticket: { in: tickets.map(t => t.id_ticket) } }, data: { id_ticket: null } });
-          await tx.ticket_soporte.deleteMany({ where: { id_cliente: oldId } });
-        }
-
-        // 19. clienteDirecciones
-        await tx.clienteDirecciones.deleteMany({ where: { id_cliente: oldId } });
-
-        // 20. Eliminar cliente
-        await tx.cliente.delete({ where: { id_cliente: oldId } });
-      }, { timeout: 30000 });
-    }
-
-    // Caso D (o continuación de C): Crear con ID explícito
-    await this.prisma.cliente.create({
-      data: {
-        id_cliente: targetId,
+    // Identidad por DUI: si existe, reusar id_cliente; si no, crear con id autoincrement.
+    // Merge conservador en update: solo rellenar campos vacíos para no pisar datos
+    // ya curados en PG con valores potencialmente desactualizados de MySQL.
+    const cliente = await this.prisma.cliente.upsert({
+      where: { dui },
+      create: {
         id_usuario: this.DEFAULT_USER_ID,
         dui,
         ...clienteData,
       },
+      update: {
+        titular: clienteData.titular || undefined,
+        correo_electronico: clienteData.correo_electronico || undefined,
+        telefono1: clienteData.telefono1 || undefined,
+        telefono2: clienteData.telefono2 ?? undefined,
+        empresa_trabajo: clienteData.empresa_trabajo || undefined,
+        nit: clienteData.nit ?? undefined,
+        referencia1: clienteData.referencia1 || undefined,
+        referencia1_telefono: clienteData.referencia1_telefono || undefined,
+        referencia2: clienteData.referencia2 || undefined,
+        referencia2_telefono: clienteData.referencia2_telefono || undefined,
+        nombre_conyuge: clienteData.nombre_conyuge ?? undefined,
+        telefono_conyuge: clienteData.telefono_conyuge ?? undefined,
+      },
+      select: { id_cliente: true },
     });
 
-    mappings.clientes.set(targetId, targetId);
-    return { migrated: true, newId: targetId };
+    mappings.clientes.set(customer.id_customers, cliente.id_cliente);
+    return { migrated: true, newId: cliente.id_cliente };
   }
 
   /**
@@ -754,6 +619,16 @@ export class ClientesMigrationService {
       if (options.dryRun) {
         this.logger.debug(`[DRY RUN] Migraría datos facturación para cliente: ${postgresClienteId}`);
         return { migrated: true };
+      }
+
+      const existing = await this.prisma.clienteDatosFacturacion.findFirst({
+        where: { id_cliente: postgresClienteId },
+        select: { id_cliente_datos_facturacion: true },
+      });
+
+      if (existing) {
+        this.logger.debug(`clienteDatosFacturacion ya existe para cliente ${postgresClienteId}, omitiendo`);
+        return { migrated: false };
       }
 
       await this.prisma.clienteDatosFacturacion.create({

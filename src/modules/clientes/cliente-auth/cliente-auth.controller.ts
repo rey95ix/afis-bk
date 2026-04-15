@@ -16,8 +16,7 @@ import {
 import {
   ApiTags,
   ApiOperation,
-  ApiResponse,
-  ApiBearerAuth,
+  ApiResponse, 
 } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { ClienteAuthService } from './cliente-auth.service';
@@ -87,7 +86,7 @@ export class ClienteAuthController {
   })
   @ApiResponse({ status: 400, description: 'Cuenta ya activada' })
   @ApiResponse({ status: 429, description: 'Demasiados intentos' })
-  @Throttle({ default: { limit: 3, ttl: 300000 } }) // 3 cada 5 minutos
+  // @Throttle({ default: { limit: 3, ttl: 300000 } }) // 3 cada 5 minutos
   async solicitarActivacion(
     @Body() dto: ClienteSolicitarActivacionDto,
     @Ip() ip: string,
@@ -102,7 +101,7 @@ export class ClienteAuthController {
   @ApiResponse({ status: 200, description: 'Cuenta activada exitosamente' })
   @ApiResponse({ status: 400, description: 'Token inválido o expirado' })
   @ApiResponse({ status: 429, description: 'Demasiados intentos' })
-  @Throttle({ default: { limit: 5, ttl: 300000 } })
+  // @Throttle({ default: { limit: 5, ttl: 300000 } })
   async activarCuenta(
     @Body() dto: ClienteActivarCuentaDto,
     @Ip() ip: string,

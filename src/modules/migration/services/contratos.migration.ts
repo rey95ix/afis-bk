@@ -512,14 +512,45 @@ export class ContratosMigrationService {
           continue;
         }
 
-        // Verificar si el código ya existe
+        // Verificar si el código ya existe globalmente
         const existingContract = await this.prisma.atcContrato.findUnique({
           where: { codigo },
+          select: { id_contrato: true, id_cliente: true },
         });
 
         let finalCodigo = codigo;
         if (existingContract) {
+          // Si el contrato existente pertenece al mismo cliente PG, asumimos que es
+          // el mismo contrato ya migrado (idempotencia) y lo saltamos.
+          if (existingContract.id_cliente === postgresClienteId) {
+            this.logger.debug(
+              `Contrato MySQL ${contract.id_customers_contract} ya migrado como ` +
+              `id_contrato=${existingContract.id_contrato} (codigo=${codigo}), saltando`,
+            );
+            migratedIds.push(existingContract.id_contrato);
+            mappings.contratos.set(contract.id_customers_contract, existingContract.id_contrato);
+            migrated++;
+            continue;
+          }
+          // Código tomado por otro cliente: usar sufijo determinista por MySQL contract id.
           finalCodigo = `${codigo}-MIG${contract.id_customers_contract}`;
+        }
+
+        // Dedup adicional por (id_cliente, finalCodigo) para reejecuciones donde el
+        // contrato fue migrado con sufijo en una corrida previa.
+        const alreadyMigrated = await this.prisma.atcContrato.findFirst({
+          where: { id_cliente: postgresClienteId, codigo: finalCodigo },
+          select: { id_contrato: true },
+        });
+        if (alreadyMigrated) {
+          this.logger.debug(
+            `Contrato MySQL ${contract.id_customers_contract} ya migrado como ` +
+            `id_contrato=${alreadyMigrated.id_contrato} (codigo=${finalCodigo}), saltando`,
+          );
+          migratedIds.push(alreadyMigrated.id_contrato);
+          mappings.contratos.set(contract.id_customers_contract, alreadyMigrated.id_contrato);
+          migrated++;
+          continue;
         }
 
         const result = await this.prisma.atcContrato.create({

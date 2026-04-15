@@ -24,7 +24,7 @@ import {
 import { MigrationModule, MigrateClienteOptionsDto } from './dto/migration-config.dto';
 import { MigrationGateway } from './migration.gateway';
 import { RowDataPacket } from 'mysql2/promise';
-import { normalizeDUI, parseDate } from './utils/transformers';
+import { parseDate } from './utils/transformers';
 
 @Injectable()
 export class MigrationService {
@@ -1141,53 +1141,9 @@ export class MigrationService {
       maxRetries: 3,
     };
 
-    // 0. Limpieza previa: si el cliente ya existe en PostgreSQL, eliminar datos dependientes
-    if (!migrationOptions.dryRun) {
-      try {
-        const mysqlCustomer = await this.mysql.queryOne<RowDataPacket & { dui: string }>(
-          'SELECT dui FROM tbl_customers WHERE id_customers = ?',
-          [idCustomer],
-        );
-        const dui = normalizeDUI(mysqlCustomer?.dui) || `MIGRADO-${idCustomer}`;
-        const existingCliente = await this.prisma.cliente.findUnique({
-          where: { dui },
-          select: { id_cliente: true },
-        });
-
-        if (existingCliente) {
-          const needsIdChange = existingCliente.id_cliente !== idCustomer;
-          this.addLog('INFO', 'cliente-individual',
-            `Cliente existente encontrado (DUI: ${dui}, ID: ${existingCliente.id_cliente}` +
-            `${needsIdChange ? `, necesita cambio a ID: ${idCustomer}` : ''}). Ejecutando limpieza previa...`);
-          const { deleted } = await this.cleanupClienteData(existingCliente.id_cliente, needsIdChange);
-          const totalDeleted = Object.values(deleted).reduce((sum, n) => sum + n, 0);
-          this.addLog('INFO', 'cliente-individual',
-            `Limpieza completada: ${totalDeleted} registros eliminados`,
-            deleted,
-          );
-        } else {
-          this.addLog('INFO', 'cliente-individual', `Cliente nuevo (DUI: ${dui}), no requiere limpieza`);
-        }
-      } catch (error) {
-        this.addLog('ERROR', 'cliente-individual',
-          `Error en limpieza previa del cliente ${idCustomer}: ${error instanceof Error ? error.message : error}`,
-          error,
-        );
-        allErrors.push({
-          table: 'cleanup',
-          recordId: idCustomer,
-          message: `Error en limpieza previa: ${error instanceof Error ? error.message : 'Error desconocido'}`,
-        });
-        // Sin limpieza exitosa, la migración fallará por FK constraints o DUI unique
-        return {
-          cliente: { mysqlId: idCustomer, postgresId: 0, migrated: false, dui: '' },
-          direcciones: { total: 0, migrated: 0 },
-          datosFacturacion: { migrated: false },
-          errors: allErrors,
-          duration: Date.now() - startedAt,
-        };
-      }
-    }
+    // El cliente se resuelve por DUI (upsert) en ClientesMigrationService.migrateCustomer:
+    // si ya existe se reusa su id_cliente y solo se agregan los contratos del id_customers actual,
+    // soportando el caso MySQL "1 cliente = 1 contrato" mapeado al modelo PG multi-contrato.
 
     // 1. Migrar cliente base (con direcciones y datos facturación)
     const clienteResult = await this.clientesMigration.migrateById(
