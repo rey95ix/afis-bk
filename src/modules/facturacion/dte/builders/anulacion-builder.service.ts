@@ -140,11 +140,11 @@ export class AnulacionBuilderService {
       // DTE de reemplazo (solo si tipoAnulacion = 1)
       codigoGeneracionR: motivo.codigoGeneracionReemplazo || null,
       // Datos del receptor original
-      tipoDocumento: dteOriginal.tipoDocumentoReceptor,
-      numDocumento: dteOriginal.numDocumentoReceptor,
-      nombre: dteOriginal.nombreReceptor,
-      telefono: dteOriginal.telefonoReceptor,
-      correo: dteOriginal.correoReceptor,
+      tipoDocumento: dteOriginal.tipoDocumentoReceptor || null,
+      numDocumento: dteOriginal.numDocumentoReceptor || null,
+      nombre: dteOriginal.nombreReceptor || null,
+      telefono: dteOriginal.telefonoReceptor || null,
+      correo: dteOriginal.correoReceptor || null,
     };
   }
 

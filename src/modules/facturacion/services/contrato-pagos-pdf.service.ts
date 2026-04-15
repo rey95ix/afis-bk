@@ -51,7 +51,17 @@ export class ContratoPagosPdfService implements OnModuleInit {
       this.contratoPagosService.obtenerFacturasContrato(idContrato),
       this.prisma.generalData.findFirst(),
     ]);
-
+    const newFacturas = facturas.filter((f: any) => f.estadoPago === 'PAGADO');
+    const facPendiente = facturas.filter((f: any) => f.estadoPago !== 'PAGADO');
+    const facVencida = facturas.filter((f: any) => f.estadoPago === 'VENCIDA' );
+    let facturaPendiente: any = []
+    if (facPendiente.length > 0) {
+      facturaPendiente = [facPendiente[0]];
+    }
+    let facturaVencida: any = []
+    if (facVencida.length > 0) {
+      facturaVencida = [facVencida[0]];
+    }
     const templatePath = path.join(process.cwd(), 'templates/facturacion', 'estado-cuenta-contrato.html');
 
     let templateHtml: string;
@@ -68,7 +78,11 @@ export class ContratoPagosPdfService implements OnModuleInit {
       throw new BadRequestException('Error al cargar la plantilla del reporte.');
     }
 
-    const templateData = this.prepareTemplateData(estadoCuenta, facturas, empresa);
+    const templateData = this.prepareTemplateData(estadoCuenta, [
+      ...newFacturas,
+      ...facturaVencida,
+      ...facturaPendiente,
+    ], empresa);
 
     try {
       const response = await axios.post(
