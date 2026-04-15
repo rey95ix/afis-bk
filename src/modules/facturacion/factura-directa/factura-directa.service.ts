@@ -1848,7 +1848,7 @@ export class FacturaDirectaService {
       numeroControl: factura.numero_control,
       fechaEmision: dteDoc.identificacion.fecEmi,
       montoIva: Number(factura.iva) || 0,
-      tipoDocumentoReceptor: receptorData.tipoDocumento || '36',
+      tipoDocumentoReceptor: receptorData.tipoDocumento,
       numDocumentoReceptor: receptorData.numDocumento || receptorData.nit || '',
       nombreReceptor: receptorData.nombre || null,
       telefonoReceptor: receptorData.telefono || null,
@@ -3405,13 +3405,13 @@ export class FacturaDirectaService {
         total_letras: numeroALetras(totales.totalPagar),
       },
     });
-      // Actualizar correlativo del bloque solo si se generó un nuevo número
-      if (!factura.numero_factura) {
-        await this.prisma.facturasBloques.update({
-          where: { id_bloque: bloque.id_bloque },
-          data: { actual: bloque.actual + 1 },
-        });
-      }
+    // Actualizar correlativo del bloque solo si se generó un nuevo número
+    if (!factura.numero_factura) {
+      await this.prisma.facturasBloques.update({
+        where: { id_bloque: bloque.id_bloque },
+        data: { actual: bloque.actual + 1 },
+      });
+    }
 
 
     if (enviaraMH) {
@@ -4130,7 +4130,7 @@ export class FacturaDirectaService {
 
     this.logger.log(
       `Regenerada factura #${nueva.id_factura_directa} desde anulada #${idFacturaAnulada} ` +
-        `(contrato ${original.id_contrato}, cuota ${original.numero_cuota})`,
+      `(contrato ${original.id_contrato}, cuota ${original.numero_cuota})`,
     );
 
     return nueva.id_factura_directa;
