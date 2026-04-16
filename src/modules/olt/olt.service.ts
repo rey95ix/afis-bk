@@ -16,7 +16,9 @@ import {
   OntWanInfo,
   ClienteOltInfo,
   DisponiblesResult,
+  DiscoveredOnt,
 } from './interfaces/olt-command.interface';
+import { parseAutofindOutput } from './parsers/autofind.parser';
 
 @Injectable()
 export class OltService {
@@ -448,17 +450,7 @@ export class OltService {
       );
     }
 
-    // Step 4: Deactivate old slot
-    await this.prisma.olt_cliente.update({
-      where: { id_olt_cliente: oltClienteActual.id_olt_cliente },
-      data: {
-        ont_status: 0,
-        serviceport_status: 0,
-        id_cliente: null,
-      },
-    });
-
-    // Step 5: Install new equipment
+    // Step 4: Install new equipment on OLT (SSH, no rollback posible)
     const nuevoSlotTarjeta = nuevoSlot.tarjeta;
     const idOltEquipoNuevo = nuevoSlotTarjeta.equipo.id_olt_equipo;
 
@@ -501,36 +493,69 @@ export class OltService {
       );
     }
 
-    // Step 6: Activate new slot
-    await this.prisma.olt_cliente.update({
-      where: { id_olt_cliente: nuevoSlot.id_olt_cliente },
-      data: {
-        id_cliente: dto.idCliente,
-        ont_status: 1,
-        serviceport_status: 1,
-        id_olt_modelo: dto.idOltModeloNuevo,
-        sn: dto.snNuevo,
-        password: dto.passwordNuevo || null,
-        vlan: dto.vlanNuevo,
-        user_vlan: dto.userVlanNuevo,
-        fecha_activacion: new Date(),
-      },
-    });
+    // Steps 5-7: DB orchestration atómica (desactivar slot viejo + activar
+    // slot nuevo + registrar cambio). Si esto falla después del SSH exitoso,
+    // dejamos rastro en olt_comando para intervención manual.
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        // Desactivar slot viejo
+        await tx.olt_cliente.update({
+          where: { id_olt_cliente: oltClienteActual.id_olt_cliente },
+          data: {
+            ont_status: 0,
+            serviceport_status: 0,
+            id_cliente: null,
+          },
+        });
 
-    // Step 7: Record equipment change
-    await this.prisma.olt_cambio_equipo.create({
-      data: {
-        id_cliente: dto.idCliente,
-        sn_anterior: oltClienteActual.sn,
-        sn_nuevo: dto.snNuevo,
-        password_anterior: oltClienteActual.password,
-        password_nuevo: dto.passwordNuevo || null,
-        id_modelo_anterior: oltClienteActual.id_olt_modelo,
-        id_modelo_nuevo: dto.idOltModeloNuevo,
-        observacion: dto.observacion || null,
-        id_usuario: idUsuario,
-      },
-    });
+        // Activar slot nuevo
+        await tx.olt_cliente.update({
+          where: { id_olt_cliente: nuevoSlot.id_olt_cliente },
+          data: {
+            id_cliente: dto.idCliente,
+            ont_status: 1,
+            serviceport_status: 1,
+            id_olt_modelo: dto.idOltModeloNuevo,
+            sn: dto.snNuevo,
+            password: dto.passwordNuevo || null,
+            vlan: dto.vlanNuevo,
+            user_vlan: dto.userVlanNuevo,
+            fecha_activacion: new Date(),
+          },
+        });
+
+        // Registrar cambio de equipo
+        await tx.olt_cambio_equipo.create({
+          data: {
+            id_cliente: dto.idCliente,
+            sn_anterior: oltClienteActual.sn,
+            sn_nuevo: dto.snNuevo,
+            password_anterior: oltClienteActual.password,
+            password_nuevo: dto.passwordNuevo || null,
+            id_modelo_anterior: oltClienteActual.id_olt_modelo,
+            id_modelo_nuevo: dto.idOltModeloNuevo,
+            observacion: dto.observacion || null,
+            id_usuario: idUsuario,
+          },
+        });
+      });
+    } catch (txError) {
+      const mensaje =
+        txError instanceof Error ? txError.message : 'Error desconocido';
+      this.logger.error(
+        `INCONSISTENCIA: SSH exitoso pero falló persistencia DB en cambioEquipo cliente=${dto.idCliente}: ${mensaje}`,
+      );
+      await this.registrarComando(
+        idOltEquipoNuevo,
+        dto.idCliente,
+        'EQUIPMENT_CHANGE_DB_FAIL',
+        `SSH OK pero DB falló: ${mensaje}`,
+        idUsuario,
+      );
+      throw new InternalServerErrorException(
+        `Equipo reinstalado en OLT pero falló el registro en BD. Se requiere intervención manual. Detalle: ${mensaje}`,
+      );
+    }
 
     return {
       success: true,
@@ -666,6 +691,137 @@ export class OltService {
     }
 
     return { ontIds, serviceports };
+  }
+
+  async discoverUnregisteredOnts(
+    idOltEquipo: number,
+  ): Promise<DiscoveredOnt[]> {
+    this.logger.log(
+      `[autofind] Iniciando descubrimiento para equipo=${idOltEquipo}`,
+    );
+    try {
+      const equipo = await this.prisma.olt_equipo.findUnique({
+        where: { id_olt_equipo: idOltEquipo },
+        include: { credencial: true, tarjetas: true },
+      });
+
+      if (!equipo) {
+        this.logger.warn(
+          `[autofind] Equipo OLT ${idOltEquipo} no encontrado en BD`,
+        );
+        throw new NotFoundException(
+          `Equipo OLT ${idOltEquipo} no encontrado`,
+        );
+      }
+
+      this.logger.log(
+        `[autofind] Equipo encontrado: ${equipo.nombre} (${equipo.ip_address}), tarjetas=${equipo.tarjetas.length}, credencial=${!!equipo.credencial}`,
+      );
+
+      if (!equipo.credencial) {
+        throw new BadRequestException(
+          `No se encontraron credenciales SSH para el equipo OLT ${equipo.nombre}`,
+        );
+      }
+
+      const comando = this.commandBuilder.buildAutofindAllCommand();
+      this.logger.debug(
+        `[autofind] Comando a ejecutar:\n${comando}`,
+      );
+
+      let output: string;
+      try {
+        output = await this.connectionService.executeQuery(
+          equipo.id_olt_equipo,
+          comando,
+        );
+      } catch (sshError) {
+        const msg =
+          sshError instanceof Error ? sshError.message : String(sshError);
+        this.logger.error(
+          `[autofind] Error SSH en equipo ${equipo.nombre} (${equipo.ip_address}): ${msg}`,
+          sshError instanceof Error ? sshError.stack : undefined,
+        );
+        throw new InternalServerErrorException(
+          `Error SSH al ejecutar autofind en ${equipo.nombre}: ${msg}`,
+        );
+      }
+
+      this.logger.debug(
+        `[autofind] Output recibido (${output?.length ?? 0} chars):\n${output}`,
+      );
+
+      let discovered: DiscoveredOnt[];
+      try {
+        discovered = parseAutofindOutput(output);
+      } catch (parseError) {
+        const msg =
+          parseError instanceof Error
+            ? parseError.message
+            : String(parseError);
+        this.logger.error(
+          `[autofind] Error parseando output de autofind: ${msg}`,
+          parseError instanceof Error ? parseError.stack : undefined,
+        );
+        this.logger.error(`[autofind] Output crudo que falló:\n${output}`);
+        throw new InternalServerErrorException(
+          `Error parseando respuesta de la OLT: ${msg}`,
+        );
+      }
+
+      this.logger.log(
+        `[autofind] Parser extrajo ${discovered.length} ONTs descubiertas`,
+      );
+
+      // Enriquecer cada ONT descubierta con la tarjeta correspondiente al slot
+      const tarjetasBySlot = new Map<number, { id: number; nombre: string }>();
+      for (const t of equipo.tarjetas) {
+        tarjetasBySlot.set(t.slot, {
+          id: t.id_olt_tarjeta,
+          nombre: t.nombre,
+        });
+      }
+
+      const result = discovered.map((o) => {
+        const tarjeta = tarjetasBySlot.get(o.slot);
+        return {
+          ...o,
+          idOltTarjeta: tarjeta?.id,
+          tarjetaNombre: tarjeta?.nombre,
+        };
+      });
+
+      this.logger.log(
+        `[autofind] Descubrimiento completado exitosamente: ${result.length} ONTs`,
+      );
+      return result;
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[autofind] Error inesperado en discoverUnregisteredOnts(equipo=${idOltEquipo}): ${msg}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException(
+        `Error inesperado al descubrir ONTs: ${msg}`,
+      );
+    }
+  }
+
+  async getEquipos() {
+    return this.prisma.olt_equipo.findMany({
+      include: {
+        credencial: { select: { id_olt_credencial: true } },
+        tarjetas: true,
+      },
+      orderBy: { id_olt_equipo: 'asc' },
+    });
   }
 
   async getHistorialComandos(idCliente: number) {

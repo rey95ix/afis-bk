@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class InstalarOntDto {
   @ApiProperty({ description: 'ID del cliente' })
@@ -10,16 +10,22 @@ export class InstalarOntDto {
   @IsInt()
   idOltTarjeta: number;
 
-  @ApiProperty({ description: 'Puerto en la tarjeta' })
+  @ApiProperty({ description: 'Puerto en la tarjeta (0-15 para MA5680T GPON)' })
   @IsInt()
+  @Min(0)
+  @Max(15)
   port: number;
 
-  @ApiProperty({ description: 'ONT ID asignado' })
+  @ApiProperty({ description: 'ONT ID asignado (0-127 en GPON)' })
   @IsInt()
+  @Min(0)
+  @Max(127)
   ontId: number;
 
-  @ApiProperty({ description: 'Service port asignado' })
+  @ApiProperty({ description: 'Service port asignado (0-4095)' })
   @IsInt()
+  @Min(0)
+  @Max(4095)
   serviceport: number;
 
   @ApiProperty({ description: 'ID del modelo de ONT' })
@@ -36,12 +42,16 @@ export class InstalarOntDto {
   @IsString()
   password?: string;
 
-  @ApiProperty({ description: 'VLAN asignada' })
+  @ApiProperty({ description: 'VLAN asignada (1-4094)' })
   @IsInt()
+  @Min(1)
+  @Max(4094)
   vlan: number;
 
-  @ApiProperty({ description: 'User VLAN' })
+  @ApiProperty({ description: 'User VLAN (1-4094)' })
   @IsInt()
+  @Min(1)
+  @Max(4094)
   userVlan: number;
 
   @ApiProperty({ description: 'Tipo de autenticación', enum: ['SN', 'LOID'] })

@@ -78,8 +78,11 @@ export class OltConnectionService {
 
     const host = credencial.equipo.ip_address;
     const port = credencial.ssh_puerto;
-    const username = this.decrypt(credencial.ssh_usuario);
-    const password = this.decrypt(credencial.ssh_password);
+    // const username = this.decrypt(credencial.ssh_usuario);
+    // const password = this.decrypt(credencial.ssh_password);
+
+    const username = credencial.ssh_usuario;
+    const password = credencial.ssh_password;
     const promptPattern = credencial.prompt_pattern;
 
     const sshTimeout = this.configService.get<number>('OLT_SSH_TIMEOUT', 10000);
@@ -95,10 +98,22 @@ export class OltConnectionService {
     return new Promise((resolve) => {
       const conn = new Client();
       let fullOutput = '';
+      let settled = false;
+
+      const finish = (result: OltCommandResult) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        try {
+          conn.end();
+        } catch {
+          // ignore
+        }
+        resolve(result);
+      };
 
       const timeout = setTimeout(() => {
-        conn.end();
-        resolve({
+        finish({
           success: false,
           output: fullOutput,
           error: 'Timeout de conexión SSH excedido',
@@ -111,9 +126,7 @@ export class OltConnectionService {
 
           conn.shell((err, stream) => {
             if (err) {
-              clearTimeout(timeout);
-              conn.end();
-              resolve({ success: false, output: '', error: err.message });
+              finish({ success: false, output: '', error: err.message });
               return;
             }
 
@@ -122,9 +135,7 @@ export class OltConnectionService {
             });
 
             stream.on('close', () => {
-              clearTimeout(timeout);
-              conn.end();
-              resolve({ success: true, output: fullOutput });
+              finish({ success: true, output: fullOutput });
             });
 
             // Send commands line by line with delays
@@ -137,9 +148,11 @@ export class OltConnectionService {
                 lineIndex++;
                 setTimeout(sendNextLine, commandDelay);
               } else {
-                // Wait for final response then close
+                // Esperar respuesta final y resolver con el output acumulado.
+                // El comando debe incluir su propia secuencia de salida
+                // (ej: `quit\ny`) para que el OLT cierre la sesión limpiamente.
                 setTimeout(() => {
-                  stream.end('quit\n');
+                  finish({ success: true, output: fullOutput });
                 }, responseTimeout);
               }
             };
@@ -149,9 +162,19 @@ export class OltConnectionService {
           });
         })
         .on('error', (err) => {
-          clearTimeout(timeout);
+          // Si el OLT ya cerró la sesión (caso esperado tras `quit\ny`),
+          // el socket emite ECONNRESET DESPUÉS de que ya resolvimos con
+          // el output capturado. En ese caso lo degradamos a debug.
+          const isResetAfterSuccess =
+            settled && /ECONNRESET|ECONNABORTED/.test(err.message);
+          if (isResetAfterSuccess) {
+            this.logger.debug(
+              `SSH cerrado por OLT ${host}:${port} tras logout (${err.message}) — esperado`,
+            );
+            return;
+          }
           this.logger.error(`SSH error a ${host}:${port}: ${err.message}`);
-          resolve({ success: false, output: fullOutput, error: err.message });
+          finish({ success: false, output: fullOutput, error: err.message });
         })
         .connect({
           host,

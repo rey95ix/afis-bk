@@ -105,6 +105,16 @@ export class OltCommandBuilderService {
     return lines.join('\n');
   }
 
+  buildAutofindAllCommand(): string {
+    const lines = [
+      'enable', 
+      'display ont autofind all',
+      'quit',
+      'y',
+    ];
+    return lines.join('\n');
+  }
+
   buildPlanChangeCommand(params: OltPlanChangeParams): string {
     const lines = [
       'enable',

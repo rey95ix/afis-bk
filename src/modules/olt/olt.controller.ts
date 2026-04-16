@@ -153,6 +153,25 @@ export class OltController {
   }
 
   @RequirePermissions('olt.gestion:consultar')
+  @Get('equipos')
+  @ApiOperation({ summary: 'Listar equipos OLT' })
+  @ApiResponse({ status: 200, description: 'Lista de equipos OLT' })
+  getEquipos() {
+    return this.oltService.getEquipos();
+  }
+
+  @RequirePermissions('olt.gestion:consultar')
+  @Get('equipos/:idEquipo/autofind')
+  @ApiOperation({
+    summary:
+      'Descubrir ONTs no registradas vía autofind en un equipo OLT (ejecuta display ont autofind all vía SSH)',
+  })
+  @ApiResponse({ status: 200, description: 'Lista de ONTs descubiertas' })
+  autofindOnts(@Param('idEquipo', ParseIntPipe) idEquipo: number) {
+    return this.oltService.discoverUnregisteredOnts(idEquipo);
+  }
+
+  @RequirePermissions('olt.gestion:consultar')
   @Get('disponibles/:idTarjeta/:port')
   @ApiOperation({ summary: 'Obtener ONT IDs y service ports disponibles' })
   @ApiResponse({ status: 200, description: 'ONTs y service ports disponibles' })

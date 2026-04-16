@@ -543,6 +543,12 @@
                             {{dec2:resumen.descuExenta}}</span></div>
                     <div class="total-line"><span>Monto global Desc., Rebajas y otros a ventas gravadas:</span> <span>$
                             {{dec2:resumen.descuGravada}}</span></div>
+
+                    {{if resumen.tributos && resumen.tributos.length > 0}} 
+                        {{for resumen.tributos}} 
+                        <div class="total-line"><span>{{>descripcion}}:</span> <span>$ {{dec2:valor}}</span></div>
+                        {{/for}} 
+                    {{/if}}
                     <div class="total-line"><span>Sub-Total:</span> <span>$ {{dec2:resumen.subTotal}}</span></div>
                     <div class="total-line"><span>IVA Percibido:</span> <span>$ {{dec2:resumen.ivaPerci1}}</span></div>
                     <div class="total-line"><span>IVA Retenido:</span> <span>$ {{dec2:resumen.ivaRete1}}</span></div>

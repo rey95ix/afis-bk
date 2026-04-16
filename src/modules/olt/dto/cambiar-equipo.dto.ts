@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsOptional, IsString } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class CambiarEquipoDto {
   @ApiProperty({ description: 'ID del cliente' })
@@ -23,12 +23,16 @@ export class CambiarEquipoDto {
   @IsString()
   passwordNuevo?: string;
 
-  @ApiProperty({ description: 'VLAN para el nuevo equipo' })
+  @ApiProperty({ description: 'VLAN para el nuevo equipo (1-4094)' })
   @IsInt()
+  @Min(1)
+  @Max(4094)
   vlanNuevo: number;
 
-  @ApiProperty({ description: 'User VLAN para el nuevo equipo' })
+  @ApiProperty({ description: 'User VLAN para el nuevo equipo (1-4094)' })
   @IsInt()
+  @Min(1)
+  @Max(4094)
   userVlanNuevo: number;
 
   @ApiProperty({ description: 'Observación del cambio', required: false })
