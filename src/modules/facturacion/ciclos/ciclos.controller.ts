@@ -7,11 +7,18 @@ import {
   Put,
   Param,
   Delete,
+  Patch,
   ParseIntPipe,
   Query,
 } from '@nestjs/common';
 import { CiclosService } from './ciclos.service';
-import { CreateCicloDto, UpdateCicloDto, QueryCicloDto } from './dto';
+import {
+  CreateCicloDto,
+  UpdateCicloDto,
+  QueryCicloDto,
+  UpdateClienteContactoDto,
+  QueryNotificacionesGlobalDto,
+} from './dto';
 import {
   ApiTags,
   ApiOperation,
@@ -99,6 +106,41 @@ export class CiclosController {
     return this.ciclosService.findAllActive();
   }
 
+  @Get('notificaciones/global')
+  @RequirePermissions('facturacion.ciclos:notificar')
+  @ApiOperation({
+    summary:
+      'Listado global de clientes con validacion de telefono/correo. Soporta filtro por ciclo, busqueda por nombre, filtro por validez y paginacion.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resumen + clientes paginados con validacion.',
+  })
+  findNotificacionesGlobal(@Query() dto: QueryNotificacionesGlobalDto) {
+    return this.ciclosService.findNotificacionesGlobal(dto);
+  }
+
+  @Patch('clientes/:clienteId/contacto')
+  @RequirePermissions('facturacion.ciclos:editar')
+  @ApiOperation({
+    summary:
+      'Actualizar telefono y/o correo de un cliente sin restriccion de ciclo (vista global)',
+  })
+  @ApiResponse({ status: 200, description: 'Contacto actualizado.' })
+  @ApiResponse({ status: 400, description: 'Datos invalidos.' })
+  @ApiResponse({ status: 404, description: 'Cliente no encontrado.' })
+  updateClienteContactoGlobal(
+    @Param('clienteId', ParseIntPipe) clienteId: number,
+    @Body() dto: UpdateClienteContactoDto,
+    @GetUser('id_usuario') id_usuario: number,
+  ) {
+    return this.ciclosService.updateClienteContactoGlobal(
+      clienteId,
+      dto,
+      id_usuario,
+    );
+  }
+
   @Get(':id')
   @RequirePermissions('facturacion.ciclos:ver')
   @ApiOperation({ summary: 'Obtener un ciclo por ID' })
@@ -150,6 +192,45 @@ export class CiclosController {
     @Query() paginationDto: PaginationDto,
   ) {
     return this.ciclosService.findContratosByCiclo(id, paginationDto);
+  }
+
+  @Get(':id/notificaciones')
+  @RequirePermissions('facturacion.ciclos:notificar')
+  @ApiOperation({
+    summary: 'Obtener clientes del ciclo con validacion de telefono y correo',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Resumen de validacion y listado de clientes con su contacto.',
+  })
+  @ApiResponse({ status: 404, description: 'Ciclo no encontrado.' })
+  findNotificaciones(@Param('id', ParseIntPipe) id: number) {
+    return this.ciclosService.findNotificacionesByCiclo(id);
+  }
+
+  @Patch(':id/clientes/:clienteId/contacto')
+  @RequirePermissions('facturacion.ciclos:editar')
+  @ApiOperation({
+    summary: 'Actualizar telefono y/o correo de un cliente del ciclo',
+  })
+  @ApiResponse({ status: 200, description: 'Contacto actualizado.' })
+  @ApiResponse({ status: 400, description: 'Datos invalidos.' })
+  @ApiResponse({
+    status: 404,
+    description: 'Ciclo o cliente no encontrado en el ciclo.',
+  })
+  updateClienteContacto(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('clienteId', ParseIntPipe) clienteId: number,
+    @Body() dto: UpdateClienteContactoDto,
+    @GetUser('id_usuario') id_usuario: number,
+  ) {
+    return this.ciclosService.updateClienteContacto(
+      id,
+      clienteId,
+      dto,
+      id_usuario,
+    );
   }
 
   @Put(':id')

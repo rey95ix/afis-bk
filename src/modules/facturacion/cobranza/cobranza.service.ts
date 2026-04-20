@@ -25,6 +25,7 @@ import { FacturasVencidasQueryDto } from './dto/facturas-vencidas-query.dto';
 import { MisAsignacionesQueryDto } from './dto/mis-asignaciones-query.dto';
 import { ReasignarDto } from './dto/reasignar.dto';
 import { CerrarAsignacionDto } from './dto/cerrar-asignacion.dto';
+import { AsignarIncrementalDto } from './dto/asignar-incremental.dto';
 
 @Injectable()
 export class CobranzaService {
@@ -404,6 +405,109 @@ export class CobranzaService {
     return {
       id_ciclo,
       total_asignadas: candidatas.length,
+      por_gestor: dto.id_gestores.map((id) => ({
+        id_gestor: id,
+        cantidad: conteo[id],
+      })),
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4b) Mora nuevas (sin asignación ACTIVA)
+  // ---------------------------------------------------------------------------
+  async getMoraNuevas(id_ciclo: number, search?: string, limit = 500) {
+    await this.ensureCiclo(id_ciclo);
+
+    const lista = await this.getFacturasVencidas(id_ciclo, {
+      page: 1,
+      limit,
+      asignado: 'false',
+      search,
+    } as FacturasVencidasQueryDto);
+
+    const ult = await this.prisma.cobranza_asignacion.aggregate({
+      where: { id_ciclo },
+      _max: { fecha_asignacion: true },
+    });
+
+    return {
+      id_ciclo,
+      total_nuevas: lista.meta.total,
+      ultima_asignacion: ult._max.fecha_asignacion ?? null,
+      facturas: lista.data,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4c) Asignación incremental por IDs explícitos
+  // ---------------------------------------------------------------------------
+  async asignarIncremental(
+    id_ciclo: number,
+    dto: AsignarIncrementalDto,
+    id_usuario_asignador: number,
+  ) {
+    await this.ensureCiclo(id_ciclo);
+
+    const gestores = await this.prisma.usuarios.findMany({
+      where: { id_usuario: { in: dto.id_gestores }, estado: 'ACTIVO' },
+      select: { id_usuario: true },
+    });
+    if (gestores.length !== dto.id_gestores.length) {
+      throw new BadRequestException(
+        'Uno o más gestores no existen o están inactivos',
+      );
+    }
+
+    const facturas = await this.prisma.facturaDirecta.findMany({
+      where: {
+        id_factura_directa: { in: dto.id_factura_directa_list },
+        ...this.whereFacturasVencidasCiclo(id_ciclo),
+        cobranzaAsignaciones: { none: { estado: 'ACTIVA' } },
+      },
+      select: { id_factura_directa: true, fecha_vencimiento: true },
+      orderBy: { fecha_vencimiento: 'asc' },
+    });
+
+    if (facturas.length !== dto.id_factura_directa_list.length) {
+      const encontradas = new Set(facturas.map((f) => f.id_factura_directa));
+      const invalidas = dto.id_factura_directa_list.filter(
+        (id) => !encontradas.has(id),
+      );
+      throw new BadRequestException(
+        `Las siguientes facturas no son elegibles (no están en mora del ciclo o ya tienen asignación activa): ${invalidas.join(', ')}`,
+      );
+    }
+
+    const conteo: Record<number, number> = Object.fromEntries(
+      dto.id_gestores.map((id) => [id, 0]),
+    );
+
+    const data = facturas.map((f, idx) => {
+      const id_gestor = dto.id_gestores[idx % dto.id_gestores.length];
+      conteo[id_gestor] += 1;
+      return {
+        id_factura_directa: f.id_factura_directa,
+        id_ciclo,
+        id_gestor,
+        id_usuario_asignador,
+        bucket_inicial: calcularBucket(f.fecha_vencimiento!),
+        estado: 'ACTIVA' as estado_asignacion_cobranza,
+      };
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.cobranza_asignacion.createMany({ data });
+    });
+
+    await this.prisma.logAction(
+      'COBRANZA_ASIGNAR_INCREMENTAL',
+      id_usuario_asignador,
+      `Ciclo ${id_ciclo}: ${facturas.length} facturas asignadas incrementalmente entre ${dto.id_gestores.length} gestores`,
+    );
+
+    return {
+      id_ciclo,
+      total_asignadas: facturas.length,
       por_gestor: dto.id_gestores.map((id) => ({
         id_gestor: id,
         cantidad: conteo[id],

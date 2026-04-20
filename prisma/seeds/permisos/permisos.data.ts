@@ -975,6 +975,13 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     es_critico: true,
     requiere_auditoria: true,
   }),
+  crearPermisoCustom(
+    'facturacion',
+    'ciclos',
+    'notificar',
+    'Ver Notificaciones de Ciclo',
+    'Ver el listado de clientes del ciclo con validacion de telefono y correo electronico',
+  ),
 
   // Libros de IVA
   crearPermiso(

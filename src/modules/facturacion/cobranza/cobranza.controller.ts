@@ -19,6 +19,7 @@ import { RequirePermissions } from 'src/modules/auth/decorators/require-permissi
 import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { CobranzaService } from './cobranza.service';
 import {
+  AsignarIncrementalDto,
   CerrarAsignacionDto,
   CrearNotaDto,
   DistribuirAsignacionesDto,
@@ -108,6 +109,40 @@ export class CobranzaController {
     @GetUser('id_usuario') id_usuario: number,
   ) {
     return this.cobranzaService.distribuir(id, dto, id_usuario);
+  }
+
+  @Get('ciclos/:id/mora-nuevas')
+  @RequirePermissions('facturacion.cobranza:ver')
+  @ApiOperation({
+    summary: 'Listar facturas en mora del ciclo aún no asignadas',
+    description:
+      'Devuelve las facturas vencidas del ciclo que no tienen asignación ACTIVA, junto con la fecha de la última asignación previa.',
+  })
+  @ApiResponse({ status: 200, description: 'Listado de facturas nuevas en mora.' })
+  getMoraNuevas(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const lim = limit ? parseInt(limit, 10) : undefined;
+    return this.cobranzaService.getMoraNuevas(id, search, lim);
+  }
+
+  @Post('ciclos/:id/asignar-mora-incremental')
+  @RequirePermissions('facturacion.cobranza:asignar')
+  @ApiOperation({
+    summary: 'Asignar incrementalmente facturas nuevas en mora a gestores',
+    description:
+      'Asigna facturas específicas (por ID) a uno o varios gestores. Si se indican varios gestores, se distribuye Round Robin. No reasigna facturas con asignación ACTIVA previa.',
+  })
+  @ApiResponse({ status: 201, description: 'Asignación incremental realizada.' })
+  @ApiResponse({ status: 400, description: 'Facturas no elegibles o gestores inválidos.' })
+  asignarMoraIncremental(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: AsignarIncrementalDto,
+    @GetUser('id_usuario') id_usuario: number,
+  ) {
+    return this.cobranzaService.asignarIncremental(id, dto, id_usuario);
   }
 
   @Post('asignaciones/:id/reasignar')

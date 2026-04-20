@@ -5,9 +5,16 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/modules/prisma/prisma.service';
-import { CreateCicloDto, UpdateCicloDto, QueryCicloDto } from './dto';
+import {
+  CreateCicloDto,
+  UpdateCicloDto,
+  QueryCicloDto,
+  UpdateClienteContactoDto,
+  QueryNotificacionesGlobalDto,
+} from './dto';
 import { PaginationDto, PaginatedResult } from 'src/common/dto';
 import { atcCicloFacturacion } from '@prisma/client';
+import { validarTelefonoSV, validarEmail } from 'src/common/helpers';
 
 @Injectable()
 export class CiclosService {
@@ -191,6 +198,256 @@ export class CiclosService {
           totalPages,
         },
       },
+    };
+  }
+
+  /**
+   * Listar clientes del ciclo con validacion de telefono y correo
+   */
+  async findNotificacionesByCiclo(id: number) {
+    await this.findOne(id);
+
+    const contratos = await this.prisma.atcContrato.findMany({
+      where: { id_ciclo: id },
+      select: {
+        cliente: {
+          select: {
+            id_cliente: true,
+            titular: true,
+            telefono1: true,
+            telefono2: true,
+            correo_electronico: true,
+          },
+        },
+      },
+      distinct: ['id_cliente'],
+      orderBy: { id_cliente: 'asc' },
+    });
+
+    const clientes = contratos
+      .map((c) => c.cliente)
+      .filter((c) => !!c)
+      .map((cliente) => this.evaluarContactoCliente(cliente));
+
+    const resumen = {
+      totalClientes: clientes.length,
+      telefonosValidos: clientes.filter((c) => c.telefonoValido).length,
+      telefonosInvalidos: clientes.filter((c) => !c.telefonoValido).length,
+      correosValidos: clientes.filter((c) => c.correoValido).length,
+      correosInvalidos: clientes.filter((c) => !c.correoValido).length,
+    };
+
+    return { resumen, clientes };
+  }
+
+  /**
+   * Actualizar telefono y/o correo de un cliente del ciclo
+   */
+  async updateClienteContacto(
+    idCiclo: number,
+    idCliente: number,
+    dto: UpdateClienteContactoDto,
+    id_usuario: number,
+  ) {
+    await this.findOne(idCiclo);
+
+    const contrato = await this.prisma.atcContrato.findFirst({
+      where: { id_ciclo: idCiclo, id_cliente: idCliente },
+      select: { id_contrato: true },
+    });
+
+    if (!contrato) {
+      throw new NotFoundException(
+        `El cliente ${idCliente} no pertenece al ciclo ${idCiclo}`,
+      );
+    }
+
+    return this.aplicarUpdateContacto(idCliente, dto, id_usuario, idCiclo);
+  }
+
+  /**
+   * Actualizar telefono y/o correo de un cliente sin restriccion de ciclo
+   * (usado por la vista global de notificaciones)
+   */
+  async updateClienteContactoGlobal(
+    idCliente: number,
+    dto: UpdateClienteContactoDto,
+    id_usuario: number,
+  ) {
+    const cliente = await this.prisma.cliente.findUnique({
+      where: { id_cliente: idCliente },
+      select: { id_cliente: true },
+    });
+
+    if (!cliente) {
+      throw new NotFoundException(`Cliente con ID ${idCliente} no encontrado`);
+    }
+
+    return this.aplicarUpdateContacto(idCliente, dto, id_usuario);
+  }
+
+  private async aplicarUpdateContacto(
+    idCliente: number,
+    dto: UpdateClienteContactoDto,
+    id_usuario: number,
+    idCiclo?: number,
+  ) {
+    if (dto.telefono1 === undefined && dto.correo_electronico === undefined) {
+      throw new BadRequestException('Debe enviar al menos un campo a actualizar');
+    }
+
+    const data: { telefono1?: string; correo_electronico?: string } = {};
+
+    if (dto.telefono1 !== undefined) {
+      const v = validarTelefonoSV(dto.telefono1);
+      if (!v.valido) {
+        throw new BadRequestException(
+          `Telefono invalido (${v.razon}): ${dto.telefono1}`,
+        );
+      }
+      data.telefono1 = v.numeroLimpio;
+    }
+
+    if (dto.correo_electronico !== undefined) {
+      const v = validarEmail(dto.correo_electronico);
+      if (!v.valido) {
+        throw new BadRequestException(
+          `Correo invalido (${v.razon}): ${dto.correo_electronico}`,
+        );
+      }
+      data.correo_electronico = dto.correo_electronico.trim();
+    }
+
+    const actualizado = await this.prisma.cliente.update({
+      where: { id_cliente: idCliente },
+      data,
+      select: {
+        id_cliente: true,
+        titular: true,
+        telefono1: true,
+        telefono2: true,
+        correo_electronico: true,
+      },
+    });
+
+    const contexto =
+      idCiclo !== undefined ? ` (ciclo ${idCiclo})` : ' (vista global)';
+    await this.prisma.logAction(
+      'EDITAR_CONTACTO_CLIENTE',
+      id_usuario,
+      `Contacto actualizado para cliente ${actualizado.titular}${contexto}`,
+    );
+
+    return this.evaluarContactoCliente(actualizado);
+  }
+
+  /**
+   * Listar clientes de todos los ciclos (o uno filtrado) con validacion,
+   * paginacion, busqueda por nombre y filtro por validez.
+   */
+  async findNotificacionesGlobal(dto: QueryNotificacionesGlobalDto) {
+    const { page = 1, limit = 25, id_ciclo, filtro = 'TODOS', search } = dto;
+
+    const cicloFiltro = Number.isFinite(id_ciclo) ? (id_ciclo as number) : undefined;
+
+    if (cicloFiltro !== undefined) {
+      await this.findOne(cicloFiltro);
+    }
+
+    const where: any = {};
+    if (cicloFiltro !== undefined) {
+      where.id_ciclo = cicloFiltro;
+    }
+    if (search && search.trim()) {
+      where.cliente = {
+        titular: { contains: search.trim(), mode: 'insensitive' },
+      };
+    }
+
+    const contratos = await this.prisma.atcContrato.findMany({
+      where,
+      select: {
+        cliente: {
+          select: {
+            id_cliente: true,
+            titular: true,
+            telefono1: true,
+            telefono2: true,
+            correo_electronico: true,
+          },
+        },
+      },
+      distinct: ['id_cliente'],
+      orderBy: { id_cliente: 'asc' },
+    });
+
+    let clientes = contratos
+      .map((c) => c.cliente)
+      .filter((c) => !!c)
+      .map((cliente) => this.evaluarContactoCliente(cliente));
+
+    if (filtro !== 'TODOS') {
+      clientes = clientes.filter((c) => {
+        switch (filtro) {
+          case 'TELEFONO_INVALIDO':
+            return !c.telefonoValido;
+          case 'CORREO_INVALIDO':
+            return !c.correoValido;
+          case 'AMBOS_INVALIDOS':
+            return !c.telefonoValido && !c.correoValido;
+          case 'TODOS_VALIDOS':
+            return c.telefonoValido && c.correoValido;
+          default:
+            return true;
+        }
+      });
+    }
+
+    const resumen = {
+      totalClientes: clientes.length,
+      telefonosValidos: clientes.filter((c) => c.telefonoValido).length,
+      telefonosInvalidos: clientes.filter((c) => !c.telefonoValido).length,
+      correosValidos: clientes.filter((c) => c.correoValido).length,
+      correosInvalidos: clientes.filter((c) => !c.correoValido).length,
+    };
+
+    const total = clientes.length;
+    const totalPages = Math.ceil(total / limit) || 1;
+    const start = (page - 1) * limit;
+    const paginados = clientes.slice(start, start + limit);
+
+    return {
+      resumen,
+      clientes: paginados,
+      meta: { total, page, limit, totalPages },
+    };
+  }
+
+  private evaluarContactoCliente(cliente: {
+    id_cliente: number;
+    titular: string;
+    telefono1: string | null;
+    telefono2: string | null;
+    correo_electronico: string | null;
+  }) {
+    const tel = validarTelefonoSV(cliente.telefono1);
+    const tel2 = validarTelefonoSV(cliente.telefono2);
+    const mail = validarEmail(cliente.correo_electronico);
+
+    return {
+      id: cliente.id_cliente,
+      nombre: cliente.titular,
+      telefono1: cliente.telefono1 ?? '',
+      telefonoValido: tel.valido,
+      telefonoLimpio: tel.numeroLimpio,
+      telefonoRazon: tel.razon ?? '',
+      telefono2: cliente.telefono2 ?? '',
+      telefono2Valido: tel2.valido,
+      telefono2Limpio: tel2.numeroLimpio,
+      telefono2Razon: tel2.razon ?? '',
+      correoElectronico: cliente.correo_electronico ?? '',
+      correoValido: mail.valido,
+      correoRazon: mail.razon ?? '',
     };
   }
 

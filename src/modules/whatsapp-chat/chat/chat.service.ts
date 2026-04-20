@@ -430,6 +430,19 @@ export class ChatService {
       },
     });
 
+    //actualizar el numero de telefono al cliente si es que se actualiza el id_cliente
+    if (updateChatDto.id_cliente) {
+      let telefono1 = updatedChat.telefono_cliente;
+      // eliminar el +503 del numero de telefono
+      telefono1 = telefono1.replace('+503', '');
+      // el numero quedo 78455689 y debe quedar 7845-8956
+      telefono1 = telefono1.replace(/(\d{4})(\d{4})/, '$1-$2');
+      await this.prisma.cliente.update({
+        where: { id_cliente: updateChatDto.id_cliente },
+        data: { telefono1 },
+      });
+    }
+
     await this.prisma.logAction(
       'ACTUALIZAR_WHATSAPP_CHAT',
       userId,
