@@ -28,7 +28,7 @@ import { HEADER_API_BEARER_AUTH } from 'src/common/const';
 import { Auth } from 'src/modules/auth/decorators';
 import { RequirePermissions } from 'src/modules/auth/decorators/require-permissions.decorator';
 import { ValidacionComprobanteService } from './validacion-comprobante.service';
-import { AplicarValidacionDto, EnviarValidacionMultiDto, QueryValidacionDto, RechazarValidacionDto, UpdateBancoDto, UpdateCuentaBancariaDto } from './dto';
+import { AplicarValidacionDto, EnviarValidacionMultiDto, QueryValidacionDto, RechazarValidacionDto, UpdateBancoDto, UpdateCuentaBancariaComprobanteDto } from './dto';
 
 @ApiTags('WhatsApp Chat - Validación Comprobantes')
 @Controller('api/atencion-al-cliente/whatsapp-chat/validaciones')
@@ -125,7 +125,7 @@ export class ValidacionComprobanteController {
   @ApiResponse({ status: 404, description: 'Validación o cuenta bancaria no encontrada' })
   actualizarCuentaBancaria(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateCuentaBancariaDto,
+    @Body() dto: UpdateCuentaBancariaComprobanteDto,
   ) {
     return this.service.actualizarCuentaBancaria(id, dto.id_cuenta_bancaria);
   }

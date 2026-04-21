@@ -1,5 +1,5 @@
 // src/modules/facturacion/facturacion.module.ts
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
@@ -55,6 +55,9 @@ import { LibrosIvaModule } from './libros-iva/libros-iva.module';
 // Mail
 import { MailModule } from '../mail/mail.module';
 
+// WhatsApp (para notificaciones via plantillas de Meta)
+import { WhatsAppChatModule } from '../whatsapp-chat/whatsapp-chat.module';
+
 // Cuentas por Cobrar
 import { CxcModule } from '../cxc/cxc.module';
 
@@ -66,7 +69,7 @@ import { OpenaiModule } from '../openai/openai.module';
 import { ComprobanteAnalyzerService } from '../whatsapp-chat/validacion-comprobante/comprobante-analyzer.service';
 
 @Module({
-  imports: [PrismaModule, AuthModule, ConfigModule, LibrosIvaModule, MailModule, CxcModule, BancosModule, OpenaiModule],
+  imports: [PrismaModule, AuthModule, ConfigModule, LibrosIvaModule, MailModule, forwardRef(() => WhatsAppChatModule), CxcModule, BancosModule, OpenaiModule],
   controllers: [
     CiclosController,
     CobranzaController,

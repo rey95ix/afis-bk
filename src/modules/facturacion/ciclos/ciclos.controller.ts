@@ -18,6 +18,7 @@ import {
   QueryCicloDto,
   UpdateClienteContactoDto,
   QueryNotificacionesGlobalDto,
+  NotificarFacturasDto,
 } from './dto';
 import {
   ApiTags,
@@ -192,6 +193,42 @@ export class CiclosController {
     @Query() paginationDto: PaginationDto,
   ) {
     return this.ciclosService.findContratosByCiclo(id, paginationDto);
+  }
+
+  @Post(':id/notificar-facturas')
+  @RequirePermissions('facturacion.ciclos:notificar')
+  @ApiOperation({
+    summary:
+      'Inicia un job asincrono que notifica por correo las facturas pendientes/vencidas del ciclo en el mes indicado.',
+    description:
+      'Devuelve inmediatamente { jobId, total }. El proceso continua en background y puede tardar varios minutos para lotes grandes. Consulte el progreso con GET /notificar-facturas/job/:jobId.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Job iniciado. Retorna jobId y total de facturas a procesar.',
+  })
+  @ApiResponse({ status: 404, description: 'Ciclo no encontrado.' })
+  notificarFacturas(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: NotificarFacturasDto,
+    @GetUser('id_usuario') id_usuario: number,
+  ) {
+    return this.ciclosService.iniciarNotificacionJob(id, dto, id_usuario);
+  }
+
+  @Get('notificar-facturas/job/:jobId')
+  @RequirePermissions('facturacion.ciclos:notificar')
+  @ApiOperation({
+    summary: 'Consultar el estado de un job de notificacion de facturas.',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Estado actual del job: total, procesados, enviados, fallidos, estado y errores.',
+  })
+  @ApiResponse({ status: 404, description: 'Job no encontrado o expirado.' })
+  consultarJobNotificacion(@Param('jobId') jobId: string) {
+    return this.ciclosService.getNotificacionJob(jobId);
   }
 
   @Get(':id/notificaciones')

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 
@@ -65,7 +65,7 @@ import { BancosModule } from '../bancos/bancos.module';
 import { FacturacionModule } from '../facturacion/facturacion.module';
 
 @Module({
-  imports: [ConfigModule, PrismaModule, MinioModule, OpenaiModule, ScheduleModule.forRoot(), BancosModule, FacturacionModule],
+  imports: [ConfigModule, PrismaModule, MinioModule, OpenaiModule, ScheduleModule.forRoot(), BancosModule, forwardRef(() => FacturacionModule)],
   controllers: [
     ChatController,
     MessageController,

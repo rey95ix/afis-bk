@@ -4,3 +4,4 @@ export * from './update-ciclo.dto';
 export * from './query-ciclo.dto';
 export * from './update-cliente-contacto.dto';
 export * from './query-notificaciones-global.dto';
+export * from './notificar-facturas.dto';

@@ -527,7 +527,7 @@ export class MailService {
     numeroControl: string,
     codigoGeneracion: string,
     pdfBuffer: Buffer,
-    dteJson: string,
+    dteJson?: string,
   ): Promise<void> {
     const templatePath = path.join(
       process.cwd(),
@@ -557,11 +557,15 @@ export class MailService {
         content: pdfBuffer,
         contentType: 'application/pdf',
       },
-      {
-        filename: `${codigoGeneracion}.json`,
-        content: dteJson,
-        contentType: 'application/json',
-      },
+      ...(dteJson
+        ? [
+            {
+              filename: `${codigoGeneracion}.json`,
+              content: dteJson,
+              contentType: 'application/json',
+            },
+          ]
+        : []),
     ];
 
     await this.sendMail(
@@ -627,6 +631,93 @@ export class MailService {
           </div>
           <div class="footer">
             <p>Este es un correo automático, por favor no responda a este mensaje.</p>
+            <p>&copy; ${new Date().getFullYear()} NewTel. Todos los derechos reservados.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  /**
+   * Envia un aviso de pago por correo, adjuntando unicamente el PDF del documento.
+   * No menciona "factura" en ninguna parte: subject, cuerpo y nombre del adjunto
+   * utilizan la terminologia "Aviso de pago".
+   */
+  async sendAvisoPagoEmail(
+    email: string,
+    nombreCliente: string,
+    numeroMostrar: string,
+    identificador: string,
+    pdfBuffer: Buffer,
+  ): Promise<void> {
+    const html = this.getAvisoPagoEmailHtml(nombreCliente, numeroMostrar);
+
+    const attachments: EmailAttachment[] = [
+      {
+        filename: `Aviso_Pago_${identificador}.pdf`,
+        content: pdfBuffer,
+        contentType: 'application/pdf',
+      },
+    ];
+
+    await this.sendMail(
+      email,
+      `Aviso de pago - ${numeroMostrar}`,
+      `Adjunto su aviso de pago ${numeroMostrar}`,
+      html,
+      attachments,
+    );
+  }
+
+  private getAvisoPagoEmailHtml(
+    nombreCliente: string,
+    numeroMostrar: string,
+  ): string {
+    const fecha = new Date().toLocaleDateString('es-SV');
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #2a3e52; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }
+          .info-box { background: #ffffff; border-left: 4px solid #f0ad4e; padding: 15px; margin: 20px 0; border-radius: 4px; }
+          .info-box p { margin: 5px 0; }
+          .attachments { background: #fff8e1; padding: 15px; border-radius: 4px; margin-top: 20px; }
+          .attachments h4 { margin: 0 0 10px 0; color: #b26a00; }
+          .attachments ul { margin: 0; padding-left: 20px; }
+          .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Aviso de pago</h1>
+          </div>
+          <div class="content">
+            <h2>Estimado/a ${nombreCliente},</h2>
+            <p>Le compartimos el aviso de pago correspondiente a su servicio. En el documento adjunto encontrara el detalle y el monto a cancelar.</p>
+
+            <div class="info-box">
+              <p><strong>Referencia:</strong> ${numeroMostrar}</p>
+              <p><strong>Fecha:</strong> ${fecha}</p>
+            </div>
+
+            <div class="attachments">
+              <h4>Archivo adjunto:</h4>
+              <ul>
+                <li>Aviso_Pago_${numeroMostrar}.pdf - Documento en formato PDF</li>
+              </ul>
+            </div>
+
+            <p style="margin-top: 20px;">Si ya realizo el pago, puede ignorar este aviso.</p>
+          </div>
+          <div class="footer">
+            <p>Este es un correo automatico, por favor no responda a este mensaje.</p>
             <p>&copy; ${new Date().getFullYear()} NewTel. Todos los derechos reservados.</p>
           </div>
         </div>
