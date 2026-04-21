@@ -685,9 +685,9 @@ export class CiclosService {
       throw new Error('Cliente sin correo electronico valido');
     }
 
-    if (!factura.dte_json) {
-      throw new Error('La factura no tiene JSON del DTE');
-    }
+    // if (!factura.dte_json) {
+    //   throw new Error('La factura no tiene JSON del DTE');
+    // }
 
     const procesada =
       factura.estado_dte === estado_dte.PROCESADO &&
