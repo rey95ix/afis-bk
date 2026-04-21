@@ -927,6 +927,8 @@ model compras {
   id_usuario          Int
   usuario             usuarios                 @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction, map: "fk_compra_usuario")
   dias_credito        Int?                     @default(0)
+  precio_con_iva_incluido Boolean              @default(false)
+  tasa_iva                Float                @default(0.13)
   subtotal            Float?                   @default(0)
   descuento           Float?                   @default(0)
   cesc                Float?                   @default(0)
@@ -4855,6 +4857,8 @@ model cotizaciones_compra {
   dias_credito               Int?
   dias_entrega               Int?
   moneda                     String                   @default("USD")
+  precio_con_iva_incluido    Boolean                  @default(false)
+  tasa_iva                   Float                    @default(0.13)
   subtotal                   Float?                   @default(0)
   descuento                  Float?                   @default(0)
   iva                        Float?                   @default(0)
@@ -4922,6 +4926,10 @@ model ordenes_compra {
   forma_pago    dTEFormaPago? @relation(fields: [id_forma_pago], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_orden_compra_forma_pago")
   dias_credito  Int?          @default(0)
   moneda        String        @default("USD")
+
+  // IVA
+  precio_con_iva_incluido Boolean @default(false)
+  tasa_iva                Float   @default(0.13)
 
   // Totales (calculados server-side)
   subtotal  Float? @default(0)

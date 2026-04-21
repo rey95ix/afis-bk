@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Orden de Compra {{:codigo}}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 11px;
+            line-height: 1.4;
+            color: #333;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 25px;
+            border-bottom: 3px solid #2c3e50;
+            padding-bottom: 15px;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .header .codigo {
+            font-size: 14px;
+            color: #7f8c8d;
+            font-weight: 600;
+        }
+
+        .info-section {
+            margin-bottom: 20px;
+            background-color: #f8f9fa;
+            padding: 12px;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+
+        .info-section h3 {
+            font-size: 13px;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 5px;
+        }
+
+        .info-row {
+            display: flex;
+            margin-bottom: 5px;
+        }
+
+        .info-label {
+            font-weight: 600;
+            width: 150px;
+            color: #555;
+        }
+
+        .info-label-ubicacion {
+            font-weight: 600;
+            width: 130px;
+            color: #555;
+        }
+
+        .info-value {
+            flex: 1;
+            color: #333;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge.borrador {
+            background-color: #e9ecef;
+            color: #495057;
+        }
+
+        .badge.pendiente {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .badge.aprobada {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .badge.rechazada {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge.emitida {
+            background-color: #cce5ff;
+            color: #004085;
+        }
+
+        .badge.recepcion {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .badge.cerrada {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .badge.cancelada {
+            background-color: #e2e3e5;
+            color: #383d41;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+            font-size: 10px;
+        }
+
+        table thead {
+            background-color: #2c3e50;
+            color: white;
+        }
+
+        table th {
+            padding: 8px 5px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        table td {
+            padding: 6px 5px;
+            border: 1px solid #dee2e6;
+        }
+
+        table tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .totals-section {
+            margin-top: 15px;
+            margin-left: auto;
+            width: 300px;
+            padding: 12px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+        }
+
+        .total-row.grand {
+            border-top: 2px solid #2c3e50;
+            margin-top: 6px;
+            padding-top: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+
+        .observaciones-section {
+            margin-top: 20px;
+            padding: 12px;
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            border-radius: 5px;
+        }
+
+        .observaciones-section h3 {
+            font-size: 12px;
+            color: #856404;
+            margin-bottom: 8px;
+        }
+
+        .observaciones-section p {
+            color: #856404;
+            font-size: 11px;
+        }
+
+        .rechazo-section {
+            margin-top: 20px;
+            padding: 12px;
+            background-color: #f8d7da;
+            border-left: 4px solid #dc3545;
+            border-radius: 5px;
+        }
+
+        .rechazo-section h3 {
+            font-size: 12px;
+            color: #721c24;
+            margin-bottom: 8px;
+        }
+
+        .rechazo-section p {
+            color: #721c24;
+            font-size: 11px;
+        }
+
+        .info-grid {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-grid .info-section {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 2px solid #dee2e6;
+            font-size: 9px;
+            color: #7f8c8d;
+            text-align: center;
+        }
+
+        @media print {
+            body {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>ORDEN DE COMPRA</h1>
+        <div class="codigo">{{:codigo}}</div>
+    </div>
+
+    <!-- Información General y Proveedor (lado a lado) -->
+    <div class="info-grid">
+        <!-- Información General -->
+        <div class="info-section">
+            <h3>Información General</h3>
+            <div class="info-row">
+                <div class="info-label">Estado:</div>
+                <div class="info-value">
+                    <span class="badge {{:estadoClass}}">{{:estadoLabel}}</span>
+                </div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Moneda:</div>
+                <div class="info-value">{{:moneda}}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Forma de Pago:</div>
+                <div class="info-value">{{:formaPago}}</div>
+            </div>
+            {{if diasCredito}}
+            <div class="info-row">
+                <div class="info-label">Días de Crédito:</div>
+                <div class="info-value">{{:diasCredito}}</div>
+            </div>
+            {{/if}}
+            <div class="info-row">
+                <div class="info-label">Fecha de Creación:</div>
+                <div class="info-value">{{:fechaCreacion}}</div>
+            </div>
+            {{if fechaEntregaEsperada !== 'N/A'}}
+            <div class="info-row">
+                <div class="info-label">Entrega Esperada:</div>
+                <div class="info-value">{{:fechaEntregaEsperada}}</div>
+            </div>
+            {{/if}}
+            {{if fechaAprobacion !== 'N/A'}}
+            <div class="info-row">
+                <div class="info-label">Fecha Aprobación:</div>
+                <div class="info-value">{{:fechaAprobacion}}</div>
+            </div>
+            {{/if}}
+            {{if fechaEmision !== 'N/A'}}
+            <div class="info-row">
+                <div class="info-label">Fecha Emisión:</div>
+                <div class="info-value">{{:fechaEmision}}</div>
+            </div>
+            {{/if}}
+            {{if fechaCierre !== 'N/A'}}
+            <div class="info-row">
+                <div class="info-label">Fecha Cierre:</div>
+                <div class="info-value">{{:fechaCierre}}</div>
+            </div>
+            {{/if}}
+        </div>
+
+        <!-- Proveedor y Ubicación -->
+        <div class="info-section">
+            <h3>Proveedor y Entrega</h3>
+            <div class="info-row">
+                <div class="info-label-ubicacion">Razón Social:</div>
+                <div class="info-value">{{:proveedorRazonSocial}}</div>
+            </div>
+            {{if proveedorNombreComercial !== 'N/A'}}
+            <div class="info-row">
+                <div class="info-label-ubicacion">Nombre Comercial:</div>
+                <div class="info-value">{{:proveedorNombreComercial}}</div>
+            </div>
+            {{/if}}
+            <div class="info-row">
+                <div class="info-label-ubicacion">Sucursal:</div>
+                <div class="info-value">{{:sucursal}}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label-ubicacion">Bodega:</div>
+                <div class="info-value">{{:bodega}}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label-ubicacion">Solicitado por:</div>
+                <div class="info-value">{{:usuarioCrea}}</div>
+            </div>
+            {{if usuarioAprueba !== 'N/A'}}
+            <div class="info-row">
+                <div class="info-label-ubicacion">Aprobado por:</div>
+                <div class="info-value">{{:usuarioAprueba}}</div>
+            </div>
+            {{/if}}
+            {{if usuarioEncargado !== 'N/A'}}
+            <div class="info-row">
+                <div class="info-label-ubicacion">Encargado:</div>
+                <div class="info-value">{{:usuarioEncargado}}</div>
+            </div>
+            {{/if}}
+        </div>
+    </div>
+
+    <!-- Detalle de Productos -->
+    <h3 style="margin-top: 20px; margin-bottom: 10px; color: #2c3e50;">Detalle de Productos</h3>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 30px;">#</th>
+                <th style="width: 80px;">Código</th>
+                <th>Producto</th>
+                <th class="text-center" style="width: 60px;">Ordenada</th>
+                {{if mostrarRecibida}}
+                <th class="text-center" style="width: 60px;">Recibida</th>
+                {{/if}}
+                <th class="text-right" style="width: 75px;">Costo Unit.</th>
+                <th class="text-right" style="width: 70px;">Descuento</th>
+                <th class="text-right" style="width: 75px;">Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{for detalle}}
+            <tr>
+                <td class="text-center">{{:numero}}</td>
+                <td>{{:codigo}}</td>
+                <td>{{:nombre}}</td>
+                <td class="text-center">{{:cantidad_ordenada}}</td>
+                {{if ~root.mostrarRecibida}}
+                <td class="text-center">{{:cantidad_recibida}}</td>
+                {{/if}}
+                <td class="text-right">${{:costo_unitario}}</td>
+                <td class="text-right">${{:descuento_monto}}</td>
+                <td class="text-right">${{:subtotal}}</td>
+            </tr>
+            {{/for}}
+        </tbody>
+        <tfoot>
+            <tr style="background-color: #e9ecef; font-weight: 600;">
+                <td colspan="3" class="text-right">TOTALES:</td>
+                <td class="text-center">{{:totalCantidadOrdenada}}</td>
+                {{if mostrarRecibida}}
+                <td class="text-center">{{:totalCantidadRecibida}}</td>
+                {{/if}}
+                <td></td>
+                <td class="text-right">${{:totalDescuento}}</td>
+                <td class="text-right">${{:subtotal}}</td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <!-- Totales -->
+    <div class="totals-section">
+        <div class="total-row">
+            <span>Subtotal:</span>
+            <span>${{:subtotal}}</span>
+        </div>
+        <div class="total-row">
+            <span>Descuento:</span>
+            <span>${{:descuento}}</span>
+        </div>
+        <div class="total-row">
+            <span>IVA (13%):</span>
+            <span>${{:iva}}</span>
+        </div>
+        <div class="total-row grand">
+            <span>TOTAL:</span>
+            <span>${{:total}}</span>
+        </div>
+    </div>
+
+    <!-- Motivo -->
+    {{if motivo}}
+    <div class="observaciones-section">
+        <h3>Motivo</h3>
+        <p>{{:motivo}}</p>
+    </div>
+    {{/if}}
+
+    <!-- Observaciones -->
+    {{if observaciones}}
+    <div class="observaciones-section">
+        <h3>Observaciones</h3>
+        <p>{{:observaciones}}</p>
+    </div>
+    {{/if}}
+
+    <!-- Observaciones de Aprobación -->
+    {{if observacionesAprobacion}}
+    <div class="observaciones-section">
+        <h3>Observaciones de Aprobación</h3>
+        <p>{{:observacionesAprobacion}}</p>
+    </div>
+    {{/if}}
+
+    <!-- Motivo de Rechazo -->
+    {{if motivoRechazo}}
+    <div class="rechazo-section">
+        <h3>Motivo de Rechazo</h3>
+        <p>{{:motivoRechazo}}</p>
+    </div>
+    {{/if}}
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>Documento generado el {{:fechaGeneracion}}</p>
+        <p>Sistema de Gestión de Inventario - AFIS</p>
+    </div>
+</body>
+</html>

@@ -711,6 +711,14 @@ export const PERMISOS_MAESTROS: PermisoDefinition[] = [
     'Cancelar ordenes de compra',
     { requiere_auditoria: true },
   ),
+  crearPermisoCustom(
+    'inventario',
+    'ordenes_compra',
+    'descargar_pdf',
+    'Descargar PDF de OC',
+    'Descargar el documento PDF de una orden de compra',
+    { requiere_auditoria: false },
+  ),
 
   // =============================================================
   // Solicitudes de Compra

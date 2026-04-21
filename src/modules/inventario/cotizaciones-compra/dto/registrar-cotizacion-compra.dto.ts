@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsInt, IsString, IsOptional, IsArray, ValidateNested, IsNumber, Min, IsDateString } from 'class-validator';
+import { IsNotEmpty, IsInt, IsString, IsOptional, IsArray, ValidateNested, IsNumber, IsBoolean, Min, IsDateString } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CotizacionCompraDetalleDto {
@@ -80,6 +80,16 @@ export class RegistrarCotizacionCompraDto {
   @IsOptional()
   @IsString()
   moneda?: string;
+
+  @ApiPropertyOptional({ description: 'Los precios ingresados ya incluyen IVA', default: false })
+  @IsOptional()
+  @IsBoolean()
+  precio_con_iva_incluido?: boolean;
+
+  @ApiPropertyOptional({ description: 'Tasa IVA aplicable', example: 0.13 })
+  @IsOptional()
+  @IsNumber()
+  tasa_iva?: number;
 
   @ApiPropertyOptional({ description: 'Ruta del archivo de cotización en MinIO' })
   @IsOptional()

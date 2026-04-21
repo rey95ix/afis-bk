@@ -12,7 +12,8 @@ import { UpdateCompraDto } from './dto/update-compra.dto';
 import { FilterCompraDto } from './dto/filter-compra.dto';
 import { AnularCompraDto } from './dto/anular-compra.dto';
 import { compras, Prisma } from '@prisma/client';
-import { convertToUTC } from 'src/common/helpers';
+import { convertToUTC, calcularTotales } from 'src/common/helpers';
+import { IVA_RATE } from 'src/common/const';
 
 interface PaginatedResult<T> {
   data: T[];
@@ -76,7 +77,8 @@ export class ComprasService {
     });
     const codigoTipoFactura = tipoFactura?.codigo ?? undefined;
 
-    // Calcular totales automáticamente (incluye TODAS las líneas)
+    // Calcular totales automáticamente (incluye TODAS las líneas).
+    // En compra directa sin OC no se propaga flag explícito, se infiere del tipo de factura.
     const calculated = this.calculateTotals(detalles, compraData, codigoTipoFactura);
 
     // Validar series antes de crear (solo líneas de inventario)
@@ -113,6 +115,8 @@ export class ComprasService {
           ...compraData,
           id_bodega,
           id_usuario,
+          precio_con_iva_incluido: calculated.precioConIvaIncluido,
+          tasa_iva: calculated.tasaIVA,
           subtotal: calculated.subtotal,
           descuento: calculated.descuento,
           iva: calculated.iva,
@@ -124,30 +128,25 @@ export class ComprasService {
             fecha_recepcion: new Date(),
           }),
           ComprasDetalle: {
-            create: detalles.map((detalle) => ({
-              id_catalogo: detalle.id_catalogo,
-              codigo: detalle.codigo,
-              nombre: detalle.nombre,
-              descripcion: detalle.descripcion,
-              tiene_serie: detalle.tiene_serie,
-              afecta_inventario: detalle.afecta_inventario ?? true,
-              costo_unitario: detalle.costo_unitario,
-              cantidad: detalle.cantidad,
-              cantidad_inventario: detalle.cantidad_inventario,
-              subtotal:
-                detalle.costo_unitario * detalle.cantidad -
-                (detalle.descuento_monto || 0),
-              descuento_porcentaje: detalle.descuento_porcentaje || 0,
-              descuento_monto: detalle.descuento_monto || 0,
-              iva:
-                (detalle.costo_unitario * detalle.cantidad -
-                  (detalle.descuento_monto || 0)) *
-                (calculated.tasaIVA || 0.13),
-              total:
-                (detalle.costo_unitario * detalle.cantidad -
-                  (detalle.descuento_monto || 0)) *
-                (1 + (calculated.tasaIVA || 0.13)),
-            })),
+            create: detalles.map((detalle, idx) => {
+              const linea = calculated.lineas[idx];
+              return {
+                id_catalogo: detalle.id_catalogo,
+                codigo: detalle.codigo,
+                nombre: detalle.nombre,
+                descripcion: detalle.descripcion,
+                tiene_serie: detalle.tiene_serie,
+                afecta_inventario: detalle.afecta_inventario ?? true,
+                costo_unitario: detalle.costo_unitario,
+                cantidad: detalle.cantidad,
+                cantidad_inventario: detalle.cantidad_inventario,
+                subtotal: linea.subtotal,
+                descuento_porcentaje: detalle.descuento_porcentaje || 0,
+                descuento_monto: detalle.descuento_monto || 0,
+                iva: linea.iva,
+                total: linea.total,
+              };
+            }),
           },
         },
         include: {
@@ -413,13 +412,25 @@ export class ComprasService {
     const compraExistente = await this.findOne(id);
 
     // Validar que no esté recepcionada
-    if (compraExistente.recepcionada) {
-      throw new BadRequestException(
-        'No se puede actualizar una compra que ya ha sido recepcionada en inventario',
-      );
-    }
+    // if (compraExistente.recepcionada) {
+    //   throw new BadRequestException(
+    //     'No se puede actualizar una compra que ya ha sido recepcionada en inventario',
+    //   );
+    // }
 
-    const { detalles, id_estante, id_bodega, fecha_factura, ...compraData } = updateCompraDto;
+    const {
+      detalles, id_estante, id_bodega, fecha_factura, es_credito,
+      registrar_pago, metodo_pago, id_cuenta_bancaria,
+      cheque_numero, cheque_beneficiario, cheque_fecha_emision, transferencia_numero,
+      ...compraData
+    } = updateCompraDto;
+
+    // Estado actual de pago y CxP
+    const cxpExistente = await this.prisma.cuenta_por_pagar.findUnique({
+      where: { id_compras: id },
+    });
+    const tieneCxpActiva = !!cxpExistente && cxpExistente.estado !== 'ANULADA';
+    const estabaPagada = compraExistente.pago_registrado === true;
 
     // Determinar si hay líneas que afectan inventario
     const hasInventoryLines = detalles ? detalles.some(d => d.afecta_inventario !== false) : true;
@@ -452,6 +463,20 @@ export class ComprasService {
     let calculated: any = null;
     if (detalles && detalles.length > 0) {
       calculated = this.calculateTotals(detalles, compraData, codigoTipoFactura);
+
+      // Si el total cambia y hay pago/CxP activos, bloquear:
+      // el usuario debe revertir primero el pago/CxP para evitar inconsistencias.
+      // const totalCambia = Math.abs((compraExistente.total ?? 0) - calculated.total) > 0.0001;
+      // if (totalCambia && estabaPagada && registrar_pago !== false) {
+      //   throw new BadRequestException(
+      //     'No se puede cambiar el total de una compra con pago registrado. Debe revertir el pago primero (envíe registrar_pago: false) o anular y recrear la compra.',
+      //   );
+      // }
+      // if (totalCambia && tieneCxpActiva && es_credito !== false) {
+      //   throw new BadRequestException(
+      //     'No se puede cambiar el total de una compra con cuenta por pagar activa. Debe anular la CxP primero (envíe es_credito: false) o anular y recrear la compra.',
+      //   );
+      // }
 
       // Validar series antes de actualizar (solo líneas de inventario)
       for (const detalle of detalles) {
@@ -506,8 +531,9 @@ export class ComprasService {
 
         // Crear nuevos detalles
         const nuevosDetalles = await Promise.all(
-          detalles.map((detalle) =>
-            prisma.comprasDetalle.create({
+          detalles.map((detalle, idx) => {
+            const linea = calculated.lineas[idx];
+            return prisma.comprasDetalle.create({
               data: {
                 id_compras: id,
                 id_catalogo: detalle.id_catalogo,
@@ -519,22 +545,14 @@ export class ComprasService {
                 costo_unitario: detalle.costo_unitario,
                 cantidad: detalle.cantidad,
                 cantidad_inventario: detalle.cantidad_inventario,
-                subtotal:
-                  detalle.costo_unitario * detalle.cantidad -
-                  (detalle.descuento_monto || 0),
+                subtotal: linea.subtotal,
                 descuento_porcentaje: detalle.descuento_porcentaje || 0,
                 descuento_monto: detalle.descuento_monto || 0,
-                iva:
-                  (detalle.costo_unitario * detalle.cantidad -
-                    (detalle.descuento_monto || 0)) *
-                  (calculated.tasaIVA || 0.13),
-                total:
-                  (detalle.costo_unitario * detalle.cantidad -
-                    (detalle.descuento_monto || 0)) *
-                  (1 + (calculated.tasaIVA || 0.13)),
+                iva: linea.iva,
+                total: linea.total,
               },
-            }),
-          ),
+            });
+          }),
         );
 
         // Crear series para los nuevos detalles (solo líneas de inventario)
@@ -579,6 +597,105 @@ export class ComprasService {
           bodegas: true,
         },
       });
+
+      // // =========================================================
+      // // Diff de pago: registrar_pago puede activarse o revertirse
+      // // =========================================================
+      // const montoFinal = calculated ? calculated.total : (compraActualizada.total ?? 0);
+
+      // // Reversar pago existente si: (a) se pidió registrar_pago=false o
+      // // (b) se pidió es_credito=true (que es mutuamente excluyente con pago directo)
+      // const debeReversarPago =
+      //   estabaPagada && (registrar_pago === false || es_credito === true);
+
+      // if (debeReversarPago) {
+      //   if (compraActualizada.id_movimiento_bancario) {
+      //     await this.movimientosBancariosService.anularMovimiento(
+      //       compraActualizada.id_movimiento_bancario,
+      //       { motivo_anulacion: `Reversión por actualización de compra #${compraActualizada.id_compras}` },
+      //       id_usuario,
+      //       prisma,
+      //     );
+      //   }
+      //   await prisma.compras.update({
+      //     where: { id_compras: id },
+      //     data: {
+      //       pago_registrado: false,
+      //       metodo_pago: null,
+      //       id_cuenta_bancaria_pago: null,
+      //       id_movimiento_bancario: null,
+      //       monto_pagado: 0,
+      //       fecha_pago: null,
+      //     },
+      //   });
+      // }
+
+      // // Registrar nuevo pago si: se pidió registrar_pago=true, no es crédito,
+      // // y la compra NO quedó pagada (o acabamos de reversar)
+      // const debeRegistrarPago =
+      //   registrar_pago === true && !es_credito && (!estabaPagada || debeReversarPago);
+
+      // if (debeRegistrarPago) {
+      //   const idMovimiento = await this.registrarPagoCompra({
+      //     dto: { metodo_pago, id_cuenta_bancaria, cheque_numero, cheque_beneficiario, cheque_fecha_emision, transferencia_numero },
+      //     monto: montoFinal,
+      //     facturaNumero: compraActualizada.numero_factura,
+      //     documentoOrigenId: compraActualizada.id_compras,
+      //     idUsuario: id_usuario,
+      //   });
+
+      //   await prisma.compras.update({
+      //     where: { id_compras: compraActualizada.id_compras },
+      //     data: {
+      //       pago_registrado: true,
+      //       metodo_pago,
+      //       id_cuenta_bancaria_pago: id_cuenta_bancaria || null,
+      //       id_movimiento_bancario: idMovimiento,
+      //       monto_pagado: montoFinal,
+      //       fecha_pago: new Date(),
+      //     },
+      //   });
+      // }
+
+      // // =========================================================
+      // // Diff de CxP: es_credito puede activarse o revertirse
+      // // =========================================================
+      // // Anular CxP si: (a) se pidió es_credito=false o
+      // // (b) se pidió registrar_pago=true (pago directo excluye crédito)
+      // const debeAnularCxp =
+      //   tieneCxpActiva && (es_credito === false || registrar_pago === true);
+
+      // if (debeAnularCxp) {
+      //   await this.cxpService.anularCxpPorCompra(id, prisma);
+      // }
+
+      // // Crear CxP si: se pidió es_credito=true, hay días de crédito y
+      // // no había CxP activa (o acabamos de anularla)
+      // const diasCredito = compraData.dias_credito ?? compraExistente.dias_credito ?? 0;
+      // const debeCrearCxp =
+      //   es_credito === true && diasCredito > 0 && (!tieneCxpActiva || debeAnularCxp);
+
+      // if (debeCrearCxp) {
+      //   if (!compraActualizada.id_sucursal) {
+      //     throw new BadRequestException(
+      //       'La compra debe tener una sucursal asignada para registrar crédito',
+      //     );
+      //   }
+      //   if (!compraActualizada.id_proveedor) {
+      //     throw new BadRequestException(
+      //       'La compra debe tener un proveedor asignado para registrar crédito',
+      //     );
+      //   }
+      //   await this.cxpService.crearCuentaPorPagar({
+      //     id_compras: compraActualizada.id_compras,
+      //     id_proveedor: compraActualizada.id_proveedor,
+      //     monto_total: montoFinal,
+      //     dias_credito: diasCredito,
+      //     fecha_emision: compraActualizada.fecha_factura || new Date(),
+      //     id_sucursal: compraActualizada.id_sucursal,
+      //     id_usuario,
+      //   }, prisma);
+      // }
 
       // Registrar en log
       await prisma.log.create({
@@ -1123,34 +1240,34 @@ export class ComprasService {
   }
 
   /**
-   * Calcula los totales de la compra automáticamente
+   * Calcula los totales de la compra automáticamente.
+   * Si `precioConIvaIncluido` viene definido (compra heredada desde OC) tiene precedencia.
+   * En compras directas sin OC, se infiere desde `codigoTipoFactura`:
+   *   - '03' (Crédito Fiscal): precios sin IVA, se agrega
+   *   - otros (Consumidor Final, etc.): precios con IVA incluido
    */
-  private calculateTotals(detalles: any[], compraData: any, codigoTipoFactura?: string) {
-    let subtotal = 0;
-    let descuentoTotal = 0;
+  private calculateTotals(
+    detalles: any[],
+    compraData: any,
+    codigoTipoFactura?: string,
+    precioConIvaIncluido?: boolean,
+    tasaIva?: number,
+  ) {
+    const flag =
+      precioConIvaIncluido !== undefined
+        ? precioConIvaIncluido
+        : codigoTipoFactura !== '03';
+    const tasa = tasaIva ?? IVA_RATE;
 
-    // Solo Crédito Fiscal (código '03') calcula IVA por separado; para el resto, IVA va incluido
-    const tasaIVA = codigoTipoFactura === '03' ? 0.13 : 0;
+    const lineas = detalles.map((d) => ({
+      costo_unitario: d.costo_unitario || 0,
+      cantidad: d.cantidad || 0,
+      descuento_monto: d.descuento_monto || 0,
+    }));
+    const base = calcularTotales(lineas, tasa, flag);
 
-    // Calcular subtotal y descuentos
-    detalles.forEach((detalle) => {
-      const subtotalLinea = detalle.costo_unitario * detalle.cantidad;
-      subtotal += subtotalLinea;
-
-      const descuentoLinea = detalle.descuento_monto || 0;
-      descuentoTotal += descuentoLinea;
-    });
-
-    // Base imponible (después de descuentos)
-    const baseImponible = subtotal - descuentoTotal;
-
-    // Calcular IVA
-    const iva = baseImponible * tasaIVA;
-
-    // Total
-    const total =
-      baseImponible +
-      iva +
+    const totalConTributos =
+      base.total +
       (compraData.cesc || 0) +
       (compraData.fovial || 0) +
       (compraData.cotrans || 0) -
@@ -1158,11 +1275,13 @@ export class ComprasService {
       (compraData.iva_percivido || 0);
 
     return {
-      subtotal,
-      descuento: descuentoTotal,
-      iva,
-      total,
-      tasaIVA,
+      subtotal: base.subtotal,
+      descuento: base.descuento,
+      iva: base.iva,
+      total: totalConTributos,
+      tasaIVA: tasa,
+      precioConIvaIncluido: flag,
+      lineas: base.lineas,
     };
   }
 

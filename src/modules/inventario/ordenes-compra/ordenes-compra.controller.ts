@@ -10,7 +10,9 @@ import {
   ParseIntPipe,
   HttpCode,
   HttpStatus,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { OrdenesCompraService } from './ordenes-compra.service';
 import { CreateOrdenCompraDto } from './dto/create-orden-compra.dto';
 import { UpdateOrdenCompraDto } from './dto/update-orden-compra.dto';
@@ -90,6 +92,43 @@ export class OrdenesCompraController {
   @ApiParam({ name: 'id', description: 'ID de la orden de compra' })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.ordenesCompraService.findOne(id);
+  }
+
+  @RequirePermissions('inventario.ordenes_compra:descargar_pdf')
+  @Get(':id/pdf')
+  @ApiOperation({
+    summary: 'Generar PDF de la orden de compra',
+    description:
+      'Genera un documento PDF con los detalles de la orden de compra.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'PDF generado exitosamente.',
+    content: {
+      'application/pdf': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 404, description: 'Orden de compra no encontrada.' })
+  @ApiResponse({ status: 400, description: 'Error al generar el PDF.' })
+  @ApiParam({ name: 'id', description: 'ID de la orden de compra' })
+  async generatePdf(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ) {
+    const pdfBuffer = await this.ordenesCompraService.generatePdf(id);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="OrdenCompra_${id}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+
+    res.end(pdfBuffer);
   }
 
   @RequirePermissions('inventario.ordenes_compra:editar')

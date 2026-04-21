@@ -4,6 +4,8 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { IVA_RATE } from '../../../common/const';
+import { calcularTotales } from '../../../common/helpers';
 import { RegistrarCotizacionCompraDto } from './dto/registrar-cotizacion-compra.dto';
 import { UpdateCotizacionCompraDto } from './dto/update-cotizacion-compra.dto';
 import { FilterCotizacionCompraDto } from './dto/filter-cotizacion-compra.dto';
@@ -78,23 +80,12 @@ export class CotizacionesCompraService {
   // Cálculo de totales
   // =============================================
 
-  private calculateTotals(detalles: any[]) {
-    const tasaIVA = 0.13;
-    let subtotal = 0;
-    let descuentoTotal = 0;
-
-    detalles.forEach((detalle) => {
-      const subtotalLinea =
-        (detalle.costo_unitario || 0) * (detalle.cantidad || 0);
-      subtotal += subtotalLinea;
-      descuentoTotal += detalle.descuento_monto || 0;
-    });
-
-    const baseImponible = subtotal - descuentoTotal;
-    const iva = baseImponible * tasaIVA;
-    const total = baseImponible + iva;
-
-    return { subtotal, descuento: descuentoTotal, iva, total, tasaIVA };
+  private calculateTotals(
+    detalles: any[],
+    precioConIvaIncluido = false,
+    tasaIVA: number = IVA_RATE,
+  ) {
+    return calcularTotales(detalles, tasaIVA, precioConIvaIncluido);
   }
 
   // =============================================
@@ -185,7 +176,13 @@ export class CotizacionesCompraService {
       return { ...item, cantidad };
     });
 
-    const calculated = this.calculateTotals(detalleConCantidades);
+    const precioConIvaIncluido = dto.precio_con_iva_incluido ?? false;
+    const tasaIva = dto.tasa_iva ?? IVA_RATE;
+    const calculated = this.calculateTotals(
+      detalleConCantidades,
+      precioConIvaIncluido,
+      tasaIva,
+    );
 
     const cotizacion = await this.prisma.cotizaciones_compra.create({
       data: {
@@ -203,6 +200,8 @@ export class CotizacionesCompraService {
         dias_credito: dto.dias_credito,
         dias_entrega: dto.dias_entrega,
         moneda: dto.moneda || 'USD',
+        precio_con_iva_incluido: precioConIvaIncluido,
+        tasa_iva: tasaIva,
         archivo_cotizacion: dto.archivo_cotizacion,
         observaciones: dto.observaciones,
         subtotal: calculated.subtotal,
@@ -211,19 +210,16 @@ export class CotizacionesCompraService {
         total: calculated.total,
         id_usuario_registra: user.id_usuario,
         detalle: {
-          create: detalleConCantidades.map((item) => {
-            const itemSubtotal =
-              (item.costo_unitario || 0) * item.cantidad -
-              (item.descuento_monto || 0);
-            const itemIva = itemSubtotal * calculated.tasaIVA;
+          create: detalleConCantidades.map((item, idx) => {
+            const linea = calculated.lineas[idx];
             return {
               id_solicitud_compra_detalle: item.id_solicitud_compra_detalle,
               costo_unitario: item.costo_unitario || 0,
               descuento_porcentaje: item.descuento_porcentaje || 0,
               descuento_monto: item.descuento_monto || 0,
-              subtotal: itemSubtotal,
-              iva: itemIva,
-              total: itemSubtotal + itemIva,
+              subtotal: linea.subtotal,
+              iva: linea.iva,
+              total: linea.total,
               disponibilidad: item.disponibilidad,
               observaciones: item.observaciones,
             };
@@ -307,6 +303,11 @@ export class CotizacionesCompraService {
     if (dto.moneda !== undefined) updateData.moneda = dto.moneda;
     if (dto.archivo_cotizacion !== undefined) updateData.archivo_cotizacion = dto.archivo_cotizacion;
     if (dto.observaciones !== undefined) updateData.observaciones = dto.observaciones;
+    if (dto.precio_con_iva_incluido !== undefined) updateData.precio_con_iva_incluido = dto.precio_con_iva_incluido;
+    if (dto.tasa_iva !== undefined) updateData.tasa_iva = dto.tasa_iva;
+
+    const precioConIvaIncluido = dto.precio_con_iva_incluido ?? cotizacion.precio_con_iva_incluido;
+    const tasaIva = dto.tasa_iva ?? cotizacion.tasa_iva;
 
     // Si se envía detalle, recalcular totales
     if (dto.detalle && dto.detalle.length > 0) {
@@ -324,7 +325,11 @@ export class CotizacionesCompraService {
         return { ...item, cantidad };
       });
 
-      const calculated = this.calculateTotals(detalleConCantidades);
+      const calculated = this.calculateTotals(
+        detalleConCantidades,
+        precioConIvaIncluido,
+        tasaIva,
+      );
 
       updateData.subtotal = calculated.subtotal;
       updateData.descuento = calculated.descuento;
@@ -332,24 +337,60 @@ export class CotizacionesCompraService {
       updateData.total = calculated.total;
 
       updateData.detalle = {
-        create: detalleConCantidades.map((item) => {
-          const itemSubtotal =
-            (item.costo_unitario || 0) * item.cantidad -
-            (item.descuento_monto || 0);
-          const itemIva = itemSubtotal * 0.13;
+        create: detalleConCantidades.map((item, idx) => {
+          const linea = calculated.lineas[idx];
           return {
             id_solicitud_compra_detalle: item.id_solicitud_compra_detalle,
             costo_unitario: item.costo_unitario || 0,
             descuento_porcentaje: item.descuento_porcentaje || 0,
             descuento_monto: item.descuento_monto || 0,
-            subtotal: itemSubtotal,
-            iva: itemIva,
-            total: itemSubtotal + itemIva,
+            subtotal: linea.subtotal,
+            iva: linea.iva,
+            total: linea.total,
             disponibilidad: item.disponibilidad,
             observaciones: item.observaciones,
           };
         }),
       };
+    } else if (
+      dto.precio_con_iva_incluido !== undefined ||
+      dto.tasa_iva !== undefined
+    ) {
+      // Flag/tasa cambió sin nuevo detalle: recalcular con detalle existente
+      const detalleExistente = cotizacion.detalle.map((d) => ({
+        costo_unitario: d.costo_unitario,
+        cantidad:
+          cotizacion.solicitud_compra.detalle.find(
+            (s) => s.id_solicitud_compra_detalle === d.id_solicitud_compra_detalle,
+          )?.cantidad_aprobada ||
+          cotizacion.solicitud_compra.detalle.find(
+            (s) => s.id_solicitud_compra_detalle === d.id_solicitud_compra_detalle,
+          )?.cantidad_solicitada ||
+          0,
+        descuento_monto: d.descuento_monto || 0,
+      }));
+      const recalc = this.calculateTotals(
+        detalleExistente,
+        precioConIvaIncluido,
+        tasaIva,
+      );
+      updateData.subtotal = recalc.subtotal;
+      updateData.descuento = recalc.descuento;
+      updateData.iva = recalc.iva;
+      updateData.total = recalc.total;
+      // Actualizar totales por línea también
+      await Promise.all(
+        cotizacion.detalle.map((d, idx) =>
+          this.prisma.cotizaciones_compra_detalle.update({
+            where: { id_cotizacion_compra_detalle: d.id_cotizacion_compra_detalle },
+            data: {
+              subtotal: recalc.lineas[idx].subtotal,
+              iva: recalc.lineas[idx].iva,
+              total: recalc.lineas[idx].total,
+            },
+          }),
+        ),
+      );
     }
 
     const updated = await this.prisma.cotizaciones_compra.update({
@@ -460,6 +501,8 @@ export class CotizacionesCompraService {
       dias_credito: c.dias_credito,
       dias_entrega: c.dias_entrega,
       moneda: c.moneda,
+      precio_con_iva_incluido: c.precio_con_iva_incluido,
+      tasa_iva: c.tasa_iva,
     }));
 
     // Matriz de precios: precios[id_solicitud_compra_detalle][id_cotizacion_compra]
@@ -644,20 +687,37 @@ export class CotizacionesCompraService {
 
     const ordenesCreadas: any[] = [];
 
+    const precioConIvaIncluido = cotizacion.precio_con_iva_incluido;
+    const tasaIva = cotizacion.tasa_iva;
+
     for (const grupo of dto.grupos) {
       const codigo = await this.generarCodigoOrden();
 
+      // Preparar inputs para helper de IVA
+      const lineasInput = grupo.items.map((item) => {
+        const cotDetalle = cotizacion.detalle.find(
+          (d) => d.id_cotizacion_compra_detalle === item.id_cotizacion_compra_detalle,
+        );
+        return {
+          costo_unitario: item.costo_unitario || 0,
+          cantidad: item.cantidad,
+          descuento_monto: cotDetalle?.descuento_monto || 0,
+        };
+      });
+
+      const calculated = this.calculateTotals(
+        lineasInput,
+        precioConIvaIncluido,
+        tasaIva,
+      );
+
       // Mapear items del grupo con datos del catálogo desde la solicitud
-      const detalleItems = grupo.items.map((item) => {
+      const detalleItems = grupo.items.map((item, idx) => {
         const cotDetalle = cotizacion.detalle.find(
           (d) => d.id_cotizacion_compra_detalle === item.id_cotizacion_compra_detalle,
         );
         const solDetalle = cotDetalle?.solicitud_compra_detalle;
-
-        const itemSubtotal =
-          (item.costo_unitario || 0) * item.cantidad -
-          (cotDetalle?.descuento_monto || 0);
-        const itemIva = itemSubtotal * 0.13;
+        const linea = calculated.lineas[idx];
 
         return {
           id_catalogo: solDetalle?.id_catalogo || null,
@@ -668,27 +728,13 @@ export class CotizacionesCompraService {
           afecta_inventario: solDetalle?.afecta_inventario ?? true,
           cantidad_ordenada: item.cantidad,
           costo_unitario: item.costo_unitario,
-          subtotal: itemSubtotal,
+          subtotal: linea.subtotal,
           descuento_porcentaje: cotDetalle?.descuento_porcentaje || 0,
           descuento_monto: cotDetalle?.descuento_monto || 0,
-          iva: itemIva,
-          total: itemSubtotal + itemIva,
+          iva: linea.iva,
+          total: linea.total,
         };
       });
-
-      // Calcular totales de la OC
-      const tasaIVA = 0.13;
-      let subtotal = 0;
-      let descuentoTotal = 0;
-
-      detalleItems.forEach((item) => {
-        subtotal += (item.costo_unitario || 0) * item.cantidad_ordenada;
-        descuentoTotal += item.descuento_monto || 0;
-      });
-
-      const baseImponible = subtotal - descuentoTotal;
-      const iva = baseImponible * tasaIVA;
-      const total = baseImponible + iva;
 
       const orden = await this.prisma.ordenes_compra.create({
         data: {
@@ -700,14 +746,16 @@ export class CotizacionesCompraService {
           id_forma_pago: grupo.id_forma_pago,
           dias_credito: grupo.dias_credito,
           moneda: cotizacion.moneda || 'USD',
+          precio_con_iva_incluido: precioConIvaIncluido,
+          tasa_iva: tasaIva,
           observaciones: grupo.observaciones,
           id_usuario_crea: user.id_usuario,
           id_solicitud_compra: cotizacion.id_solicitud_compra,
           id_cotizacion_compra: cotizacion.id_cotizacion_compra,
-          subtotal,
-          descuento: descuentoTotal,
-          iva,
-          total,
+          subtotal: calculated.subtotal,
+          descuento: calculated.descuento,
+          iva: calculated.iva,
+          total: calculated.total,
           detalle: {
             create: detalleItems,
           },

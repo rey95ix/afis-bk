@@ -3,6 +3,9 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
+import axios from 'axios';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateOrdenCompraDto } from './dto/create-orden-compra.dto';
 import { UpdateOrdenCompraDto } from './dto/update-orden-compra.dto';
@@ -14,7 +17,8 @@ import { GenerarCompraOcDto } from './dto/generar-compra-oc.dto';
 import { CerrarOrdenCompraDto } from './dto/cerrar-orden-compra.dto';
 import { CancelarOrdenCompraDto } from './dto/cancelar-orden-compra.dto';
 import { Prisma, usuarios } from '@prisma/client';
-import { convertToUTC } from 'src/common/helpers';
+import { convertToUTC, calcularTotales } from 'src/common/helpers';
+import { IVA_RATE } from 'src/common/const';
 import { MovimientosBancariosService } from '../../bancos/movimientos-bancarios/movimientos-bancarios.service';
 import { CxpService } from '../../cxp/cxp.service';
 import { MailService } from '../../mail/mail.service';
@@ -26,7 +30,7 @@ export class OrdenesCompraService {
     private movimientosBancariosService: MovimientosBancariosService,
     private cxpService: CxpService,
     private mailService: MailService,
-  ) {}
+  ) { }
 
   // =============================================
   // Includes reutilizables
@@ -145,23 +149,17 @@ export class OrdenesCompraService {
   // Cálculo de totales
   // =============================================
 
-  private calculateTotals(detalles: any[]) {
-    const tasaIVA = 0.13;
-    let subtotal = 0;
-    let descuentoTotal = 0;
-
-    detalles.forEach((detalle) => {
-      const subtotalLinea =
-        (detalle.costo_unitario || 0) * (detalle.cantidad_ordenada || 0);
-      subtotal += subtotalLinea;
-      descuentoTotal += detalle.descuento_monto || 0;
-    });
-
-    const baseImponible = subtotal - descuentoTotal;
-    const iva = baseImponible * tasaIVA;
-    const total = baseImponible + iva;
-
-    return { subtotal, descuento: descuentoTotal, iva, total, tasaIVA };
+  private calculateTotals(
+    detalles: any[],
+    precioConIvaIncluido = false,
+    tasaIVA: number = IVA_RATE,
+  ) {
+    const lineas = detalles.map((d) => ({
+      costo_unitario: d.costo_unitario || 0,
+      cantidad: d.cantidad_ordenada || 0,
+      descuento_monto: d.descuento_monto || 0,
+    }));
+    return calcularTotales(lineas, tasaIVA, precioConIvaIncluido);
   }
 
   // =============================================
@@ -194,7 +192,9 @@ export class OrdenesCompraService {
     }
 
     const codigo = await this.generarCodigoOrden();
-    const calculated = this.calculateTotals(dto.detalle);
+    // OC creada manualmente: sin bandera (default false). Si viene de cotización,
+    // usar endpoint /generar-oc de cotizaciones que propaga el flag.
+    const calculated = this.calculateTotals(dto.detalle, false, IVA_RATE);
 
     const orden = await this.prisma.ordenes_compra.create({
       data: {
@@ -206,6 +206,8 @@ export class OrdenesCompraService {
         id_forma_pago: dto.id_forma_pago,
         dias_credito: dto.dias_credito,
         moneda: dto.moneda || 'USD',
+        precio_con_iva_incluido: false,
+        tasa_iva: IVA_RATE,
         motivo: dto.motivo,
         observaciones: dto.observaciones,
         fecha_entrega_esperada: dto.fecha_entrega_esperada
@@ -220,11 +222,8 @@ export class OrdenesCompraService {
         iva: calculated.iva,
         total: calculated.total,
         detalle: {
-          create: dto.detalle.map((item) => {
-            const itemSubtotal =
-              (item.costo_unitario || 0) * item.cantidad_ordenada -
-              (item.descuento_monto || 0);
-            const itemIva = itemSubtotal * calculated.tasaIVA;
+          create: dto.detalle.map((item, idx) => {
+            const linea = calculated.lineas[idx];
             return {
               id_catalogo: item.id_catalogo,
               codigo: item.codigo,
@@ -234,11 +233,11 @@ export class OrdenesCompraService {
               afecta_inventario: item.afecta_inventario ?? true,
               cantidad_ordenada: item.cantidad_ordenada,
               costo_unitario: item.costo_unitario || 0,
-              subtotal: itemSubtotal,
+              subtotal: linea.subtotal,
               descuento_porcentaje: item.descuento_porcentaje || 0,
               descuento_monto: item.descuento_monto || 0,
-              iva: itemIva,
-              total: itemSubtotal + itemIva,
+              iva: linea.iva,
+              total: linea.total,
               observaciones: item.observaciones,
             };
           }),
@@ -398,8 +397,10 @@ export class OrdenesCompraService {
       });
     }
 
+    const precioConIvaIncluido = ordenExistente.precio_con_iva_incluido;
+    const tasaIva = ordenExistente.tasa_iva;
     const calculated = dto.detalle
-      ? this.calculateTotals(dto.detalle)
+      ? this.calculateTotals(dto.detalle, precioConIvaIncluido, tasaIva)
       : null;
 
     const ordenActualizada = await this.prisma.ordenes_compra.update({
@@ -425,30 +426,26 @@ export class OrdenesCompraService {
         }),
         detalle: dto.detalle
           ? {
-              create: dto.detalle.map((item) => {
-                const itemSubtotal =
-                  (item.costo_unitario || 0) *
-                    (item.cantidad_ordenada || 0) -
-                  (item.descuento_monto || 0);
-                const itemIva = itemSubtotal * 0.13;
-                return {
-                  id_catalogo: item.id_catalogo,
-                  codigo: item.codigo,
-                  nombre: item.nombre || '',
-                  descripcion: item.descripcion,
-                  tiene_serie: item.tiene_serie || false,
-                  afecta_inventario: item.afecta_inventario ?? true,
-                  cantidad_ordenada: item.cantidad_ordenada || 0,
-                  costo_unitario: item.costo_unitario || 0,
-                  subtotal: itemSubtotal,
-                  descuento_porcentaje: item.descuento_porcentaje || 0,
-                  descuento_monto: item.descuento_monto || 0,
-                  iva: itemIva,
-                  total: itemSubtotal + itemIva,
-                  observaciones: item.observaciones,
-                };
-              }),
-            }
+            create: dto.detalle.map((item, idx) => {
+              const linea = calculated!.lineas[idx];
+              return {
+                id_catalogo: item.id_catalogo,
+                codigo: item.codigo,
+                nombre: item.nombre || '',
+                descripcion: item.descripcion,
+                tiene_serie: item.tiene_serie || false,
+                afecta_inventario: item.afecta_inventario ?? true,
+                cantidad_ordenada: item.cantidad_ordenada || 0,
+                costo_unitario: item.costo_unitario || 0,
+                subtotal: linea.subtotal,
+                descuento_porcentaje: item.descuento_porcentaje || 0,
+                descuento_monto: item.descuento_monto || 0,
+                iva: linea.iva,
+                total: linea.total,
+                observaciones: item.observaciones,
+              };
+            }),
+          }
           : undefined,
       },
       include: this.includeCompleto,
@@ -865,9 +862,9 @@ export class OrdenesCompraService {
 
     // Ejecutar en transacción
     const result = await this.prisma.$transaction(async (tx) => {
-      // Calcular totales de la compra
-      const tasaIVA = 0.13;
-      let compraSubtotal = 0;
+      // Bandera y tasa heredadas desde la OC (que a su vez vinieron de la cotización)
+      const precioConIvaIncluido = orden.precio_con_iva_incluido;
+      const tasaIva = orden.tasa_iva;
 
       const compraDetalles = dto.detalles.map((detDto) => {
         const detalleOc = orden.detalle.find(
@@ -877,19 +874,25 @@ export class OrdenesCompraService {
 
         const costoUnit =
           detDto.costo_unitario ?? detalleOc.costo_unitario ?? 0;
-        const lineSubtotal = costoUnit * detDto.cantidad_a_recibir;
-        compraSubtotal += lineSubtotal;
 
         return {
           detalleOc,
           detDto,
           costoUnit,
-          lineSubtotal,
         };
       });
 
-      const compraIva = compraSubtotal * tasaIVA;
-      const compraTotal = compraSubtotal + compraIva;
+      // Usar helper centralizado para calcular totales header + líneas
+      const lineasInput = compraDetalles.map(({ costoUnit, detDto }) => ({
+        costo_unitario: costoUnit,
+        cantidad: detDto.cantidad_a_recibir,
+        descuento_monto: 0,
+      }));
+      const calculated = calcularTotales(
+        lineasInput,
+        tasaIva,
+        precioConIvaIncluido,
+      );
 
       // Crear la compra
       const nuevaCompra = await tx.compras.create({
@@ -906,9 +909,12 @@ export class OrdenesCompraService {
           id_tipo_factura: dto.id_tipo_factura || 2,
           id_usuario: user.id_usuario,
           id_orden_compra: orden.id_orden_compra,
-          subtotal: compraSubtotal,
-          iva: compraIva,
-          total: compraTotal,
+          precio_con_iva_incluido: precioConIvaIncluido,
+          tasa_iva: tasaIva,
+          subtotal: calculated.subtotal,
+          descuento: calculated.descuento,
+          iva: calculated.iva,
+          total: calculated.total,
           fecha_factura: convertToUTC(dto.fecha_factura),
           fecha_de_pago: dto.fecha_de_pago
             ? convertToUTC(dto.fecha_de_pago)
@@ -921,8 +927,9 @@ export class OrdenesCompraService {
           fecha_recepcion: !algunoAfectaInventario ? new Date() : null,
           ComprasDetalle: {
             create: compraDetalles.map(
-              ({ detalleOc, detDto, costoUnit, lineSubtotal }) => {
+              ({ detalleOc, detDto, costoUnit }, idx) => {
                 const afectaInv = detalleOc.afecta_inventario ?? true;
+                const linea = calculated.lineas[idx];
                 return {
                   id_catalogo: detalleOc.id_catalogo,
                   codigo: detalleOc.codigo,
@@ -930,14 +937,14 @@ export class OrdenesCompraService {
                   descripcion: detalleOc.descripcion,
                   tiene_serie: afectaInv ? detalleOc.tiene_serie : false,
                   afecta_inventario: afectaInv,
-                  costo_unitario: costoUnit,
+                  costo_unitario: precioConIvaIncluido ?  costoUnit / (1 + tasaIva) : costoUnit,
                   cantidad: detDto.cantidad_a_recibir,
                   cantidad_inventario: afectaInv ? detDto.cantidad_a_recibir : 0,
-                  subtotal: lineSubtotal,
+                  subtotal: Number((precioConIvaIncluido ? (costoUnit / (1 + tasaIva)) * detDto.cantidad_a_recibir : costoUnit * detDto.cantidad_a_recibir).toFixed(6)),
                   descuento_porcentaje: 0,
                   descuento_monto: 0,
-                  iva: lineSubtotal * tasaIVA,
-                  total: lineSubtotal * (1 + tasaIVA),
+                  iva: linea.iva,
+                  total: Number((precioConIvaIncluido ? (costoUnit / (1 + tasaIva)) * detDto.cantidad_a_recibir : costoUnit * detDto.cantidad_a_recibir).toFixed(6)),
                 };
               },
             ),
@@ -1023,7 +1030,7 @@ export class OrdenesCompraService {
       await this.prisma.logAction(
         'GENERAR_COMPRA_ORDEN_COMPRA',
         user.id_usuario,
-        `Compra generada desde OC ${orden.codigo}: Factura ${dto.numero_factura}, Total: $${compraTotal.toFixed(2)}`,
+        `Compra generada desde OC ${orden.codigo}: Factura ${dto.numero_factura}, Total: $${calculated.total.toFixed(2)}`,
       );
 
       // Si es compra a crédito, crear cuenta por pagar dentro de la transacción
@@ -1037,7 +1044,7 @@ export class OrdenesCompraService {
         await this.cxpService.crearCuentaPorPagar({
           id_compras: nuevaCompra.id_compras,
           id_proveedor: orden.id_proveedor,
-          monto_total: compraTotal,
+          monto_total: calculated.total,
           dias_credito: diasCredito,
           fecha_emision: new Date(dto.fecha_factura),
           id_sucursal: orden.id_sucursal,
@@ -1045,7 +1052,7 @@ export class OrdenesCompraService {
         }, tx);
       }
 
-      return { nuevaCompra, compraTotal };
+      return { nuevaCompra, compraTotal: calculated.total };
     });
 
     // Registrar pago DESPUÉS de que la transacción haya sido exitosa
@@ -1209,5 +1216,170 @@ export class OrdenesCompraService {
         canceladas,
       },
     };
+  }
+
+  // =============================================
+  // PDF
+  // =============================================
+
+  async generatePdf(id: number): Promise<Buffer> {
+    const orden = await this.findOne(id);
+
+    const templatePath = path.join(
+      process.cwd(),
+      'templates/inventario/orden-compra.html',
+    );
+
+    if (!fs.existsSync(templatePath)) {
+      throw new NotFoundException('Plantilla de reporte no encontrada');
+    }
+
+    const templateHtml = fs.readFileSync(templatePath, 'utf-8');
+
+    const formatDate = (date: Date | null | undefined): string => {
+      if (!date) return 'N/A';
+      return new Date(date).toLocaleString('es-SV', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    };
+
+    const toMoney = (v: any): string =>
+      v ? parseFloat(v.toString()).toFixed(2) : '0.00';
+
+    const ESTADO_CLASS: Record<string, string> = {
+      BORRADOR: 'borrador',
+      PENDIENTE_APROBACION: 'pendiente',
+      APROBADA: 'aprobada',
+      RECHAZADA: 'rechazada',
+      EMITIDA: 'emitida',
+      RECEPCION_PARCIAL: 'recepcion',
+      RECEPCION_TOTAL: 'recepcion',
+      CERRADA: 'cerrada',
+      CANCELADA: 'cancelada',
+    };
+
+    const ESTADO_LABEL: Record<string, string> = {
+      BORRADOR: 'Borrador',
+      PENDIENTE_APROBACION: 'Pendiente Aprobación',
+      APROBADA: 'Aprobada',
+      RECHAZADA: 'Rechazada',
+      EMITIDA: 'Emitida',
+      RECEPCION_PARCIAL: 'Recepción Parcial',
+      RECEPCION_TOTAL: 'Recepción Total',
+      CERRADA: 'Cerrada',
+      CANCELADA: 'Cancelada',
+    };
+
+    let totalCantidadOrdenada = 0;
+    let totalCantidadRecibida = 0;
+    let totalDescuento = 0;
+
+    const detalleFormateado = orden.detalle.map((item, index) => {
+      totalCantidadOrdenada += item.cantidad_ordenada || 0;
+      totalCantidadRecibida += item.cantidad_recibida || 0;
+      totalDescuento += Number(item.descuento_monto || 0);
+
+      return {
+        numero: index + 1,
+        codigo: item.codigo || '',
+        nombre: item.nombre || '',
+        cantidad_ordenada: item.cantidad_ordenada || 0,
+        cantidad_recibida: item.cantidad_recibida || 0,
+        costo_unitario: toMoney(item.costo_unitario),
+        descuento_monto: toMoney(item.descuento_monto),
+        subtotal: toMoney(item.subtotal),
+      };
+    });
+
+    const mostrarRecibida = [
+      'EMITIDA',
+      'RECEPCION_PARCIAL',
+      'RECEPCION_TOTAL',
+      'CERRADA',
+    ].includes(orden.estado);
+
+    const templateData = {
+      codigo: orden.codigo,
+      estado: orden.estado,
+      estadoLabel: ESTADO_LABEL[orden.estado] || orden.estado,
+      estadoClass: ESTADO_CLASS[orden.estado] || 'borrador',
+      moneda: orden.moneda || 'USD',
+      formaPago: orden.forma_pago?.valor || 'N/A',
+      diasCredito: orden.dias_credito || 0,
+      motivo: orden.motivo || '',
+      observaciones: orden.observaciones || '',
+      observacionesAprobacion: orden.observaciones_aprobacion || '',
+      motivoRechazo: orden.motivo_rechazo || '',
+
+      fechaCreacion: formatDate(orden.fecha_creacion),
+      fechaEntregaEsperada: formatDate(orden.fecha_entrega_esperada),
+      fechaAprobacion: formatDate(orden.fecha_aprobacion),
+      fechaEmision: formatDate(orden.fecha_emision),
+      fechaCierre: formatDate(orden.fecha_cierre),
+
+      proveedorRazonSocial: orden.proveedor?.nombre_razon_social || 'N/A',
+      proveedorNombreComercial: orden.proveedor?.nombre_comercial || 'N/A',
+      sucursal: orden.sucursal?.nombre || 'N/A',
+      bodega: orden.bodega?.nombre || 'N/A',
+
+      usuarioCrea: orden.usuario_crea
+        ? `${orden.usuario_crea.nombres} ${orden.usuario_crea.apellidos}`
+        : 'N/A',
+      usuarioAprueba: orden.usuario_aprueba
+        ? `${orden.usuario_aprueba.nombres} ${orden.usuario_aprueba.apellidos}`
+        : 'N/A',
+      usuarioEncargado: orden.usuario_encargado
+        ? `${orden.usuario_encargado.nombres} ${orden.usuario_encargado.apellidos}`
+        : 'N/A',
+
+      detalle: detalleFormateado,
+      mostrarRecibida,
+      totalCantidadOrdenada,
+      totalCantidadRecibida,
+      totalDescuento: toMoney(totalDescuento),
+
+      subtotal: toMoney((orden.subtotal || 0) - (orden.iva || 0)),
+      descuento: toMoney(orden.descuento),
+      iva: toMoney(orden.iva),
+      total: toMoney(orden.total),
+
+      fechaGeneracion: formatDate(new Date()),
+    };
+
+    const API_REPORT =
+      process.env.API_REPORT || 'https://reports.edal.group/api/report';
+
+    try {
+      const response = await axios.post(
+        API_REPORT,
+        {
+          template: {
+            content: templateHtml,
+            engine: 'jsrender',
+            recipe: 'chrome-pdf',
+          },
+          data: templateData,
+          options: {
+            reportName: `OrdenCompra_${orden.codigo}`,
+          },
+        },
+        {
+          responseType: 'arraybuffer',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          timeout: 60000,
+        },
+      );
+
+      return Buffer.from(response.data);
+    } catch (error) {
+      console.error('Error generating OC PDF:', error);
+      throw new BadRequestException('Error al generar el PDF');
+    }
   }
 }
