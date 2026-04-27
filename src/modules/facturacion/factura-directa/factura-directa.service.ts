@@ -794,7 +794,7 @@ export class FacturaDirectaService {
       (sum: number, nc: any) => sum + Number(nc.total),
       0,
     ) || 0;
-    const montoDisponible = totalFacturaOriginal - totalNCPrevias;
+    const montoDisponible = (totalFacturaOriginal - totalNCPrevias) + (facturaOriginal.renta_retenido || 0);
 
     if (totalNCActual > montoDisponible + 0.01) { // tolerancia de centavo
       throw new BadRequestException(
