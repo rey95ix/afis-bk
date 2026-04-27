@@ -3570,14 +3570,15 @@ export class FacturaDirectaService {
     const id_bloque = tipoFactura?.id_bloque;
     const id_tipo_factura = tipoFactura?.id_tipo_factura;
 
-    // 2. Verificar idempotencia: si ya tiene facturas proyectadas, skip
-    const facturasExistentes = await db.facturaDirecta.count({
-      where: { id_contrato: idContrato },
+    // 2. Verificar idempotencia: si ya tiene facturas de cuotas, skip
+    // (la factura de instalación se cuenta aparte y se crea vía crearFacturaInstalacionContrato)
+    const cuotasExistentes = await db.facturaDirecta.count({
+      where: { id_contrato: idContrato, es_instalacion: false },
     });
 
-    if (facturasExistentes > 0) {
+    if (cuotasExistentes > 0) {
       this.logger.warn(
-        `Contrato ${idContrato} ya tiene ${facturasExistentes} facturas. Saltando generación.`,
+        `Contrato ${idContrato} ya tiene ${cuotasExistentes} facturas de cuotas. Saltando generación.`,
       );
       return { facturaIds: [] };
     }
@@ -3620,7 +3621,6 @@ export class FacturaDirectaService {
     };
 
     const facturaIds: number[] = [];
-    let instalacionId: number | undefined;
 
     // 7. Generar facturas de cuotas mensuales
     const primeraCuota = cuotaInicial || 1;
@@ -3843,106 +3843,212 @@ export class FacturaDirectaService {
       facturaIds.push(factura.id_factura_directa);
     }
 
-    // 8. Si facturar_instalacion_separada y hay costo, crear factura aparte (solo si empezamos desde cuota 1)
-    if (facturarInstalacionSeparada && costoInstalacion > 0 && primeraCuota <= 1) {
-      const preciosInstSep = this.calcularPreciosDetalle(costoInstalacion, aplicaIva, porcentajeIva, esFC);
-
-      const totalGravada = preciosInstSep.ventaGravada;
-      const totalExenta = preciosInstSep.ventaExenta;
-      const subtotal = redondearMonto(totalGravada + totalExenta);
-      const ivaInstalacion = preciosInstSep.iva;
-      const total = esFC ? redondearMonto(subtotal) : redondearMonto(subtotal + ivaInstalacion);
-
-      const { periodoInicio, periodoFin, fechaVencimiento } = this.calcularFechasPeriodo(
-        fechaInicio,
-        1,
-        contrato.ciclo,
-      );
-
-      const facturaInstalacion = await db.facturaDirecta.create({
-        data: {
-          numero_factura: null,
-          id_bloque,
-          id_tipo_factura,
-          codigo_generacion: uuidv4().toUpperCase(),
-          id_contrato: idContrato,
-          id_cliente: contrato.id_cliente,
-          id_cliente_facturacion: datosFacturacion.id_cliente_datos_facturacion,
-          ...clienteSnapshot,
-
-          periodo_inicio: periodoInicio,
-          periodo_fin: periodoFin,
-          fecha_vencimiento: fechaVencimiento,
-          numero_cuota: null,
-          total_cuotas: null,
-          es_instalacion: true,
-
-          subtotal: subtotal,
-          subTotalVentas: subtotal,
-          totalGravada: totalGravada,
-          totalExenta: totalExenta,
-          iva: ivaInstalacion,
-          total: total,
-
-          condicion_operacion: 2,
-
-          estado_dte: 'BORRADOR',
-          estado_pago: 'PENDIENTE',
-
-          id_sucursal: sucursal.id_sucursal,
-          id_usuario: userId,
-
-          detalles: {
-            create: [
-              {
-                num_item: 1,
-                nombre: `Instalación del servicio - ${contrato.plan.nombre}`,
-                descripcion: `Costo de instalación - ${contrato.plan.nombre}`,
-                cantidad: 1,
-                uni_medida: 99,
-                precio_unitario: preciosInstSep.precioUnitario,
-                precio_sin_iva: preciosInstSep.precioSinIva,
-                precio_con_iva: preciosInstSep.precioConIva,
-                tipo_detalle: preciosInstSep.tipoDetalle,
-                venta_gravada: totalGravada,
-                venta_exenta: totalExenta,
-                subtotal: subtotal,
-                iva: ivaInstalacion,
-                total: total,
-              },
-            ],
-          },
-        },
-      });
-
-      instalacionId = facturaInstalacion.id_factura_directa;
-
-      // Auto-crear CxC para factura de instalación (vence 48h después)
-      const vencimientoInstalacion = new Date();
-      vencimientoInstalacion.setDate(vencimientoInstalacion.getDate() + 2);
-
-      await this.cxcService.crearCxcParaFacturaContrato(
-        {
-          id_factura_directa: facturaInstalacion.id_factura_directa,
-          id_cliente: contrato.id_cliente,
-          id_contrato: idContrato,
-          total: facturaInstalacion.total,
-          fecha_vencimiento: vencimientoInstalacion,
-        },
-        sucursal.id_sucursal,
-        userId,
-        db as any,
-      );
-
-      facturaIds.push(instalacionId);
-    }
+    // Nota: la factura de instalación separada se crea vía `crearFacturaInstalacionContrato`
+    // (al firmar el contrato). Aquí solo se generan cuotas. Si `facturar_instalacion_separada=false`,
+    // el costo de instalación se incluye en la cuota 1 (lógica preservada arriba).
 
     this.logger.log(
-      `Contrato ${idContrato}: generadas ${facturaIds.length} facturas proyectadas` +
-      (instalacionId ? ` (incluye factura de instalación #${instalacionId})` : ''),
+      `Contrato ${idContrato}: generadas ${facturaIds.length} facturas de cuotas`,
     );
 
-    return { facturaIds, instalacionId };
+    return { facturaIds };
+  }
+
+  /**
+   * Crea la factura de instalación de un contrato.
+   *
+   * Se invoca al firmar el contrato (flujo nuevo). Es idempotente: si ya existe
+   * una factura con `es_instalacion=true` para el contrato, retorna sin crear.
+   *
+   * Aplicabilidad: solo crea si `facturar_instalacion_separada=true` y
+   * `costo_instalacion > 0`. Si el flag es false, el costo se incluye en la
+   * cuota 1 al generar facturas de cuotas (no hace nada aquí).
+   *
+   * @param idContrato ID del contrato
+   * @param userId Usuario que dispara la creación
+   * @param idSucursal Sucursal opcional (default: primera activa)
+   * @param tx Cliente de transacción Prisma opcional
+   */
+  async crearFacturaInstalacionContrato(
+    idContrato: number,
+    userId: number,
+    idSucursal?: number,
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ instalacionId: number | null; created: boolean }> {
+    const db = tx || this.prisma;
+
+    const contrato = await db.atcContrato.findUnique({
+      where: { id_contrato: idContrato },
+      include: {
+        cliente: {
+          include: {
+            datosfacturacion: { where: { estado: 'ACTIVO' }, take: 1 },
+          },
+        },
+        plan: true,
+        ciclo: true,
+      },
+    });
+
+    if (!contrato) {
+      throw new NotFoundException(`Contrato ${idContrato} no encontrado`);
+    }
+    if (!contrato.plan) {
+      throw new BadRequestException(`Contrato ${idContrato} no tiene plan asignado`);
+    }
+    if (!contrato.ciclo) {
+      throw new BadRequestException(`Contrato ${idContrato} no tiene ciclo de facturación`);
+    }
+
+    const costoInstalacion = Number(contrato.costo_instalacion || 0);
+    const facturarInstalacionSeparada = contrato.facturar_instalacion_separada;
+
+    // Aplicabilidad: solo factura separada cuando el flag es true Y hay costo
+    if (!facturarInstalacionSeparada || costoInstalacion <= 0) {
+      return { instalacionId: null, created: false };
+    }
+
+    // Idempotencia: si ya existe factura de instalación para el contrato, no duplicar
+    const existentes = await db.facturaDirecta.count({
+      where: { id_contrato: idContrato, es_instalacion: true },
+    });
+    if (existentes > 0) {
+      this.logger.warn(
+        `Contrato ${idContrato} ya tiene factura de instalación. Saltando creación.`,
+      );
+      return { instalacionId: null, created: false };
+    }
+
+    const datosFacturacion = contrato.cliente?.datosfacturacion?.[0];
+    if (!datosFacturacion) {
+      throw new BadRequestException(
+        `Cliente del contrato ${idContrato} no tiene datos de facturación activos`,
+      );
+    }
+
+    const tipoFacturaCodigo = datosFacturacion.tipo == 'PERSONA' ? '01' : '03';
+    const esFC = tipoFacturaCodigo === '01';
+    const tipoFactura = await db.facturasBloques.findFirst({
+      where: { estado: 'ACTIVO', Tipo: { codigo: tipoFacturaCodigo } },
+    });
+    const id_bloque = tipoFactura?.id_bloque;
+    const id_tipo_factura = tipoFactura?.id_tipo_factura;
+
+    const sucursal = idSucursal
+      ? await db.sucursales.findUnique({ where: { id_sucursal: idSucursal } })
+      : await db.sucursales.findFirst({ where: { estado: 'ACTIVO' } });
+    if (!sucursal) {
+      throw new BadRequestException(
+        'No hay sucursal disponible para generar factura de instalación',
+      );
+    }
+
+    const aplicaIva = contrato.plan.aplica_iva;
+    const porcentajeIva = Number(contrato.plan.porcentaje_iva || 13);
+
+    const clienteSnapshot = {
+      cliente_nombre: datosFacturacion.nombre_empresa,
+      cliente_nit: datosFacturacion.nit,
+      cliente_nrc: datosFacturacion.nrc,
+      cliente_direccion: datosFacturacion.direccion_facturacion,
+      cliente_telefono: datosFacturacion.telefono,
+      cliente_correo: datosFacturacion.correo_electronico,
+    };
+
+    const precios = this.calcularPreciosDetalle(
+      costoInstalacion,
+      aplicaIva,
+      porcentajeIva,
+      esFC,
+    );
+    const totalGravada = precios.ventaGravada;
+    const totalExenta = precios.ventaExenta;
+    const subtotal = redondearMonto(totalGravada + totalExenta);
+    const ivaInstalacion = precios.iva;
+    const total = esFC ? redondearMonto(subtotal) : redondearMonto(subtotal + ivaInstalacion);
+
+    const fechaInicio = contrato.fecha_inicio_contrato || new Date();
+    const { periodoInicio, periodoFin } = this.calcularFechasPeriodo(
+      fechaInicio,
+      1,
+      contrato.ciclo,
+    );
+
+    // Vencimiento +48h desde la creación (mismo criterio que el flujo previo)
+    const vencimientoInstalacion = new Date();
+    vencimientoInstalacion.setDate(vencimientoInstalacion.getDate() + 2);
+
+    const facturaInstalacion = await db.facturaDirecta.create({
+      data: {
+        numero_factura: null,
+        id_bloque,
+        id_tipo_factura,
+        codigo_generacion: uuidv4().toUpperCase(),
+        id_contrato: idContrato,
+        id_cliente: contrato.id_cliente,
+        id_cliente_facturacion: datosFacturacion.id_cliente_datos_facturacion,
+        ...clienteSnapshot,
+        periodo_inicio: periodoInicio,
+        periodo_fin: periodoFin,
+        fecha_vencimiento: vencimientoInstalacion,
+        numero_cuota: null,
+        total_cuotas: null,
+        es_instalacion: true,
+        subtotal: subtotal,
+        subTotalVentas: subtotal,
+        totalGravada: totalGravada,
+        totalExenta: totalExenta,
+        iva: ivaInstalacion,
+        total: total,
+        condicion_operacion: 2,
+        estado_dte: 'BORRADOR',
+        estado_pago: 'PENDIENTE',
+        id_sucursal: sucursal.id_sucursal,
+        id_usuario: userId,
+        detalles: {
+          create: [
+            {
+              num_item: 1,
+              nombre: `Instalación del servicio - ${contrato.plan.nombre}`,
+              descripcion: `Costo de instalación - ${contrato.plan.nombre}`,
+              cantidad: 1,
+              uni_medida: 99,
+              precio_unitario: precios.precioUnitario,
+              precio_sin_iva: precios.precioSinIva,
+              precio_con_iva: precios.precioConIva,
+              tipo_detalle: precios.tipoDetalle,
+              venta_gravada: totalGravada,
+              venta_exenta: totalExenta,
+              subtotal: subtotal,
+              iva: ivaInstalacion,
+              total: total,
+            },
+          ],
+        },
+      },
+    });
+
+    await this.cxcService.crearCxcParaFacturaContrato(
+      {
+        id_factura_directa: facturaInstalacion.id_factura_directa,
+        id_cliente: contrato.id_cliente,
+        id_contrato: idContrato,
+        total: facturaInstalacion.total,
+        fecha_vencimiento: vencimientoInstalacion,
+      },
+      sucursal.id_sucursal,
+      userId,
+      db as any,
+    );
+
+    this.logger.log(
+      `Contrato ${idContrato}: factura de instalación #${facturaInstalacion.id_factura_directa} creada`,
+    );
+
+    return {
+      instalacionId: facturaInstalacion.id_factura_directa,
+      created: true,
+    };
   }
 
   /**

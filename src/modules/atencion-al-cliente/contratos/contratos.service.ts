@@ -16,6 +16,7 @@ import { atcContrato } from '@prisma/client';
 import { PaginationDto, PaginatedResult } from 'src/common/dto';
 import { OrdenesTrabajoService } from '../ordenes-trabajo/ordenes-trabajo.service';
 import { TipoOrden } from '../ordenes-trabajo/dto/create-orden.dto';
+import { FacturaDirectaService } from 'src/modules/facturacion/factura-directa/factura-directa.service';
 import { MinioService } from 'src/modules/minio/minio.service';
 import { ConfigService } from '@nestjs/config';
 import { Readable } from 'stream';
@@ -30,6 +31,7 @@ export class ContratosService {
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => OrdenesTrabajoService))
     private readonly ordenesTrabajoService: OrdenesTrabajoService,
+    private readonly facturaDirectaService: FacturaDirectaService,
     private readonly minioService: MinioService,
     private readonly configService: ConfigService,
   ) {}
@@ -1100,32 +1102,48 @@ export class ContratosService {
     };
     const { url } = await this.minioService.uploadFile(multerFile, objectName);
 
-    // Conditional update: only proceed if contract is still PENDIENTE_FIRMA
-    const updateResult = await this.prisma.atcContrato.updateMany({
-      where: { id_contrato, estado: 'PENDIENTE_FIRMA' },
-      data: {
-        estado: 'PENDIENTE_INSTALACION',
-        url_contrato_firmado: url,
-      },
-    });
-
-    if (updateResult.count === 0) {
-      throw new BadRequestException('El contrato ya no está pendiente de firma');
-    }
-
-    // Determinar tipo de OT según si es instalación nueva, renovación o reubicación
+    // Determinar tipo de OT antes de la transacción (consulta read-only)
     const { tipo: tipoOT, descripcion, observacionExtra } = await this.determinarTipoOT(contrato);
 
-    // Crear OT usando el usuario creador del contrato
-    const ordenTrabajo = await this.ordenesTrabajoService.create(
-      {
-        tipo: tipoOT,
-        id_cliente: contrato.id_cliente,
-        id_direccion_servicio: contrato.id_direccion_servicio,
-        observaciones_tecnico: `${descripcion} para contrato ${contrato.codigo} - Firmado en línea${observacionExtra}`,
-        id_contrato,
+    // Transacción: actualización del contrato, factura de instalación (si aplica) y OT.
+    // Si la factura de instalación falla, el contrato no cambia de estado y no se crea la OT.
+    const ordenTrabajo = await this.prisma.$transaction(
+      async (tx) => {
+        // Conditional update: only proceed if contract is still PENDIENTE_FIRMA
+        const updateResult = await tx.atcContrato.updateMany({
+          where: { id_contrato, estado: 'PENDIENTE_FIRMA' },
+          data: {
+            estado: 'PENDIENTE_INSTALACION',
+            url_contrato_firmado: url,
+          },
+        });
+
+        if (updateResult.count === 0) {
+          throw new BadRequestException('El contrato ya no está pendiente de firma');
+        }
+
+        // Crear factura de instalación si aplica (idempotente; respeta flag y costo)
+        await this.facturaDirectaService.crearFacturaInstalacionContrato(
+          id_contrato,
+          contrato.id_usuario_creador,
+          undefined,
+          tx,
+        );
+
+        // Crear OT con el usuario creador del contrato
+        return this.ordenesTrabajoService.create(
+          {
+            tipo: tipoOT,
+            id_cliente: contrato.id_cliente,
+            id_direccion_servicio: contrato.id_direccion_servicio,
+            observaciones_tecnico: `${descripcion} para contrato ${contrato.codigo} - Firmado en línea${observacionExtra}`,
+            id_contrato,
+          },
+          contrato.id_usuario_creador,
+          tx,
+        );
       },
-      contrato.id_usuario_creador,
+      { maxWait: 10000, timeout: 60000 },
     );
 
     // Fetch updated contract with relations

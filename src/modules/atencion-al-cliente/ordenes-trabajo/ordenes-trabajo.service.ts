@@ -136,9 +136,15 @@ export class OrdenesTrabajoService {
     return `OT-${yearMonth}-${String(secuencia).padStart(5, '0')}`;
   }
 
-  async create(createOrdenDto: CreateOrdenDto, userId: number) {
+  async create(
+    createOrdenDto: CreateOrdenDto,
+    userId: number,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const db = tx || this.prisma;
+
     // Validar cliente
-    const cliente = await this.prisma.cliente.findUnique({
+    const cliente = await db.cliente.findUnique({
       where: { id_cliente: createOrdenDto.id_cliente },
     });
 
@@ -149,7 +155,7 @@ export class OrdenesTrabajoService {
     }
 
     // Validar dirección
-    const direccion = await this.prisma.clienteDirecciones.findUnique({
+    const direccion = await db.clienteDirecciones.findUnique({
       where: {
         id_cliente_direccion: createOrdenDto.id_direccion_servicio,
       },
@@ -163,7 +169,7 @@ export class OrdenesTrabajoService {
 
     // Si se proporciona ticket, validar que existe
     if (createOrdenDto.id_ticket) {
-      const ticket = await this.prisma.ticket_soporte.findUnique({
+      const ticket = await db.ticket_soporte.findUnique({
         where: { id_ticket: createOrdenDto.id_ticket },
       });
 
@@ -176,7 +182,7 @@ export class OrdenesTrabajoService {
 
     // Si se proporciona técnico, validar que existe
     if (createOrdenDto.id_tecnico_asignado) {
-      const tecnico = await this.prisma.usuarios.findUnique({
+      const tecnico = await db.usuarios.findUnique({
         where: { id_usuario: createOrdenDto.id_tecnico_asignado },
       });
 
@@ -189,7 +195,8 @@ export class OrdenesTrabajoService {
 
     const codigo = await this.generarCodigoOrden();
 
-    const orden = await this.prisma.$transaction(async (prisma) => {
+    // Cuando viene una transacción externa, usarla directamente; si no, abrir una nueva.
+    const runInTx = async (prisma: Prisma.TransactionClient) => {
       // Construir objeto data con campos requeridos
       const data: any = {
         codigo,
@@ -251,7 +258,11 @@ export class OrdenesTrabajoService {
       });
 
       return nuevaOrden;
-    });
+    };
+
+    const orden = tx
+      ? await runInTx(tx)
+      : await this.prisma.$transaction(runInTx);
 
     await this.prisma.logAction(
       'CREAR_ORDENES_TRABAJO',
@@ -1056,8 +1067,16 @@ export class OrdenesTrabajoService {
             },
           });
 
-          // Generar facturas proyectadas para el contrato
+          // Generar facturas proyectadas para el contrato.
+          // El primer call es fallback idempotente para contratos legacy firmados
+          // antes del refactor (sin factura de instalación al firmar).
           try {
+            await this.facturaDirectaService.crearFacturaInstalacionContrato(
+              contrato.id_contrato,
+              userId,
+              undefined,
+              prisma,
+            );
             await this.facturaDirectaService.generarFacturasContrato(
               contrato.id_contrato,
               userId,
@@ -1243,8 +1262,16 @@ export class OrdenesTrabajoService {
             },
           });
 
-          // Generar facturas proyectadas para el contrato
+          // Generar facturas proyectadas para el contrato.
+          // El primer call es fallback idempotente para contratos legacy firmados
+          // antes del refactor (sin factura de instalación al firmar).
           try {
+            await this.facturaDirectaService.crearFacturaInstalacionContrato(
+              contrato.id_contrato,
+              userId,
+              undefined,
+              prisma,
+            );
             await this.facturaDirectaService.generarFacturasContrato(
               contrato.id_contrato,
               userId,
