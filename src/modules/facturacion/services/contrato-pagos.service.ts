@@ -418,38 +418,45 @@ export class ContratoPagosService {
       );
       moraCalculada = Math.round(moraCalculada * 100) / 100;
 
-      if (moraCalculada > moraAnterior) {
-        const incremento = Math.round((moraCalculada - moraAnterior) * 100) / 100;
+      // Detectar estado inconsistente heredado: header/CxC tienen mora aplicada
+      // pero el detalle nunca recibió la línea MORA.
+      const moraDetalleExistente = await this.prisma.facturaDirectaDetalle.findFirst({
+        where: {
+          id_factura_directa: cxc.id_factura_directa,
+          codigo: 'MORA',
+        },
+        select: { id_detalle: true },
+      });
+      const tieneDetalleMora = !!moraDetalleExistente;
+      const necesitaReconciliar = moraAnterior > 0 && !tieneDetalleMora;
+      const necesitaCrecer = moraCalculada > moraAnterior;
 
-        // Actualizar CxC y factura atomicamente en una transacción
-        await this.prisma.$transaction(async (tx) => {
-          await tx.cuenta_por_cobrar.update({
-            where: { id_cxc: cxc.id_cxc },
-            data: {
-              saldo_pendiente: { increment: incremento },
-              monto_mora: moraCalculada,
-            },
+      if (!necesitaReconciliar && !necesitaCrecer) continue;
+      if (moraCalculada <= 0) continue;
+
+      await this.prisma.$transaction(async (tx) => {
+        if (necesitaReconciliar) {
+          await this.eliminarMoraFactura(cxc.id_factura_directa, idUsuario, {
+            forResync: true,
+            tx,
           });
+        }
+        await this.aplicarMoraEnFactura(tx, cxc.id_factura_directa, moraCalculada);
+      });
 
-          await tx.facturaDirecta.update({
-            where: { id_factura_directa: cxc.id_factura_directa },
-            data: {
-              monto_mora: moraCalculada,
-              estado_pago: factura.estado_pago === 'EN_ACUERDO' ? 'EN_ACUERDO' : 'VENCIDA',
-            },
-          });
-        });
+      const incremento = necesitaReconciliar
+        ? moraCalculada // después del resync, el delta real es la mora entera
+        : Math.round((moraCalculada - moraAnterior) * 100) / 100;
 
-        detalle.push({
-          idFactura: cxc.id_factura_directa,
-          cuota: factura.numero_cuota,
-          moraAnterior,
-          moraCalculada,
-          incremento,
-        });
+      detalle.push({
+        idFactura: cxc.id_factura_directa,
+        cuota: factura.numero_cuota,
+        moraAnterior,
+        moraCalculada,
+        incremento,
+      });
 
-        totalMoraAplicada += incremento;
-      }
+      totalMoraAplicada += incremento;
     }
 
     if (detalle.length > 0) {
@@ -463,6 +470,177 @@ export class ContratoPagosService {
       totalMoraAplicada: Math.round(totalMoraAplicada * 100) / 100,
       detalle,
     };
+  }
+
+  /**
+   * Aplica la mora a una factura como línea del detalle (GRAVADA) y recalcula
+   * subtotales/IVA/total del encabezado sumando TODOS los detalles. También
+   * actualiza la CxC asociada e invalida el DTE (dte_json/dte_firmado=NULL,
+   * estado_dte=BORRADOR) para que el builder rearme al firmar/reimprimir.
+   *
+   * Precondición: la factura no tiene una línea con codigo='MORA' (si la tenía,
+   * el caller debe haber llamado antes a eliminarMoraFactura({ forResync:true })).
+   */
+  private async aplicarMoraEnFactura(
+    tx: Prisma.TransactionClient,
+    idFactura: number,
+    moraCalculada: number,
+  ): Promise<void> {
+    const factura = await tx.facturaDirecta.findUnique({
+      where: { id_factura_directa: idFactura },
+      include: {
+        cuenta_por_cobrar: true,
+        tipoFactura: { select: { codigo: true } },
+        detalles: {
+          select: {
+            id_detalle: true,
+            num_item: true,
+            codigo: true,
+            subtotal: true,
+            descuento: true,
+            iva: true,
+            total: true,
+            venta_gravada: true,
+            venta_exenta: true,
+            venta_nosujeto: true,
+            venta_nograbada: true,
+          },
+        },
+      },
+    });
+
+    if (!factura) {
+      throw new NotFoundException(`Factura #${idFactura} no encontrada`);
+    }
+
+    const tipoDte = factura.tipoFactura?.codigo || '01';
+    const IVA_RATE = 0.13;
+
+    // Cálculo de la línea MORA según convención del DTE.
+    let subtotalLinea: number;
+    let ivaLinea: number;
+    let totalLinea: number;
+    let precioSinIva: number;
+    let precioConIva: number;
+
+    if (tipoDte === '01') {
+      // Factura a consumidor final: el subtotal YA incluye IVA.
+      subtotalLinea = redondearMonto(moraCalculada);
+      ivaLinea = redondearMonto(
+        moraCalculada - moraCalculada / (1 + IVA_RATE),
+      );
+      totalLinea = subtotalLinea;
+      precioSinIva = redondearMonto(subtotalLinea - ivaLinea);
+      precioConIva = subtotalLinea;
+    } else {
+      // CCF (03) y demás: el subtotal NO incluye IVA, se suma aparte.
+      subtotalLinea = redondearMonto(moraCalculada);
+      ivaLinea = redondearMonto(moraCalculada * IVA_RATE);
+      totalLinea = redondearMonto(subtotalLinea + ivaLinea);
+      precioSinIva = subtotalLinea;
+      precioConIva = totalLinea;
+    }
+
+    const maxNumItem = factura.detalles.reduce(
+      (max, d) => (d.num_item > max ? d.num_item : max),
+      0,
+    );
+
+    await tx.facturaDirectaDetalle.create({
+      data: {
+        id_factura_directa: idFactura,
+        num_item: maxNumItem + 1,
+        codigo: 'MORA',
+        nombre: 'Mora por atraso',
+        cantidad: 1,
+        uni_medida: 99,
+        precio_unitario: subtotalLinea,
+        precio_sin_iva: precioSinIva,
+        precio_con_iva: precioConIva,
+        tipo_detalle: 'GRAVADO',
+        venta_gravada: subtotalLinea,
+        venta_exenta: 0,
+        venta_nosujeto: 0,
+        venta_nograbada: 0,
+        subtotal: subtotalLinea,
+        descuento: 0,
+        iva: ivaLinea,
+        total: totalLinea,
+      },
+    });
+
+    // Recomputar agregados sumando TODOS los detalles (incluyendo la mora recién insertada).
+    const detallesActualizados = await tx.facturaDirectaDetalle.findMany({
+      where: { id_factura_directa: idFactura },
+      select: {
+        subtotal: true,
+        iva: true,
+        total: true,
+        venta_gravada: true,
+        venta_exenta: true,
+        venta_nosujeto: true,
+        venta_nograbada: true,
+      },
+    });
+
+    const sum = (sel: (d: (typeof detallesActualizados)[number]) => Prisma.Decimal | number) =>
+      detallesActualizados.reduce((acc, d) => acc + Number(sel(d)), 0);
+
+    const nuevoSubtotal = redondearMonto(sum((d) => d.subtotal));
+    const nuevaGravada = redondearMonto(sum((d) => d.venta_gravada));
+    const nuevaExenta = redondearMonto(sum((d) => d.venta_exenta));
+    const nuevaNoSuj = redondearMonto(sum((d) => d.venta_nosujeto));
+    const nuevaNoGrav = redondearMonto(sum((d) => d.venta_nograbada));
+    const nuevoIva = redondearMonto(sum((d) => d.iva));
+    const nuevoTotal = redondearMonto(sum((d) => d.total));
+
+    await tx.facturaDirecta.update({
+      where: { id_factura_directa: idFactura },
+      data: {
+        subtotal: nuevoSubtotal,
+        totalGravada: nuevaGravada,
+        totalExenta: nuevaExenta,
+        totalNoSuj: nuevaNoSuj,
+        totalNoGravado: nuevaNoGrav,
+        iva: nuevoIva,
+        total: nuevoTotal,
+        monto_mora: moraCalculada,
+        estado_pago:
+          factura.estado_pago === 'EN_ACUERDO' ? 'EN_ACUERDO' : 'VENCIDA',
+        dte_json: null,
+        dte_firmado: null,
+        estado_dte: 'BORRADOR',
+      },
+    });
+
+    const cxc = factura.cuenta_por_cobrar;
+    if (cxc) {
+      const totalAbonado = Number(cxc.total_abonado);
+      const nuevoSaldo = Math.max(
+        0,
+        redondearMonto(nuevoTotal - totalAbonado),
+      );
+
+      let nuevoEstadoCxc: typeof cxc.estado = cxc.estado;
+      if (nuevoSaldo <= 0) {
+        nuevoEstadoCxc = 'PAGADA_TOTAL';
+      } else if (totalAbonado > 0) {
+        nuevoEstadoCxc = 'PAGADA_PARCIAL';
+      } else {
+        nuevoEstadoCxc = 'VENCIDA';
+      }
+
+      await tx.cuenta_por_cobrar.update({
+        where: { id_cxc: cxc.id_cxc },
+        data: {
+          monto_total: nuevoTotal,
+          saldo_pendiente: nuevoSaldo,
+          monto_mora: moraCalculada,
+          mora_exonerada: false,
+          estado: nuevoEstadoCxc,
+        },
+      });
+    }
   }
 
   /**
@@ -1228,8 +1406,15 @@ export class ContratoPagosService {
   /**
    * Eliminar mora de una factura
    */
-  async eliminarMoraFactura(idFactura: number, idUsuario: number) {
-    const factura = await this.prisma.facturaDirecta.findUnique({
+  async eliminarMoraFactura(
+    idFactura: number,
+    idUsuario: number,
+    opts?: { forResync?: boolean; tx?: Prisma.TransactionClient },
+  ) {
+    const client = opts?.tx ?? this.prisma;
+    const forResync = opts?.forResync === true;
+
+    const factura = await client.facturaDirecta.findUnique({
       where: { id_factura_directa: idFactura },
       include: {
         cuenta_por_cobrar: true,
@@ -1257,55 +1442,114 @@ export class ContratoPagosService {
 
     const saldoActual = Number(cxc.saldo_pendiente);
     const totalAbonado = Number(cxc.total_abonado);
-    const nuevoSaldo = redondearMonto(saldoActual - moraActual);
+    const totalAnterior = Number(factura.total);
 
-    // Determinar nuevo estado
-    let nuevoEstadoPago: any = factura.estado_pago;
-    let nuevoEstadoCxc = cxc.estado;
+    const run = async (txClient: Prisma.TransactionClient) => {
+      // 1. Eliminar la línea MORA del detalle (si existe). En el flujo roto
+      //    heredado puede no existir; en ese caso el recálculo desde detalles
+      //    ya devuelve los totales pre-mora.
+      await txClient.facturaDirectaDetalle.deleteMany({
+        where: { id_factura_directa: idFactura, codigo: 'MORA' },
+      });
 
-    if (factura.estado_pago !== 'EN_ACUERDO') {
-      if (nuevoSaldo <= 0) {
-        nuevoEstadoPago = 'PAGADO';
-        nuevoEstadoCxc = 'PAGADA_TOTAL';
-      } else if (totalAbonado > 0) {
-        nuevoEstadoPago = 'PARCIAL';
-        nuevoEstadoCxc = 'PAGADA_PARCIAL';
-      } else {
-        nuevoEstadoPago = 'PENDIENTE';
-        nuevoEstadoCxc = 'PENDIENTE';
+      // 2. Recomputar agregados sumando el detalle restante.
+      const detalles = await txClient.facturaDirectaDetalle.findMany({
+        where: { id_factura_directa: idFactura },
+        select: {
+          subtotal: true,
+          iva: true,
+          total: true,
+          venta_gravada: true,
+          venta_exenta: true,
+          venta_nosujeto: true,
+          venta_nograbada: true,
+        },
+      });
+
+      const sum = (sel: (d: (typeof detalles)[number]) => Prisma.Decimal | number) =>
+        detalles.reduce((acc, d) => acc + Number(sel(d)), 0);
+
+      const nuevoSubtotal = redondearMonto(sum((d) => d.subtotal));
+      const nuevaGravada = redondearMonto(sum((d) => d.venta_gravada));
+      const nuevaExenta = redondearMonto(sum((d) => d.venta_exenta));
+      const nuevaNoSuj = redondearMonto(sum((d) => d.venta_nosujeto));
+      const nuevaNoGrav = redondearMonto(sum((d) => d.venta_nograbada));
+      const nuevoIva = redondearMonto(sum((d) => d.iva));
+      const nuevoTotal = redondearMonto(sum((d) => d.total));
+
+      const nuevoSaldo = Math.max(
+        0,
+        redondearMonto(nuevoTotal - totalAbonado),
+      );
+
+      // 3. Determinar estados según el nuevo saldo (respeta EN_ACUERDO).
+      let nuevoEstadoPago: any = factura.estado_pago;
+      let nuevoEstadoCxc = cxc.estado;
+      if (factura.estado_pago !== 'EN_ACUERDO') {
+        if (nuevoSaldo <= 0) {
+          nuevoEstadoPago = 'PAGADO';
+          nuevoEstadoCxc = 'PAGADA_TOTAL';
+        } else if (totalAbonado > 0) {
+          nuevoEstadoPago = 'PARCIAL';
+          nuevoEstadoCxc = 'PAGADA_PARCIAL';
+        } else {
+          nuevoEstadoPago = 'PENDIENTE';
+          nuevoEstadoCxc = 'PENDIENTE';
+        }
       }
-    }
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.cuenta_por_cobrar.update({
+      // 4. Revertir totales y mora en la factura, invalidando el DTE.
+      await txClient.facturaDirecta.update({
+        where: { id_factura_directa: idFactura },
+        data: {
+          subtotal: nuevoSubtotal,
+          totalGravada: nuevaGravada,
+          totalExenta: nuevaExenta,
+          totalNoSuj: nuevaNoSuj,
+          totalNoGravado: nuevaNoGrav,
+          iva: nuevoIva,
+          total: nuevoTotal,
+          monto_mora: 0,
+          estado_pago: nuevoEstadoPago,
+          dte_json: null,
+          dte_firmado: null,
+          estado_dte: 'BORRADOR',
+        },
+      });
+
+      // 5. Sincronizar la CxC.
+      await txClient.cuenta_por_cobrar.update({
         where: { id_cxc: cxc.id_cxc },
         data: {
-          saldo_pendiente: Math.max(0, nuevoSaldo),
+          monto_total: nuevoTotal,
+          saldo_pendiente: nuevoSaldo,
           monto_mora: 0,
-          mora_exonerada: true,
+          // En flujo manual exonera la mora; en reconciliación interna NO,
+          // porque `aplicarMoraContrato` filtra por `mora_exonerada: false`.
+          ...(forResync ? {} : { mora_exonerada: true }),
           estado: nuevoEstadoCxc,
         },
       });
 
-      await tx.facturaDirecta.update({
-        where: { id_factura_directa: idFactura },
-        data: {
-          monto_mora: 0,
-          estado_pago: nuevoEstadoPago,
-        },
-      });
-    });
+      return { nuevoTotal, nuevoSaldo };
+    };
+
+    const { nuevoTotal, nuevoSaldo } = opts?.tx
+      ? await run(opts.tx)
+      : await this.prisma.$transaction(run);
 
     await this.prisma.logAction(
-      'ELIMINAR_MORA_FACTURA',
+      forResync ? 'RESYNC_MORA_FACTURA' : 'ELIMINAR_MORA_FACTURA',
       idUsuario,
-      `Mora eliminada de factura #${idFactura}. Mora: $${moraActual}, Saldo: $${saldoActual} → $${Math.max(0, nuevoSaldo)}`,
+      `Mora ${forResync ? 'reiniciada (resync)' : 'eliminada'} de factura #${idFactura}. Mora: $${moraActual}, Total: $${totalAnterior} → $${nuevoTotal}, Saldo: $${saldoActual} → $${nuevoSaldo}`,
     );
 
     return {
       moraEliminada: moraActual,
       saldoAnterior: saldoActual,
-      saldoNuevo: Math.max(0, nuevoSaldo),
+      saldoNuevo: nuevoSaldo,
+      totalAnterior,
+      totalNuevo: nuevoTotal,
     };
   }
 
